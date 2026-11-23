@@ -4,6 +4,7 @@ import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
 import '../core/services/habit_service.dart';
+import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
@@ -29,6 +30,7 @@ class AppBootstrap {
     required this.behaviorCandidates,
     required this.habitRecipeVersions,
     required this.habitService,
+    required this.reviewService,
     required this.routines,
     required this.schedules,
     required this.modules,
@@ -50,6 +52,7 @@ class AppBootstrap {
   final BehaviorCandidateRepository behaviorCandidates;
   final HabitRecipeVersionRepository habitRecipeVersions;
   final HabitService habitService;
+  final ReviewService reviewService;
   final RoutineService routines;
   final ScheduleService schedules;
   final ModuleRegistry modules;
@@ -91,6 +94,17 @@ class AppBootstrap {
     );
     final ScheduleService schedules =
         ScheduleService(actions: actions, blocks: timeBlocks);
+    final ReviewService reviewService = ReviewService(
+      logs: reviewLogs,
+      actions: actions,
+      blocks: timeBlocks,
+      capabilities: capabilities,
+      sessions: learningSessions,
+      learningReviews: learningReviews,
+      habits: foggHabits,
+      habitLogs: habitLogs,
+      schedules: schedules,
+    );
     final ModuleRegistry modules = ModuleRegistry(
       modules: buildModuleDescriptors(),
       settings: db.settings,
@@ -121,6 +135,7 @@ class AppBootstrap {
       behaviorCandidates: behaviorCandidates,
       habitRecipeVersions: habitRecipeVersions,
       habitService: habitService,
+      reviewService: reviewService,
       routines: routines,
       schedules: schedules,
       modules: modules,

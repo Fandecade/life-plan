@@ -343,6 +343,9 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
 class LearningReviewRepository extends JsonEntityRepository<LearningReview> {
   LearningReviewRepository(Box<String> box) : super(box, LearningReview.fromJson);
 
+  Future<void> save(LearningReview review) =>
+      put(review.copyWith(syncStatus: SyncStatus.pendingUpdate));
+
   List<LearningReview> get pending => all
       .where((LearningReview review) => !review.isDone)
       .toList(growable: false);
@@ -491,6 +494,9 @@ class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> 
 }
 class ReviewLogRepository extends JsonEntityRepository<ReviewLog> {
   ReviewLogRepository(Box<String> box) : super(box, ReviewLog.fromJson);
+
+  Future<void> save(ReviewLog log) =>
+      put(log.copyWith(syncStatus: SyncStatus.pendingUpdate));
 
   ReviewLog? forPeriod(ReviewPeriodType type, String periodKey) {
     for (final ReviewLog log in all) {

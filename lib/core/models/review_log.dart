@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import 'sync_entity.dart';
@@ -32,6 +34,10 @@ class ReviewLog extends SyncEntity {
     this.winsText = '',
     this.blockersText = '',
     this.adjustmentsText = '',
+    this.focusText = '',
+    this.ifThenText = '',
+    this.isCompleted = false,
+    this.handledItemsJson = '[]',
     this.snapshotStatsJson = '{}',
     super.deletedAt,
     super.syncStatus,
@@ -43,8 +49,43 @@ class ReviewLog extends SyncEntity {
   final String blockersText;
   final String adjustmentsText;
 
+  /// 下一阶段聚焦（日复盘：明日最关键 1–3 件事）。
+  final String focusText;
+
+  /// If–Then 应对预案。
+  final String ifThenText;
+
+  /// 是否已完成本次复盘。
+  final bool isCompleted;
+
+  /// 已处理的待校准事项 id（JSON 数组），用于划掉后保留状态。
+  final String handledItemsJson;
+
   /// 自动汇总的统计数据快照：完成任务数、时间盒时长、习惯达成率、学习输出数。
   final String snapshotStatsJson;
+
+  List<String> get handledItems {
+    try {
+      final Object? json = jsonDecode(handledItemsJson);
+      if (json is List) {
+        return json.whereType<String>().toList(growable: false);
+      }
+    } catch (_) {
+      // 坏数据按未处理对待。
+    }
+    return const <String>[];
+  }
+
+  Map<String, dynamic> get snapshotStats {
+    try {
+      final Object? json = jsonDecode(snapshotStatsJson);
+      if (json is Map<String, dynamic>) return json;
+      if (json is Map) return json.cast<String, dynamic>();
+    } catch (_) {
+      // 无法解析时返回空快照。
+    }
+    return const <String, dynamic>{};
+  }
 
   factory ReviewLog.create({
     required ReviewPeriodType periodType,
@@ -66,6 +107,10 @@ class ReviewLog extends SyncEntity {
     String? winsText,
     String? blockersText,
     String? adjustmentsText,
+    String? focusText,
+    String? ifThenText,
+    bool? isCompleted,
+    String? handledItemsJson,
     String? snapshotStatsJson,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -81,6 +126,10 @@ class ReviewLog extends SyncEntity {
       winsText: winsText ?? this.winsText,
       blockersText: blockersText ?? this.blockersText,
       adjustmentsText: adjustmentsText ?? this.adjustmentsText,
+      focusText: focusText ?? this.focusText,
+      ifThenText: ifThenText ?? this.ifThenText,
+      isCompleted: isCompleted ?? this.isCompleted,
+      handledItemsJson: handledItemsJson ?? this.handledItemsJson,
       snapshotStatsJson: snapshotStatsJson ?? this.snapshotStatsJson,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       syncStatus: syncStatus ?? this.syncStatus,
@@ -95,6 +144,10 @@ class ReviewLog extends SyncEntity {
         'winsText': winsText,
         'blockersText': blockersText,
         'adjustmentsText': adjustmentsText,
+        'focusText': focusText,
+        'ifThenText': ifThenText,
+        'isCompleted': isCompleted,
+        'handledItemsJson': handledItemsJson,
         'snapshotStatsJson': snapshotStatsJson,
       };
 
@@ -108,6 +161,10 @@ class ReviewLog extends SyncEntity {
       winsText: json['winsText'] as String? ?? '',
       blockersText: json['blockersText'] as String? ?? '',
       adjustmentsText: json['adjustmentsText'] as String? ?? '',
+      focusText: json['focusText'] as String? ?? '',
+      ifThenText: json['ifThenText'] as String? ?? '',
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      handledItemsJson: json['handledItemsJson'] as String? ?? '[]',
       snapshotStatsJson: json['snapshotStatsJson'] as String? ?? '{}',
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),
