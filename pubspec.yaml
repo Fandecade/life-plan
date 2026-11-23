@@ -1,0 +1,35 @@
+name: life_planner
+description: "跨平台个人成长与时间管理系统：人生规划图谱 / 全局时间盒 / 输出式学习 / 福格微习惯 / 及时复盘。"
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+
+  # 状态与依赖注入
+  provider: ^6.1.2
+
+  # 本地持久化：纯 Dart 实现，桌面 / Web / 移动端零原生依赖
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # 实体主键 UUID（同时服务二期服务端同步）
+  uuid: ^4.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
