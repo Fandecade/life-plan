@@ -9,6 +9,7 @@ import '../../core/services/habit_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
 
 /// 任务详情抽屉中的「福格微习惯」扩展槽位。
@@ -71,14 +72,19 @@ class HabitDetailSlot extends StatelessWidget {
     final int streak = service.streak(habit);
     final List<bool> dots = service.dotPattern(habit);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: palette.surfaceMuted.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: palette.hairline),
-      ),
-      child: Column(
+    return GestureDetector(
+      onSecondaryTapUp: (TapUpDetails details) =>
+          _openDeleteMenu(context, habit, details.globalPosition),
+      onLongPressStart: (LongPressStartDetails details) =>
+          _openDeleteMenu(context, habit, details.globalPosition),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: palette.surfaceMuted.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: palette.hairline),
+        ),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
@@ -169,6 +175,13 @@ class HabitDetailSlot extends StatelessWidget {
             runSpacing: AppSpacing.xs,
             children: <Widget>[
               AppGhostButton(
+                label: '行动线推演',
+                icon: Icons.show_chart_rounded,
+                dense: true,
+                onPressed: () =>
+                    showHabitActionLineDialog(context, habit: habit),
+              ),
+              AppGhostButton(
                 label: '调整配方',
                 icon: Icons.tune_rounded,
                 dense: true,
@@ -189,9 +202,62 @@ class HabitDetailSlot extends StatelessWidget {
                   onPressed: () =>
                       habits.save(habit.copyWith(isActive: true)),
                 ),
-            ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDeleteMenu(
+    BuildContext context,
+    FoggHabit habit,
+    Offset globalPosition,
+  ) async {
+    final AppPalette palette = context.palette;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final String? action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 38,
+          child: Text(
+            '删除微习惯',
+            style: context.texts.bodyMedium?.copyWith(color: palette.danger),
           ),
-        ],
+        ),
+      ],
+    );
+    if (action != 'delete') return;
+    await context.read<FoggHabitRepository>().softDelete(habit.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '已删除微习惯，历史打卡仍保留',
+          style: context.texts.bodyMedium?.copyWith(color: palette.background),
+        ),
+        backgroundColor: palette.textPrimary,
+        behavior: SnackBarBehavior.floating,
+        width: 300,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

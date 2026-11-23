@@ -333,6 +333,9 @@ class HabitLog extends SyncEntity {
 /// 行为集群中的一个候选行为，用于焦点地图筛选黄金行为。
 ///
 /// impact（1..5，越高影响力越大）、effort（1..5，越大越难做）。
+///
+/// [mapX] / [mapY] 为用户在地图上拖动后的连续坐标（0..1，0 为左/上），
+/// 存在时优先按连续坐标定位，避免松手后吸附到档位跳位。
 class BehaviorCandidate extends SyncEntity {
   const BehaviorCandidate({
     required super.id,
@@ -342,6 +345,8 @@ class BehaviorCandidate extends SyncEntity {
     this.impact = 3,
     this.effort = 3,
     this.isSelected = false,
+    this.mapX,
+    this.mapY,
     super.deletedAt,
     super.syncStatus,
   });
@@ -350,6 +355,8 @@ class BehaviorCandidate extends SyncEntity {
   final int impact;
   final int effort;
   final bool isSelected;
+  final double? mapX;
+  final double? mapY;
 
   bool get isGolden => impact >= 4 && effort <= 2;
 
@@ -374,6 +381,9 @@ class BehaviorCandidate extends SyncEntity {
     int? impact,
     int? effort,
     bool? isSelected,
+    double? mapX,
+    double? mapY,
+    bool clearMapPosition = false,
     DateTime? updatedAt,
     DateTime? deletedAt,
     bool clearDeletedAt = false,
@@ -387,6 +397,8 @@ class BehaviorCandidate extends SyncEntity {
       impact: (impact ?? this.impact).clamp(1, 5),
       effort: (effort ?? this.effort).clamp(1, 5),
       isSelected: isSelected ?? this.isSelected,
+      mapX: clearMapPosition ? null : (mapX ?? this.mapX),
+      mapY: clearMapPosition ? null : (mapY ?? this.mapY),
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       syncStatus: syncStatus ?? this.syncStatus,
     );
@@ -399,6 +411,8 @@ class BehaviorCandidate extends SyncEntity {
         'impact': impact,
         'effort': effort,
         'isSelected': isSelected,
+        'mapX': mapX,
+        'mapY': mapY,
       };
 
   factory BehaviorCandidate.fromJson(Map<String, dynamic> json) {
@@ -410,6 +424,8 @@ class BehaviorCandidate extends SyncEntity {
       impact: (json['impact'] as num?)?.toInt() ?? 3,
       effort: (json['effort'] as num?)?.toInt() ?? 3,
       isSelected: json['isSelected'] as bool? ?? false,
+      mapX: (json['mapX'] as num?)?.toDouble(),
+      mapY: (json['mapY'] as num?)?.toDouble(),
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),
     );
@@ -429,6 +445,7 @@ class HabitRecipeVersion extends SyncEntity {
     required this.celebration,
     this.frictionsJson = '{}',
     this.note = '',
+    this.completedIn7Days = 0,
     super.deletedAt,
     super.syncStatus,
   });
@@ -441,6 +458,9 @@ class HabitRecipeVersion extends SyncEntity {
   final String frictionsJson;
   final String note;
 
+  /// 保存该版本时近 7 天的完成次数，用于还原历史落点。
+  final int completedIn7Days;
+
   factory HabitRecipeVersion.create({
     required String habitId,
     required int revision,
@@ -449,6 +469,7 @@ class HabitRecipeVersion extends SyncEntity {
     required String celebration,
     String frictionsJson = '{}',
     String note = '',
+    int completedIn7Days = 0,
   }) {
     final now = DateTime.now();
     return HabitRecipeVersion(
@@ -462,6 +483,7 @@ class HabitRecipeVersion extends SyncEntity {
       celebration: celebration,
       frictionsJson: frictionsJson,
       note: note,
+      completedIn7Days: completedIn7Days,
     );
   }
 
@@ -475,6 +497,7 @@ class HabitRecipeVersion extends SyncEntity {
         'celebration': celebration,
         'frictionsJson': frictionsJson,
         'note': note,
+        'completedIn7Days': completedIn7Days,
       };
 
   factory HabitRecipeVersion.fromJson(Map<String, dynamic> json) {
@@ -489,6 +512,7 @@ class HabitRecipeVersion extends SyncEntity {
       celebration: json['celebration'] as String? ?? '',
       frictionsJson: json['frictionsJson'] as String? ?? '{}',
       note: json['note'] as String? ?? '',
+      completedIn7Days: (json['completedIn7Days'] as num?)?.toInt() ?? 0,
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),
     );

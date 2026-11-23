@@ -11,6 +11,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
 
 enum HabitFilter { todayAnchors, all, recipes }
@@ -181,16 +182,26 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
     ];
     for (final HabitRecipeVersion version in sorted) {
       String habitTitle = '已删除的习惯';
+      FoggHabit? linkedHabit;
       for (final FoggHabit habit in habits) {
         if (habit.id == version.habitId) {
           habitTitle = habit.tinyBehavior;
+          linkedHabit = habit;
           break;
         }
       }
+      final FoggHabit? habit = linkedHabit;
       widgets.add(
         AppCard(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(AppSpacing.md),
+          onTap: habit == null
+              ? null
+              : () => showHabitActionLineDialog(
+                    context,
+                    habit: habit,
+                    compareVersion: version,
+                  ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -210,6 +221,15 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
                       style: context.texts.titleSmall,
                     ),
                   ),
+                  if (habit != null) ...<Widget>[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.show_chart_rounded,
+                      size: 12,
+                      color: context.palette.textTertiary,
+                    ),
+                  ],
+                  const SizedBox(width: 6),
                   Text(
                     AppDate.monthDayWithWeekday(version.createdAt),
                     style: context.texts.labelSmall,
@@ -265,11 +285,22 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
 
     return Opacity(
       opacity: dimmed ? 0.55 : 1,
-      child: AppCard(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(AppSpacing.md + 2),
-        onTap: () => showHabitRecipeDialog(context, habit: habit),
-        child: Column(
+      child: GestureDetector(
+        onSecondaryTapUp: (TapUpDetails details) => _openMenu(
+          context,
+          habit,
+          globalPosition: details.globalPosition,
+        ),
+        onLongPressStart: (LongPressStartDetails details) => _openMenu(
+          context,
+          habit,
+          globalPosition: details.globalPosition,
+        ),
+        child: AppCard(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(AppSpacing.md + 2),
+          onTap: () => showHabitRecipeDialog(context, habit: habit),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
@@ -347,7 +378,8 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
                 ),
               ),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -401,19 +433,33 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
 
   Future<void> _openMenu(
     BuildContext anchorContext,
-    FoggHabit habit,
-  ) async {
+    FoggHabit habit, {
+    Offset? globalPosition,
+  }) async {
     final AppPalette palette = anchorContext.palette;
-    final RenderBox box = anchorContext.findRenderObject()! as RenderBox;
     final RenderBox overlay =
         Overlay.of(anchorContext).context.findRenderObject()! as RenderBox;
-    final RelativeRect position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(Offset.zero, ancestor: overlay),
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
+    final RelativeRect position;
+    if (globalPosition != null) {
+      position = RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      );
+    } else {
+      final RenderBox box = anchorContext.findRenderObject()! as RenderBox;
+      position = RelativeRect.fromRect(
+        Rect.fromPoints(
+          box.localToGlobal(Offset.zero, ancestor: overlay),
+          box.localToGlobal(
+            box.size.bottomRight(Offset.zero),
+            ancestor: overlay,
+          ),
+        ),
+        Offset.zero & overlay.size,
+      );
+    }
     final String? action = await showMenu<String>(
       context: context,
       position: position,
@@ -431,13 +477,22 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
         PopupMenuItem<String>(
           value: 'diagnose',
           height: 38,
-          child: Text('福格曲线诊断', style: context.texts.bodyMedium),
+          child: Text('行动线诊断与推演', style: context.texts.bodyMedium),
         ),
         PopupMenuItem<String>(
           value: 'archive',
           height: 38,
           child: Text(
             '停用',
+            style: context.texts.bodyMedium?.copyWith(color: palette.danger),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 38,
+          child: Text(
+            '删除微习惯',
             style: context.texts.bodyMedium?.copyWith(color: palette.danger),
           ),
         ),
@@ -448,99 +503,19 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
       case 'edit':
         await showHabitRecipeDialog(context, habit: habit);
       case 'diagnose':
-        await _showDiagnosis(context, habit);
+        final HabitRecipeVersion? version =
+            await showHabitActionLineDialog(context, habit: habit);
+        if (!mounted || version == null) return;
+        _toast('已按推演生成 v${version.revision} 配方');
       case 'archive':
         await context.read<FoggHabitRepository>().save(
               habit.copyWith(isActive: false),
             );
+      case 'delete':
+        await context.read<FoggHabitRepository>().softDelete(habit.id);
+        if (!mounted) return;
+        _toast('已删除「${habit.tinyBehavior}」，历史打卡仍保留');
     }
-  }
-
-  Future<void> _showDiagnosis(BuildContext context, FoggHabit habit) async {
-    final HabitService service = context.read<HabitService>();
-    final HabitDiagnosisResult result = service.diagnose(habit);
-    final int done = service.completedInLastDays(habit, 7);
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.lg,
-            AppSpacing.xl,
-            0,
-          ),
-          title: Text('福格曲线诊断', style: dialogContext.texts.titleLarge),
-          contentPadding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.md,
-            AppSpacing.xl,
-            0,
-          ),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    StatusDot(
-                      color: result.kind == HabitDiagnosis.ok
-                          ? palette.success
-                          : palette.warning,
-                      size: 6,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(result.title, style: dialogContext.texts.titleSmall),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(result.advice, style: dialogContext.texts.bodyMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '近 7 天完成 $done 次 · 阻力：'
-                  '${habit.frictions.labels.isEmpty ? '无明显阻力' : habit.frictions.labels.join(' / ')}',
-                  style: dialogContext.texts.bodySmall,
-                ),
-                if (habit.abilityFrictionTip.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 6),
-                  Text(
-                    '降阻准备：${habit.abilityFrictionTip}',
-                    style: dialogContext.texts.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            0,
-            AppSpacing.xl,
-            AppSpacing.md,
-          ),
-          actions: <Widget>[
-            AppGhostButton(
-              label: '关闭',
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            AppPrimaryButton(
-              label: '去调整配方',
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                showHabitRecipeDialog(context, habit: habit);
-              },
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _toast(String message) {

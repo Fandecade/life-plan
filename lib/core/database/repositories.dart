@@ -690,6 +690,7 @@ class HabitRecipeVersionRepository
     required String celebration,
     String frictionsJson = '{}',
     String note = '',
+    int completedIn7Days = 0,
   }) async {
     final HabitRecipeVersion version = HabitRecipeVersion.create(
       habitId: habitId,
@@ -699,6 +700,7 @@ class HabitRecipeVersionRepository
       celebration: celebration,
       frictionsJson: frictionsJson,
       note: note,
+      completedIn7Days: completedIn7Days,
     );
     await put(version);
     return version;

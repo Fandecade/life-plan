@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -48,6 +49,7 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
   late String? _actionItemId;
   bool _saving = false;
   bool _advancing = false;
+  bool _mapDragging = false;
 
   bool get _isEditing => widget.habit != null;
 
@@ -222,6 +224,9 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
             maxHeight: MediaQuery.sizeOf(context).height * 0.68,
           ),
           child: SingleChildScrollView(
+            physics: _mapDragging
+                ? const NeverScrollableScrollPhysics()
+                : null,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -315,12 +320,18 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
-                  height: 200,
-                  child: _FocusMap(candidates: candidates),
+                  height: 226,
+                  child: _FocusMap(
+                    candidates: candidates,
+                    onInteracting: (bool active) {
+                      if (_mapDragging == active) return;
+                      setState(() => _mapDragging = active);
+                    },
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  '点击节点确认是否放入焦点地图；左上为「高影响 · 易起步」黄金行为区。',
+                  '点击节点确认是否放入焦点地图；拖动可调整难度与影响力，左上为「高影响 · 易起步」黄金行为区。',
                   style: context.texts.labelSmall,
                 ),
                 if (candidates.isNotEmpty) ...<Widget>[
@@ -483,23 +494,234 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
   }
 }
 
-/// 简化的四象限焦点地图：横轴难度（左易右难），纵轴影响力（上高下低）。
-class _FocusMap extends StatelessWidget {
-  const _FocusMap({required this.candidates});
+/// 焦点地图节点的文字最大宽度，超出后省略。
+const double _focusNodeMaxTextWidth = 168;
+
+/// 四象限焦点地图（左上/右上为高影响区）。
+///
+/// 横轴：左「难做」右「易做」；纵轴：上「高影响」下「低影响」。
+/// 拖动为连续坐标，松手即停在原地，不再吸附跳位。
+class _FocusMap extends StatefulWidget {
+  const _FocusMap({required this.candidates, this.onInteracting});
 
   final List<BehaviorCandidate> candidates;
+
+  /// 指针落在地图上时通知外层暂停滚动，避免竖向拖动被滚动容器抢走。
+  final ValueChanged<bool>? onInteracting;
+
+  @override
+  State<_FocusMap> createState() => _FocusMapState();
+}
+
+class _FocusMapState extends State<_FocusMap> {
+  static const EdgeInsets _plotPadding = EdgeInsets.all(6);
+
+  String? _dragId;
+  Offset _dragDelta = Offset.zero;
+
+  Rect _plotRect(Size size) => Rect.fromLTRB(
+        _plotPadding.left,
+        _plotPadding.top,
+        size.width - _plotPadding.right,
+        size.height - _plotPadding.bottom,
+      );
+
+  /// 按文本实际宽度测量节点尺寸，名字多长卡片就多宽（单字即窄卡）。
+  Size _nodeSize(BuildContext context, BehaviorCandidate candidate) {
+    final TextStyle style =
+        context.texts.labelSmall ?? const TextStyle(fontSize: 10.5);
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: candidate.title, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: _focusNodeMaxTextWidth);
+    return Size(painter.width + 14, painter.height + 4);
+  }
+
+  /// 档位中心坐标：横轴左难右易（effort 5→1），纵轴上高下低（impact 5→1）。
+  Offset _slotCenter(BehaviorCandidate candidate, Size size) {
+    final Rect plot = _plotRect(size);
+    return Offset(
+      plot.left + (4 - (candidate.effort - 1)) * (plot.width / 4),
+      plot.top + (4 - (candidate.impact - 1)) * (plot.height / 4),
+    );
+  }
+
+  /// 未拖动过的同档位节点自动散开；拖动过（有连续坐标）的节点尊重用户摆放。
+  Map<String, Offset> _spread(Size size, Map<String, Size> sizes) {
+    final Rect plot = _plotRect(size);
+    final Map<String, List<BehaviorCandidate>> groups =
+        <String, List<BehaviorCandidate>>{};
+    for (final BehaviorCandidate candidate in widget.candidates) {
+      if (candidate.mapX != null && candidate.mapY != null) continue;
+      groups
+          .putIfAbsent(
+            '${candidate.effort}-${candidate.impact}',
+            () => <BehaviorCandidate>[],
+          )
+          .add(candidate);
+    }
+
+    final Map<String, Offset> result = <String, Offset>{};
+    for (final List<BehaviorCandidate> group in groups.values) {
+      group.sort((BehaviorCandidate a, BehaviorCandidate b) =>
+          a.id.compareTo(b.id));
+      if (group.length == 1) {
+        result[group.first.id] = Offset.zero;
+        continue;
+      }
+      double tallest = 0;
+      for (final BehaviorCandidate candidate in group) {
+        final Size nodeSize = sizes[candidate.id]!;
+        if (nodeSize.height > tallest) tallest = nodeSize.height;
+      }
+      final Offset base = _slotCenter(group.first, size);
+      final double step = tallest + 3;
+      final double span = (group.length - 1) * step;
+      final bool fitsVertical =
+          base.dy - span / 2 - tallest / 2 >= plot.top &&
+              base.dy + span / 2 + tallest / 2 <= plot.bottom;
+      for (int i = 0; i < group.length; i++) {
+        final double k = i - (group.length - 1) / 2;
+        result[group[i].id] =
+            fitsVertical ? Offset(0, k * step) : Offset(k * 62, 0);
+      }
+    }
+    return result;
+  }
+
+  Offset _positionOf(
+    BehaviorCandidate candidate,
+    Size size,
+    Map<String, Size> sizes,
+    Map<String, Offset> spread,
+  ) {
+    final Rect plot = _plotRect(size);
+    final Size nodeSize = sizes[candidate.id]!;
+    final Offset anchor = (candidate.mapX != null && candidate.mapY != null)
+        ? Offset(
+            plot.left + candidate.mapX!.clamp(0, 1) * plot.width,
+            plot.top + candidate.mapY!.clamp(0, 1) * plot.height,
+          )
+        : _slotCenter(candidate, size) +
+            (spread[candidate.id] ?? Offset.zero);
+    final Offset raw =
+        anchor + (_dragId == candidate.id ? _dragDelta : Offset.zero);
+    final double minX = plot.left + nodeSize.width / 2;
+    final double maxX = plot.right - nodeSize.width / 2;
+    final double minY = plot.top + nodeSize.height / 2;
+    final double maxY = plot.bottom - nodeSize.height / 2;
+    return Offset(
+      maxX < minX ? plot.center.dx : raw.dx.clamp(minX, maxX),
+      maxY < minY ? plot.center.dy : raw.dy.clamp(minY, maxY),
+    );
+  }
+
+  Future<void> _toggleSelection(BehaviorCandidate candidate) {
+    return context.read<BehaviorCandidateRepository>().save(
+          candidate.copyWith(isSelected: !candidate.isSelected),
+        );
+  }
+
+  void _finishDrag(
+    BehaviorCandidate candidate,
+    Size size,
+    Map<String, Size> sizes,
+    Map<String, Offset> spread,
+  ) {
+    final Rect plot = _plotRect(size);
+    final Offset target = _positionOf(candidate, size, sizes, spread);
+    final double mapX = ((target.dx - plot.left) / plot.width).clamp(0, 1);
+    final double mapY = ((target.dy - plot.top) / plot.height).clamp(0, 1);
+    final int effort = (5 - (mapX * 4).round()).clamp(1, 5);
+    final int impact = (5 - (mapY * 4).round()).clamp(1, 5);
+
+    setState(() {
+      _dragId = null;
+      _dragDelta = Offset.zero;
+    });
+
+    context.read<BehaviorCandidateRepository>().save(
+          candidate.copyWith(
+            mapX: mapX,
+            mapY: mapY,
+            effort: effort,
+            impact: impact,
+          ),
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Text('影响力 · 高', style: context.texts.labelSmall),
+            const Spacer(),
+            Text(
+              '黄金区',
+              style: context.texts.labelSmall?.copyWith(
+                color: palette.success,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                width: 13,
+                child: Center(
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: Text('难做', style: context.texts.labelSmall),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(child: _canvas(context, palette)),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 13,
+                child: Center(
+                  child: RotatedBox(
+                    quarterTurns: 1,
+                    child: Text('易做', style: context.texts.labelSmall),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text('影响力 · 低', style: context.texts.labelSmall),
+      ],
+    );
+  }
+
+  Widget _canvas(BuildContext context, AppPalette palette) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double width = constraints.maxWidth;
-        final double height = constraints.maxHeight;
+        final Size size = Size(constraints.maxWidth, constraints.maxHeight);
+        final Rect plot = _plotRect(size);
+        final Map<String, Size> sizes = <String, Size>{
+          for (final BehaviorCandidate candidate in widget.candidates)
+            candidate.id: _nodeSize(context, candidate),
+        };
+        final Map<String, Offset> spread = _spread(size, sizes);
+
         return Container(
+          key: const ValueKey<String>('focus-map'),
           decoration: BoxDecoration(
             color: palette.surfaceMuted.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             border: Border.all(color: palette.hairline),
           ),
           child: Stack(
@@ -507,110 +729,152 @@ class _FocusMap extends StatelessWidget {
             children: <Widget>[
               Positioned.fill(
                 child: CustomPaint(
-                  painter: _QuadrantPainter(color: palette.hairline),
+                  painter: _FocusMapPainter(plot: plot, axis: palette.border),
                 ),
               ),
-              Positioned(
-                left: 6,
-                top: 4,
-                child: Text(
-                  '黄金区',
-                  style: context.texts.labelSmall?.copyWith(
-                    color: palette.success,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 6,
-                bottom: 4,
-                child: Text(
-                  '低影响 · 难做',
-                  style: context.texts.labelSmall,
-                ),
-              ),
-              for (final BehaviorCandidate candidate in candidates)
-                Positioned(
-                  left: ((candidate.effort - 1) / 4) * (width - 96) + 2,
-                  top: (1 - (candidate.impact - 1) / 4) * (height - 26) + 2,
-                  child: Opacity(
-                    opacity: candidate.isSelected ? 1 : 0.55,
-                    child: GestureDetector(
-                      onTap: () async {
-                        await context
-                            .read<BehaviorCandidateRepository>()
-                            .save(
-                              candidate.copyWith(
-                                isSelected: !candidate.isSelected,
-                              ),
-                            );
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        constraints: const BoxConstraints(maxWidth: 92),
-                        decoration: BoxDecoration(
-                          color: candidate.isGolden
-                              ? palette.success.withValues(alpha: 0.16)
-                              : palette.surface,
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(
-                            color: candidate.isSelected
-                                ? (candidate.isGolden
-                                    ? palette.success
-                                    : palette.accent)
-                                : palette.border,
-                          ),
-                        ),
-                        child: Text(
-                          candidate.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: context.texts.labelSmall?.copyWith(
-                            color: palette.textPrimary,
-                            fontWeight: candidate.isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              for (final BehaviorCandidate candidate in widget.candidates)
+                _node(context, palette, candidate, size, sizes, spread),
             ],
           ),
         );
       },
     );
   }
+
+  Widget _node(
+    BuildContext context,
+    AppPalette palette,
+    BehaviorCandidate candidate,
+    Size size,
+    Map<String, Size> sizes,
+    Map<String, Offset> spread,
+  ) {
+    final Size nodeSize = sizes[candidate.id]!;
+    final Offset center = _positionOf(candidate, size, sizes, spread);
+    final bool dragging = _dragId == candidate.id;
+    final bool active = candidate.isSelected || dragging;
+
+    return Positioned(
+      left: center.dx - nodeSize.width / 2,
+      top: center.dy - nodeSize.height / 2,
+      child: Listener(
+        onPointerDown: (_) => widget.onInteracting?.call(true),
+        onPointerUp: (_) => widget.onInteracting?.call(false),
+        onPointerCancel: (_) => widget.onInteracting?.call(false),
+        child: GestureDetector(
+          key: ValueKey<String>('focus-node-${candidate.id}'),
+          behavior: HitTestBehavior.opaque,
+          dragStartBehavior: DragStartBehavior.down,
+          onTap: () => _toggleSelection(candidate),
+          onPanStart: (_) => setState(() {
+            _dragId = candidate.id;
+            _dragDelta = Offset.zero;
+          }),
+          onPanUpdate: (DragUpdateDetails details) =>
+              setState(() => _dragDelta += details.delta),
+          onPanEnd: (_) => _finishDrag(candidate, size, sizes, spread),
+          onPanCancel: () => setState(() {
+            _dragId = null;
+            _dragDelta = Offset.zero;
+          }),
+          child: MouseRegion(
+            cursor: dragging
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.grab,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 120),
+              opacity: active ? 1 : 0.55,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                constraints: const BoxConstraints(
+                  maxWidth: _focusNodeMaxTextWidth + 14,
+                ),
+                decoration: BoxDecoration(
+                  color: candidate.isGolden
+                      ? palette.success.withValues(alpha: 0.16)
+                      : palette.surface,
+                  borderRadius: BorderRadius.circular(5),
+                  boxShadow: dragging
+                      ? <BoxShadow>[
+                          BoxShadow(
+                            color: palette.textPrimary.withValues(alpha: 0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                  border: Border.all(
+                    color: active
+                        ? (candidate.isGolden
+                            ? palette.success
+                            : palette.accent)
+                        : palette.border,
+                    width: dragging ? 1.4 : 1,
+                  ),
+                ),
+                child: Text(
+                  candidate.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.labelSmall?.copyWith(
+                    color: palette.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _QuadrantPainter extends CustomPainter {
-  const _QuadrantPainter({required this.color});
+/// 坐标轴：中间十字主轴（横轴难度、纵轴影响力），沿轴标注 5 档刻度。
+class _FocusMapPainter extends CustomPainter {
+  const _FocusMapPainter({required this.plot, required this.axis});
 
-  final Color color;
+  final Rect plot;
+  final Color axis;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
+    final Paint axisPaint = Paint()
+      ..color = axis
+      ..strokeWidth = 1.1;
+
+    // 十字主轴
     canvas.drawLine(
-      Offset(size.width / 2, 0),
-      Offset(size.width / 2, size.height),
-      paint,
+      Offset(plot.center.dx, plot.top),
+      Offset(plot.center.dx, plot.bottom),
+      axisPaint,
     );
     canvas.drawLine(
-      Offset(0, size.height / 2),
-      Offset(size.width, size.height / 2),
-      paint,
+      Offset(plot.left, plot.center.dy),
+      Offset(plot.right, plot.center.dy),
+      axisPaint,
     );
+
+    // 5 档刻度：横向沿横轴、纵向沿纵轴
+    final double xStep = plot.width / 4;
+    final double yStep = plot.height / 4;
+    for (int i = 0; i < 5; i++) {
+      final double x = plot.left + i * xStep;
+      canvas.drawLine(
+        Offset(x, plot.center.dy - 3),
+        Offset(x, plot.center.dy + 3),
+        axisPaint,
+      );
+      final double y = plot.top + i * yStep;
+      canvas.drawLine(
+        Offset(plot.center.dx - 3, y),
+        Offset(plot.center.dx + 3, y),
+        axisPaint,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _QuadrantPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _FocusMapPainter oldDelegate) =>
+      oldDelegate.plot != plot || oldDelegate.axis != axis;
 }

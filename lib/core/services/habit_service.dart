@@ -1,6 +1,7 @@
 import '../database/repositories.dart';
 import '../models/models.dart';
 import '../utils/date_utils.dart';
+import 'action_line.dart';
 
 enum HabitDiagnosis { ok, ability, promptTrigger }
 
@@ -78,6 +79,58 @@ class HabitService {
       celebration: habit.celebration,
       frictionsJson: habit.frictionsJson,
       note: note,
+      completedIn7Days: completedInLastDays(habit, 7),
+    );
+  }
+
+  /// 当前落点：由配方阻力与近 7 天完成率映射。
+  ActionPoint currentActionPoint(FoggHabit habit, {int days = 7}) =>
+      habitActionPoint(habit, completedInLastDays(habit, days));
+
+  /// 按行动线推演结果生成新配方（阻力缩减 + 锚点/庆祝强化）并留存版本。
+  Future<HabitRecipeVersion> applyActionLinePlan(
+    FoggHabit habit,
+    ActionPoint target,
+  ) async {
+    final ActionPoint current = currentActionPoint(habit);
+    final FrictionProfile frictions = frictionsForCount(
+      habit.frictions,
+      frictionTargetCount(target.ability),
+    );
+
+    String celebration = habit.celebration;
+    String motivationNote = habit.motivationNote;
+    if (target.motivation > current.motivation + 0.5) {
+      if (celebration.trim().isEmpty) {
+        celebration = '握拳，默念：我做到了';
+      }
+      if (!motivationNote.contains('行动线')) {
+        motivationNote = motivationNote.isEmpty
+            ? '行动线推演：强化锚点与即时庆祝'
+            : '$motivationNote；行动线推演：强化锚点与即时庆祝';
+      }
+    }
+
+    String abilityTip = habit.abilityFrictionTip;
+    if (target.ability > current.ability + 0.3) {
+      abilityTip = abilityTip.isEmpty
+          ? '行动线推演：先把微行为缩到 15 秒可启动'
+          : abilityTip;
+    }
+
+    final FoggHabit next = habit.copyWith(
+      frictions: frictions,
+      celebration: celebration,
+      abilityFrictionTip: abilityTip,
+      motivationNote: motivationNote,
+    );
+
+    return saveRecipe(
+      next,
+      note: '行动线推演：能力 ${current.ability.toStringAsFixed(1)} → '
+          '${target.ability.toStringAsFixed(1)}，动机 '
+          '${current.motivation.toStringAsFixed(1)} → '
+          '${target.motivation.toStringAsFixed(1)}',
     );
   }
 
