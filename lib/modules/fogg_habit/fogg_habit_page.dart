@@ -14,7 +14,7 @@ import '../../core/widgets/state_views.dart';
 import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
 
-enum HabitFilter { todayAnchors, all, recipes }
+enum HabitFilter { todayAnchors, all, actionLine, recipes }
 
 /// 福格习惯系统首页：今日锚点 / 全部习惯 / 配方调整记录。
 class FoggHabitPage extends StatefulWidget {
@@ -56,6 +56,8 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
               HabitFilter.todayAnchors =>
                 _todayWidgets(context, activeHabits),
               HabitFilter.all => _allWidgets(context, habits),
+              HabitFilter.actionLine =>
+                _actionLineWidgets(context, activeHabits, habits),
               HabitFilter.recipes => _recipeWidgets(context, versions, habits),
             },
           ),
@@ -115,6 +117,14 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
                 ),
                 const SizedBox(width: 6),
                 AppChip(
+                  label: '行动线诊断',
+                  dense: true,
+                  filled: _filter == HabitFilter.actionLine,
+                  color: palette.accent,
+                  onTap: () => setState(() => _filter = HabitFilter.actionLine),
+                ),
+                const SizedBox(width: 6),
+                AppChip(
                   label: '配方调整记录',
                   dense: true,
                   filled: _filter == HabitFilter.recipes,
@@ -159,6 +169,32 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
     ];
   }
 
+  List<Widget> _actionLineWidgets(
+    BuildContext context,
+    List<FoggHabit> activeHabits,
+    List<FoggHabit> habits,
+  ) {
+    if (habits.isEmpty) {
+      return <Widget>[
+        const EmptyState(
+          icon: Icons.show_chart_rounded,
+          title: '还没有可诊断的习惯',
+          description: '先创建一个微习惯，再来看它在行动线上的落点。',
+        ),
+      ];
+    }
+    final List<FoggHabit> pool =
+        activeHabits.isNotEmpty ? activeHabits : habits;
+    return <Widget>[
+      HabitActionLineView(
+        habit: pool.first,
+        scrollable: false,
+        onApplied: (HabitRecipeVersion version) =>
+            _toast('已按推演生成 v${version.revision} 配方'),
+      ),
+    ];
+  }
+
   List<Widget> _recipeWidgets(
     BuildContext context,
     List<HabitRecipeVersion> versions,
@@ -192,17 +228,22 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
       }
       final FoggHabit? habit = linkedHabit;
       widgets.add(
-        AppCard(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          onTap: habit == null
-              ? null
-              : () => showHabitActionLineDialog(
-                    context,
-                    habit: habit,
-                    compareVersion: version,
-                  ),
-          child: Column(
+        GestureDetector(
+          onSecondaryTapUp: (TapUpDetails details) =>
+              _openVersionMenu(context, version, details.globalPosition),
+          onLongPressStart: (LongPressStartDetails details) =>
+              _openVersionMenu(context, version, details.globalPosition),
+          child: AppCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            onTap: habit == null
+                ? null
+                : () => showHabitActionLineDialog(
+                      context,
+                      habit: habit,
+                      compareVersion: version,
+                    ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Row(
@@ -255,6 +296,7 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
                 Text(version.note, style: context.texts.labelSmall),
               ],
             ],
+          ),
           ),
         ),
       );
@@ -516,6 +558,44 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
         if (!mounted) return;
         _toast('已删除「${habit.tinyBehavior}」，历史打卡仍保留');
     }
+  }
+
+  Future<void> _openVersionMenu(
+    BuildContext context,
+    HabitRecipeVersion version,
+    Offset globalPosition,
+  ) async {
+    final AppPalette palette = context.palette;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final String? action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 38,
+          child: Text(
+            '删除该配方记录',
+            style: context.texts.bodyMedium?.copyWith(color: palette.danger),
+          ),
+        ),
+      ],
+    );
+    if (action != 'delete' || !mounted) return;
+    await context.read<HabitRecipeVersionRepository>().softDelete(version.id);
+    if (!mounted) return;
+    _toast('已删除 v${version.revision} 配方记录');
   }
 
   void _toast(String message) {

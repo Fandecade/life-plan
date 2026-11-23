@@ -10,7 +10,7 @@ import '../../core/services/habit_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
 
-/// 行动线诊断与配方推演视图。
+/// 行动线诊断与配方推演视图（多习惯散点 + 单习惯参数调节）。
 ///
 /// 返回应用后的配方版本；用户取消时返回 null。
 Future<HabitRecipeVersion?> showHabitActionLineDialog(
@@ -20,339 +20,483 @@ Future<HabitRecipeVersion?> showHabitActionLineDialog(
 }) {
   return showDialog<HabitRecipeVersion>(
     context: context,
-    builder: (BuildContext dialogContext) =>
-        _ActionLineDialog(habit: habit, compareVersion: compareVersion),
+    barrierColor: Colors.black.withValues(alpha: 0.18),
+    builder: (BuildContext dialogContext) {
+      final AppPalette palette = dialogContext.palette;
+      return Dialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: palette.border),
+        ),
+        insetPadding: const EdgeInsets.all(AppSpacing.lg),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 860,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.88,
+          ),
+          child: HabitActionLineView(
+            habit: habit,
+            compareVersion: compareVersion,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            onClose: () => Navigator.of(dialogContext).pop(),
+            onApplied: (HabitRecipeVersion version) =>
+                Navigator.of(dialogContext).pop(version),
+          ),
+        ),
+      );
+    },
   );
 }
 
-class _ActionLineDialog extends StatefulWidget {
-  const _ActionLineDialog({required this.habit, this.compareVersion});
+/// 行动线诊断视图：弹窗与「行动线诊断」标签页共用。
+class HabitActionLineView extends StatefulWidget {
+  const HabitActionLineView({
+    super.key,
+    required this.habit,
+    this.compareVersion,
+    this.onApplied,
+    this.onClose,
+    this.scrollable = true,
+    this.padding = EdgeInsets.zero,
+  });
 
   final FoggHabit habit;
-
-  /// 从「配方调整记录」打开时，展示该历史版本的落点作对比。
   final HabitRecipeVersion? compareVersion;
+  final ValueChanged<HabitRecipeVersion>? onApplied;
+  final VoidCallback? onClose;
+
+  /// 弹窗内需要内部滚动；嵌入页面时交给外层 ListView。
+  final bool scrollable;
+  final EdgeInsetsGeometry padding;
 
   @override
-  State<_ActionLineDialog> createState() => _ActionLineDialogState();
+  State<HabitActionLineView> createState() => _HabitActionLineViewState();
 }
 
-class _ActionLineDialogState extends State<_ActionLineDialog> {
+class _HabitActionLineViewState extends State<HabitActionLineView> {
+  late final HabitService _service;
+  late String _selectedId;
   ActionLineModel _line = const ActionLineModel();
-  late ActionPoint _current;
-  late ActionPoint _preview;
+  double _ability = 5;
+  double _motivation = 5;
   bool _applying = false;
+  bool _chartDragging = false;
+
+  String _cacheSignature = '';
+  Map<String, ActionPoint> _currentPoints = <String, ActionPoint>{};
 
   @override
   void initState() {
     super.initState();
-    final HabitService service = context.read<HabitService>();
-    _current = service.currentActionPoint(widget.habit);
-    _preview = _current;
+    _service = context.read<HabitService>();
+    _selectedId = widget.habit.id;
+    final ActionPoint point = _service.currentActionPoint(widget.habit);
+    _ability = point.ability;
+    _motivation = point.motivation;
   }
 
-  bool get _above => _line.isAbove(_preview);
+  List<FoggHabit> _visibleHabits() {
+    final List<FoggHabit> all = context.watch<FoggHabitRepository>().all;
+    return all
+        .where((FoggHabit habit) =>
+            habit.isActive || habit.id == widget.habit.id || habit.id == _selectedId)
+        .toList(growable: false);
+  }
 
-  void _nudgeRight() {
+  void _ensurePoints(List<FoggHabit> habits) {
+    final String signature =
+        habits.map((FoggHabit habit) => habit.id).join('|');
+    if (signature == _cacheSignature) return;
+    _cacheSignature = signature;
+    _currentPoints = <String, ActionPoint>{
+      for (final FoggHabit habit in habits)
+        habit.id: _service.currentActionPoint(habit),
+    };
+  }
+
+  FoggHabit _selected(List<FoggHabit> habits) {
+    for (final FoggHabit habit in habits) {
+      if (habit.id == _selectedId) return habit;
+    }
+    return habits.isEmpty ? widget.habit : habits.first;
+  }
+
+  ActionPoint _currentOf(FoggHabit habit) =>
+      _currentPoints[habit.id] ?? _service.currentActionPoint(habit);
+
+  ActionPoint get _preview => ActionPoint(_ability, _motivation);
+
+  void _select(FoggHabit habit) {
+    final ActionPoint point = _currentOf(habit);
     setState(() {
-      _preview = _preview
-          .copyWith(ability: (_preview.ability + 2.5).clamp(0, 10));
+      _selectedId = habit.id;
+      _ability = point.ability;
+      _motivation = point.motivation;
     });
   }
 
-  void _nudgeUp() {
-    setState(() {
-      _preview = _preview
-          .copyWith(motivation: (_preview.motivation + 2).clamp(0, 10));
-    });
-  }
-
-  Future<void> _apply() async {
+  Future<void> _apply(FoggHabit habit) async {
     if (_applying) return;
     setState(() => _applying = true);
-    final HabitService service = context.read<HabitService>();
     final HabitRecipeVersion version =
-        await service.applyActionLinePlan(widget.habit, _preview);
+        await _service.applyActionLinePlan(habit, _preview);
     if (!mounted) return;
-    Navigator.of(context).pop(version);
+    widget.onApplied?.call(version);
   }
 
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final HabitService service = context.read<HabitService>();
-    final int done = service.completedInLastDays(widget.habit, 7);
+    final List<FoggHabit> habits = _visibleHabits();
+    _ensurePoints(habits);
+    final FoggHabit selected = _selected(habits);
+    final bool above = _line.isAbove(_preview);
+    final int done = _service.completedInLastDays(selected, 7);
     final int versionCount =
-        context.read<HabitRecipeVersionRepository>().forHabit(widget.habit.id).length;
+        context.read<HabitRecipeVersionRepository>().forHabit(selected.id).length;
     final int versionLabel = versionCount < 1 ? 1 : versionCount;
-    final HabitRecipeVersion? compare = widget.compareVersion;
-    final ActionPoint? historical = compare == null
-        ? null
-        : habitActionPoint(
-            widget.habit.copyWith(
-              anchorPrompt: compare.anchorPrompt,
-              tinyBehavior: compare.tinyBehavior,
-              celebration: compare.celebration,
-              frictions: FrictionProfile.decode(compare.frictionsJson),
-            ),
-            compare.completedIn7Days,
-          );
-    final String advice = actionLineAdvice(
-      habit: widget.habit,
-      point: _preview,
-      line: _line,
-      completedInLast7Days: done,
-    );
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  widget.habit.tinyBehavior,
-                  style: context.texts.titleLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              AppChip(
-                label: 'v$versionLabel',
-                dense: true,
-                color: palette.textTertiary,
+    final HabitRecipeVersion? compare = widget.compareVersion;
+    ActionPoint? historical;
+    int? historyRevision;
+    if (compare != null && compare.habitId == selected.id) {
+      historical = habitActionPoint(
+        selected.copyWith(
+          anchorPrompt: compare.anchorPrompt,
+          tinyBehavior: compare.tinyBehavior,
+          celebration: compare.celebration,
+          frictions: FrictionProfile.decode(compare.frictionsJson),
+        ),
+        compare.completedIn7Days,
+      );
+      historyRevision = compare.revision;
+    }
+
+    final List<_ChartPoint> points = <_ChartPoint>[
+      for (final FoggHabit habit in habits)
+        _ChartPoint(
+          habit: habit,
+          ability: habit.id == selected.id ? _ability : _currentOf(habit).ability,
+          motivation: habit.id == selected.id
+              ? _motivation
+              : _currentOf(habit).motivation,
+          selected: habit.id == selected.id,
+        ),
+    ];
+
+    final Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text('行动线诊断与推演', style: context.texts.titleLarge),
+            ),
+            Text(
+              'B = M × A × P',
+              style: context.texts.labelSmall?.copyWith(color: palette.accent),
+            ),
+            if (widget.onClose != null) ...<Widget>[
+              const SizedBox(width: 4),
+              AppIconButton(
+                icon: Icons.close_rounded,
+                iconSize: 16,
+                size: 26,
+                tooltip: '关闭',
+                onPressed: widget.onClose,
               ),
             ],
-          ),
-          const SizedBox(height: 6),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '行为发生公式：B = M（动机）× A（能力）× P（提示）。'
+          '滑动调节习惯参数或行动线门槛。',
+          style: context.texts.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _chartPanel(
+          context,
+          palette,
+          points,
+          historical,
+          historyRevision,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _diagnosisPanel(
+          context,
+          palette,
+          habits,
+          selected,
+          above,
+          done,
+          versionLabel,
+          historical,
+          historyRevision,
+        ),
+      ],
+    );
+
+    return Padding(
+      padding: widget.padding,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (widget.scrollable)
+            Flexible(
+              child: SingleChildScrollView(
+                physics: _chartDragging
+                    ? const NeverScrollableScrollPhysics()
+                    : null,
+                child: content,
+              ),
+            )
+          else
+            content,
+          const SizedBox(height: AppSpacing.sm),
           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
-              AppChip(
-                label: '当前落点：${_line.isAbove(_current) ? '行动线之上' : '行动线之下'}',
-                dense: true,
-                color: _line.isAbove(_current)
-                    ? palette.success
-                    : palette.warning,
-              ),
-              const SizedBox(width: 6),
-              AppChip(
-                label: '推演：${_above ? '会触发' : '仍会卡住'}',
-                dense: true,
-                filled: true,
-                color: _above ? palette.success : palette.warning,
-              ),
-              if (historical != null) ...<Widget>[
-                const SizedBox(width: 6),
-                AppChip(
-                  label: '历史 v${compare!.revision}：'
-                      '${_line.isAbove(historical) ? '线上' : '线下'}',
-                  dense: true,
-                  color: palette.textTertiary,
+              if (widget.onClose != null) ...<Widget>[
+                AppGhostButton(
+                  label: '取消',
+                  onPressed: widget.onClose,
                 ),
+                const SizedBox(width: 8),
               ],
-              const SizedBox(width: 6),
-              Text('近 7 天 $done 次', style: context.texts.labelSmall),
+              AppPrimaryButton(
+                label: _applying ? '生成中…' : '应用并生成新配方',
+                onPressed: _applying ? null : () => _apply(selected),
+              ),
             ],
           ),
         ],
       ),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 620,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _canvas(context, palette, historical),
-            const SizedBox(height: 6),
-            Text(
-              historical == null
-                  ? '实心 = 当前落点 · 空心 = 推演落点'
-                  : '实心 = 当前 · 空心 = 推演 · 灰色 = 历史 v${compare!.revision}',
-              style: context.texts.labelSmall,
-            ),
-            const SizedBox(height: 4),
-            Text(advice, style: context.texts.bodySmall),
-            const SizedBox(height: AppSpacing.sm),
-            _slider(
-              context,
-              palette,
-              label: '行动线门槛',
-              value: _line.threshold,
-              min: 1,
-              max: 8,
-              steps: 14,
-              onChanged: (double value) => setState(() {
-                _line = ActionLineModel(
-                  threshold: value,
-                  curvature: _line.curvature,
-                );
-              }),
-            ),
-            _slider(
-              context,
-              palette,
-              label: '曲线弧度',
-              value: _line.curvature,
-              min: 0.6,
-              max: 3,
-              steps: 12,
-              onChanged: (double value) => setState(() {
-                _line = ActionLineModel(
-                  threshold: _line.threshold,
-                  curvature: value,
-                );
-              }),
-            ),
-            const SizedBox(height: 2),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: <Widget>[
-                AppGhostButton(
-                  label: '缩小微行为（右移）',
-                  icon: Icons.east_rounded,
-                  dense: true,
-                  onPressed: _nudgeRight,
-                ),
-                AppGhostButton(
-                  label: '强化锚点 / 庆祝（上移）',
-                  icon: Icons.north_rounded,
-                  dense: true,
-                  onPressed: _nudgeUp,
-                ),
-                AppGhostButton(
-                  label: '复位推演',
-                  icon: Icons.restart_alt_rounded,
-                  dense: true,
-                  onPressed: () => setState(() => _preview = _current),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
-      actions: <Widget>[
-        AppGhostButton(
-          label: '取消',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        AppPrimaryButton(
-          label: _applying ? '生成中…' : '应用并生成新配方',
-          onPressed: _applying ? null : _apply,
-        ),
-      ],
     );
   }
 
-  Widget _canvas(
+  Widget _chartPanel(
     BuildContext context,
     AppPalette palette,
+    List<_ChartPoint> points,
     ActionPoint? historical,
+    int? historyRevision,
   ) {
-    return SizedBox(
-      height: 236,
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      decoration: BoxDecoration(
+        color: palette.surfaceMuted.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.hairline),
+      ),
+      child: Column(
         children: <Widget>[
           SizedBox(
-            width: 14,
-            child: Center(
-              child: RotatedBox(
-                quarterTurns: 3,
-                child: Text('动机 低 → 高', style: context.texts.labelSmall),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
+            height: 240,
+            child: Row(
               children: <Widget>[
+                SizedBox(
+                  width: 16,
+                  child: Center(
+                    child: RotatedBox(
+                      quarterTurns: 3,
+                      child: Text(
+                        '动机（低 → 高）',
+                        style: context.texts.labelSmall,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
+                    builder:
+                        (BuildContext context, BoxConstraints constraints) {
                       final Size size =
                           Size(constraints.maxWidth, constraints.maxHeight);
                       final Rect plot = Rect.fromLTRB(
-                        8,
-                        8,
-                        size.width - 8,
-                        size.height - 8,
+                        10,
+                        10,
+                        size.width - 10,
+                        size.height - 10,
                       );
-                      return Container(
-                        key: const ValueKey<String>('action-line-canvas'),
-                        decoration: BoxDecoration(
-                          color: palette.surfaceMuted.withValues(alpha: 0.35),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(color: palette.hairline),
-                        ),
-                        child: LayoutBuilder(
-                          builder: (BuildContext _, BoxConstraints _) {
-                            return Listener(
-                              onPointerDown: (PointerDownEvent event) =>
-                                  _setPreview(event.localPosition, plot),
-                              onPointerMove: (PointerMoveEvent event) =>
-                                  _setPreview(event.localPosition, plot),
-                              child: Stack(
-                                children: <Widget>[
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      painter: _ActionLinePainter(
-                                        plot: plot,
-                                        line: _line,
-                                        current: _current,
-                                        preview: _preview,
-                                        accent: palette.accent,
-                                        axis: palette.border,
-                                        surface: palette.surface,
-                                        historical: historical,
-                                        muted: palette.textTertiary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                      return Listener(
+                        behavior: HitTestBehavior.opaque,
+                        onPointerDown: (PointerDownEvent event) =>
+                            _handlePointerDown(event.localPosition, plot, points),
+                        onPointerMove: (PointerMoveEvent event) {
+                          if (!_chartDragging) return;
+                          _setPreview(event.localPosition, plot);
+                        },
+                        onPointerUp: (_) {
+                          if (_chartDragging) {
+                            setState(() => _chartDragging = false);
+                          }
+                        },
+                        onPointerCancel: (_) {
+                          if (_chartDragging) {
+                            setState(() => _chartDragging = false);
+                          }
+                        },
+                        child: CustomPaint(
+                          key: const ValueKey<String>('action-line-canvas'),
+                          painter: _ActionLineChartPainter(
+                            plot: plot,
+                            line: _line,
+                            points: points,
+                            historical: historical,
+                            historicalLabel: historyRevision == null
+                                ? null
+                                : 'v$historyRevision',
+                            accent: palette.accent,
+                            success: palette.success,
+                            danger: palette.danger,
+                            axis: palette.border,
+                            surface: palette.surface,
+                            muted: palette.textTertiary,
+                            labelStyle:
+                                context.texts.labelSmall ?? const TextStyle(),
+                            regionStyle: context.texts.labelSmall
+                                    ?.copyWith(fontSize: 9) ??
+                                const TextStyle(fontSize: 9),
+                          ),
+                          child: const SizedBox.expand(),
                         ),
                       );
                     },
                   ),
                 ),
-                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text('能力（极难 → 极易）', style: context.texts.labelSmall),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _diagnosisPanel(
+    BuildContext context,
+    AppPalette palette,
+    List<FoggHabit> habits,
+    FoggHabit selected,
+    bool above,
+    int done,
+    int versionLabel,
+    ActionPoint? historical,
+    int? historyRevision,
+  ) {
+    final Color tone = above ? palette.success : palette.danger;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: palette.surfaceMuted.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text('选择诊断习惯', style: context.texts.titleSmall),
+              const SizedBox(width: 8),
+              Text(
+                '点击节点或下方标签进行配方调整',
+                style: context.texts.labelSmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              for (final FoggHabit habit in habits)
+                AppChip(
+                  label: habit.tinyBehavior,
+                  dense: true,
+                  filled: habit.id == selected.id,
+                  color: habit.id == selected.id
+                      ? palette.accent
+                      : palette.textSecondary,
+                  onTap: () => _select(habit),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: palette.hairline),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
                 Row(
                   children: <Widget>[
-                    Text('难做', style: context.texts.labelSmall),
-                    const Spacer(),
-                    Text('能力', style: context.texts.labelSmall),
-                    const Spacer(),
-                    Text('易做', style: context.texts.labelSmall),
+                    Expanded(
+                      child: Text(
+                        selected.tinyBehavior,
+                        style: context.texts.titleSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    AppChip(
+                      label: 'v$versionLabel',
+                      dense: true,
+                      color: palette.textTertiary,
+                    ),
+                    const SizedBox(width: 6),
+                    AppChip(
+                      label: above ? '行动线之上（易触发）' : '行动线下方（困难卡阻）',
+                      dense: true,
+                      filled: true,
+                      color: tone,
+                    ),
                   ],
                 ),
+                if (historical != null && historyRevision != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: <Widget>[
+                      AppChip(
+                        label: '历史 v$historyRevision：'
+                            '${_line.isAbove(historical) ? '线上' : '线下'}',
+                        dense: true,
+                        color: palette.textTertiary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '灰色 = 历史 v$historyRevision',
+                        style: context.texts.labelSmall,
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  _formula(selected),
+                  style: context.texts.bodyMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _diagnosis(selected, done),
+                  style: context.texts.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _sliders(context, palette),
               ],
             ),
           ),
@@ -361,12 +505,80 @@ class _ActionLineDialogState extends State<_ActionLineDialog> {
     );
   }
 
-  void _setPreview(Offset local, Rect plot) {
-    final ActionPoint point = ActionPoint(
-      ((local.dx - plot.left) / plot.width * 10).clamp(0, 10),
-      ((plot.bottom - local.dy) / plot.height * 10).clamp(0, 10),
+  Widget _sliders(BuildContext context, AppPalette palette) {
+    return Column(
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _slider(
+                context,
+                palette,
+                label: '能力值（降低微行为难度）',
+                value: _ability,
+                min: 0,
+                max: 10,
+                steps: 20,
+                onChanged: (double value) => setState(() => _ability = value),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _slider(
+                context,
+                palette,
+                label: '动机值（强化渴望 / 锚点）',
+                value: _motivation,
+                min: 0,
+                max: 10,
+                steps: 20,
+                onChanged: (double value) =>
+                    setState(() => _motivation = value),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _slider(
+                context,
+                palette,
+                label: '行动线门槛（环境阻力）',
+                value: _line.threshold,
+                min: 1,
+                max: 8,
+                steps: 14,
+                onChanged: (double value) => setState(() {
+                  _line = ActionLineModel(
+                    threshold: value,
+                    curvature: _line.curvature,
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _slider(
+                context,
+                palette,
+                label: '行动线弯曲度（动机敏锐度）',
+                value: _line.curvature,
+                min: 0.6,
+                max: 3,
+                steps: 12,
+                onChanged: (double value) => setState(() {
+                  _line = ActionLineModel(
+                    threshold: _line.threshold,
+                    curvature: value,
+                  );
+                }),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
-    setState(() => _preview = point);
   }
 
   Widget _slider(
@@ -379,13 +591,31 @@ class _ActionLineDialogState extends State<_ActionLineDialog> {
     required int steps,
     required ValueChanged<double> onChanged,
   }) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        SizedBox(
-          width: 76,
-          child: Text(label, style: context.texts.labelSmall),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                label,
+                style: context.texts.labelSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              value.toStringAsFixed(1),
+              style: context.texts.labelSmall?.copyWith(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        Expanded(
+        SizedBox(
+          height: 26,
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 2,
@@ -393,13 +623,11 @@ class _ActionLineDialogState extends State<_ActionLineDialog> {
               inactiveTrackColor: palette.surfaceMuted,
               thumbColor: palette.accent,
               overlayColor: palette.accent.withValues(alpha: 0.08),
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 5),
-              overlayShape:
-                  const RoundSliderOverlayShape(overlayRadius: 12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 11),
             ),
             child: Slider(
-              value: value,
+              value: value.clamp(min, max),
               min: min,
               max: max,
               divisions: steps,
@@ -408,56 +636,156 @@ class _ActionLineDialogState extends State<_ActionLineDialog> {
             ),
           ),
         ),
-        SizedBox(
-          width: 34,
-          child: Text(
-            value.toStringAsFixed(1),
-            style: context.texts.labelSmall?.copyWith(
-              color: palette.textSecondary,
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
       ],
     );
   }
+
+  void _handlePointerDown(
+    Offset local,
+    Rect plot,
+    List<_ChartPoint> points,
+  ) {
+    for (final _ChartPoint point in points) {
+      final Offset offset = _offsetOf(plot, point.ability, point.motivation);
+      if ((offset - local).distance >= 20) continue;
+
+      final ActionPoint current = _currentOf(point.habit);
+      setState(() {
+        _selectedId = point.habit.id;
+        if (!point.selected) {
+          _ability = current.ability;
+          _motivation = current.motivation;
+        }
+        _chartDragging = true;
+      });
+      return;
+    }
+    if (_chartDragging) setState(() => _chartDragging = false);
+  }
+
+  void _setPreview(Offset local, Rect plot) {
+    setState(() {
+      _ability = ((local.dx - plot.left) / plot.width * 10).clamp(0, 10);
+      _motivation = ((plot.bottom - local.dy) / plot.height * 10).clamp(0, 10);
+    });
+  }
+
+  String _formula(FoggHabit habit) {
+    final String anchor =
+        habit.anchorPrompt.isEmpty ? '日常锚点' : habit.anchorPrompt;
+    final String celebration =
+        habit.celebration.isEmpty ? '给自己一个即时庆祝' : habit.celebration;
+    return '在「$anchor」之后，我将「${habit.tinyBehavior}」。'
+        '随后，我「$celebration」！';
+  }
+
+  String _diagnosis(FoggHabit habit, int done) {
+    final ActionPoint point = _preview;
+    if (_line.isAbove(point)) {
+      return done >= 4
+          ? '近 7 天完成 $done/7 次，落点在行动线上方，节奏稳定，可保持当前配方。'
+          : '近 7 天完成 $done/7 次，落点已在线上方，先保持小动作让习惯固化。';
+    }
+    final double gap =
+        _line.requiredMotivation(point.ability) - point.motivation;
+    if (habit.frictions.count >= 2) {
+      return '近 7 天仅完成 $done/7 次。卡阻诊断：能力阻力'
+          '（${habit.frictions.labels.join(' / ')}）。'
+          '福格配方建议：优先拆解微行为「${habit.tinyBehavior}」，'
+          '把它降到 15 秒可启动的程度。';
+    }
+    return '近 7 天仅完成 $done/7 次。卡阻诊断：动机欠缺 '
+        '${gap.toStringAsFixed(1)} 分。'
+        '福格配方建议：不要强行提升动机，先缩小微行为或换更稳的锚点。';
+  }
 }
 
-class _ActionLinePainter extends CustomPainter {
-  const _ActionLinePainter({
+class _ChartPoint {
+  const _ChartPoint({
+    required this.habit,
+    required this.ability,
+    required this.motivation,
+    required this.selected,
+  });
+
+  final FoggHabit habit;
+  final double ability;
+  final double motivation;
+  final bool selected;
+}
+
+Offset _offsetOf(Rect plot, double ability, double motivation) => Offset(
+      plot.left + ability / 10 * plot.width,
+      plot.bottom - motivation / 10 * plot.height,
+    );
+
+class _ActionLineChartPainter extends CustomPainter {
+  const _ActionLineChartPainter({
     required this.plot,
     required this.line,
-    required this.current,
-    required this.preview,
+    required this.points,
+    required this.historical,
+    required this.historicalLabel,
     required this.accent,
+    required this.success,
+    required this.danger,
     required this.axis,
     required this.surface,
-    required this.historical,
     required this.muted,
+    required this.labelStyle,
+    required this.regionStyle,
   });
 
   final Rect plot;
   final ActionLineModel line;
-  final ActionPoint current;
-  final ActionPoint preview;
+  final List<_ChartPoint> points;
+  final ActionPoint? historical;
+  final String? historicalLabel;
   final Color accent;
+  final Color success;
+  final Color danger;
   final Color axis;
   final Color surface;
-  final ActionPoint? historical;
   final Color muted;
+  final TextStyle labelStyle;
+  final TextStyle regionStyle;
 
-  Offset _offset(ActionPoint point) => Offset(
-        plot.left + point.ability / 10 * plot.width,
-        plot.bottom - point.motivation / 10 * plot.height,
-      );
+  Offset _offset(ActionPoint point) =>
+      _offsetOf(plot, point.ability, point.motivation);
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 分区：线下（卡阻）→ 浅粉，线上（易触发）→ 浅绿
+    canvas.drawRect(
+      plot,
+      Paint()..color = danger.withValues(alpha: 0.045),
+    );
+
+    final Path curve = Path();
+    for (int i = 0; i <= 48; i++) {
+      final double ability = i / 48 * 10;
+      final Offset point = _offset(
+        ActionPoint(ability, line.requiredMotivation(ability)),
+      );
+      if (i == 0) {
+        curve.moveTo(point.dx, point.dy);
+      } else {
+        curve.lineTo(point.dx, point.dy);
+      }
+    }
+    final Path aboveArea = Path.from(curve)
+      ..lineTo(plot.right, plot.top)
+      ..lineTo(plot.left, plot.top)
+      ..close();
+    canvas.drawPath(
+      aboveArea,
+      Paint()..color = success.withValues(alpha: 0.06),
+    );
+
+    // 轴与刻度
     final Paint axisPaint = Paint()
       ..color = axis
       ..strokeWidth = 1.1;
-
-    // L 型轴
     canvas.drawLine(
       Offset(plot.left, plot.top),
       Offset(plot.left, plot.bottom),
@@ -468,8 +796,6 @@ class _ActionLinePainter extends CustomPainter {
       Offset(plot.right, plot.bottom),
       axisPaint,
     );
-
-    // 每 2 分一个刻度
     for (int value = 0; value <= 10; value += 2) {
       final double x = plot.left + value / 10 * plot.width;
       canvas.drawLine(
@@ -485,126 +811,122 @@ class _ActionLinePainter extends CustomPainter {
       );
     }
 
-    // 行动线与「会触发」区域
-    final Path curve = Path();
-    for (int i = 0; i <= 48; i++) {
-      final double ability = i / 48 * 10;
-      final Offset point = _offset(
-        ActionPoint(ability, line.requiredMotivation(ability)),
-      );
-      if (i == 0) {
-        curve.moveTo(point.dx, point.dy);
-      } else {
-        curve.lineTo(point.dx, point.dy);
-      }
-    }
-    final Path fill = Path.from(curve)
-      ..lineTo(plot.right, plot.top)
-      ..lineTo(plot.left, plot.top)
-      ..close();
-    canvas.drawPath(fill, Paint()..color = accent.withValues(alpha: 0.07));
+    // 行动线
     canvas.drawPath(
       curve,
       Paint()
-        ..color = accent.withValues(alpha: 0.65)
-        ..strokeWidth = 1.6
+        ..color = accent.withValues(alpha: 0.8)
+        ..strokeWidth = 1.8
         ..style = PaintingStyle.stroke,
     );
 
-    // 当前点：实心
-    final Offset currentOffset = _offset(current);
-    canvas.drawCircle(
-      currentOffset,
-      5,
-      Paint()..color = accent,
-    );
-    canvas.drawCircle(
-      currentOffset,
-      5,
-      Paint()
-        ..color = surface
-        ..strokeWidth = 1.6
-        ..style = PaintingStyle.stroke,
+    _text(canvas, '易触发区', Offset(plot.left + 8, plot.top + 6),
+        regionStyle.copyWith(color: success.withValues(alpha: 0.85)));
+    _text(
+      canvas,
+      '卡阻区',
+      Offset(plot.right - 40, plot.bottom - 18),
+      regionStyle.copyWith(color: danger.withValues(alpha: 0.8)),
     );
 
-    // 推演点：空心，并用虚线连到当前点
-    final Offset previewOffset = _offset(preview);
-    final double distance = (previewOffset - currentOffset).distance;
-    if (distance > 8) {
-      _dashedLine(
-        canvas,
-        currentOffset,
-        previewOffset,
-        Paint()
-          ..color = accent.withValues(alpha: 0.4)
-          ..strokeWidth = 1,
-      );
-    }
-    canvas.drawCircle(
-      previewOffset,
-      6,
-      Paint()..color = accent.withValues(alpha: 0.12),
-    );
-    canvas.drawCircle(
-      previewOffset,
-      6,
-      Paint()
-        ..color = accent
-        ..strokeWidth = 1.6
-        ..style = PaintingStyle.stroke,
-    );
-
-    // 历史版本落点：灰色，供 v1 → v2 对比
+    // 历史点
     final ActionPoint? historic = historical;
     if (historic != null) {
-      final Offset historicOffset = _offset(historic);
-      _dashedLine(
-        canvas,
-        currentOffset,
-        historicOffset,
-        Paint()
-          ..color = muted.withValues(alpha: 0.5)
-          ..strokeWidth = 1,
-      );
+      final Offset point = _offset(historic);
+      canvas.drawCircle(point, 5, Paint()..color = muted.withValues(alpha: 0.14));
       canvas.drawCircle(
-        historicOffset,
-        5,
-        Paint()..color = muted.withValues(alpha: 0.14),
-      );
-      canvas.drawCircle(
-        historicOffset,
+        point,
         5,
         Paint()
-          ..color = muted.withValues(alpha: 0.8)
+          ..color = muted.withValues(alpha: 0.85)
           ..strokeWidth = 1.4
           ..style = PaintingStyle.stroke,
       );
+      if (historicalLabel != null) {
+        _pointLabel(
+          canvas,
+          historicalLabel!,
+          point,
+          muted.withValues(alpha: 0.9),
+          false,
+        );
+      }
+    }
+
+    // 习惯点与标签
+    for (final _ChartPoint point in points) {
+      final Offset offset = _offsetOf(plot, point.ability, point.motivation);
+      final bool above = line.isAbove(
+        ActionPoint(point.ability, point.motivation),
+      );
+      final Color tone = point.selected
+          ? (above ? success : danger)
+          : accent.withValues(alpha: 0.5);
+      canvas.drawCircle(offset, point.selected ? 6 : 4.5, Paint()..color = tone);
+      if (point.selected) {
+        canvas.drawCircle(
+          offset,
+          6,
+          Paint()
+            ..color = surface
+            ..strokeWidth = 1.6
+            ..style = PaintingStyle.stroke,
+        );
+      }
+      _pointLabel(
+        canvas,
+        point.habit.tinyBehavior,
+        offset,
+        point.selected ? tone : muted,
+        point.selected,
+      );
     }
   }
 
-  void _dashedLine(Canvas canvas, Offset from, Offset to, Paint paint) {
-    const double dash = 3;
-    const double gap = 3;
-    final double total = (to - from).distance;
-    if (total == 0) return;
-    final Offset unit = (to - from) / total;
-    double travelled = 0;
-    while (travelled < total) {
-      final double end = (travelled + dash).clamp(0, total);
-      canvas.drawLine(from + unit * travelled, from + unit * end, paint);
-      travelled += dash + gap;
+  void _pointLabel(
+    Canvas canvas,
+    String text,
+    Offset offset,
+    Color color,
+    bool bold,
+  ) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: labelStyle.copyWith(
+          color: color,
+          fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+        ),
+      ),
+      maxLines: 1,
+      ellipsis: '…',
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 96);
+
+    double left =
+        offset.dx - painter.width / 2;
+    left = left.clamp(plot.left + 2, plot.right - painter.width - 2);
+    double top = offset.dy - painter.height - 10;
+    if (top < plot.top + 2) {
+      top = offset.dy + 10;
     }
+    painter.paint(canvas, Offset(left, top));
+  }
+
+  void _text(Canvas canvas, String text, Offset offset, TextStyle style) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, offset);
   }
 
   @override
-  bool shouldRepaint(covariant _ActionLinePainter oldDelegate) =>
+  bool shouldRepaint(covariant _ActionLineChartPainter oldDelegate) =>
       oldDelegate.plot != plot ||
       oldDelegate.line.threshold != line.threshold ||
       oldDelegate.line.curvature != line.curvature ||
-      oldDelegate.current.ability != current.ability ||
-      oldDelegate.current.motivation != current.motivation ||
-      oldDelegate.preview.ability != preview.ability ||
-      oldDelegate.preview.motivation != preview.motivation ||
+      oldDelegate.points != points ||
       oldDelegate.historical?.ability != historical?.ability ||
       oldDelegate.historical?.motivation != historical?.motivation ||
       oldDelegate.accent != accent;

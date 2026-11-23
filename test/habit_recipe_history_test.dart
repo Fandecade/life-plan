@@ -67,12 +67,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('行动线门槛'), findsOneWidget);
+    expect(find.text('行动线门槛（环境阻力）'), findsOneWidget);
     expect(find.textContaining('历史 v2：'), findsOneWidget);
     expect(find.textContaining('灰色 = 历史 v2'), findsOneWidget);
 
     await tester.tap(find.text('取消'));
     await settle(tester);
-    expect(find.text('行动线门槛'), findsNothing);
+    expect(find.textContaining('行动线门槛'), findsNothing);
   });
 }
