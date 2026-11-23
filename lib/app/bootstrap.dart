@@ -103,6 +103,7 @@ class AppBootstrap {
       learningReviews: learningReviews,
       habits: foggHabits,
       habitLogs: habitLogs,
+      habitVersions: habitRecipeVersions,
       schedules: schedules,
     );
     final ModuleRegistry modules = ModuleRegistry(

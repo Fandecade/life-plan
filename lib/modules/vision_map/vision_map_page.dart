@@ -40,7 +40,19 @@ class _VisionMapPageState extends State<VisionMapPage> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final List<Vision> visions = context.watch<VisionRepository>().all;
+    final UiController ui = context.watch<UiController>();
     final Vision? vision = _currentVision(visions);
+    final String? focusCapabilityId = ui.focusCapabilityId;
+    if (focusCapabilityId != null && vision != null) {
+      final Capability? target =
+          context.read<CapabilityRepository>().byId(focusCapabilityId);
+      if (target != null && target.visionId != vision.id) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _activeVisionId = target.visionId);
+        });
+      }
+    }
 
     if (vision == null) {
       return EmptyState(
@@ -101,6 +113,9 @@ class _VisionMapPageState extends State<VisionMapPage> {
                 setState(() => _activeVisionId = visionId);
                 _transform.value = Matrix4.identity();
               },
+              focusNodeId: focusCapabilityId,
+              onFocusHandled: () =>
+                  context.read<UiController>().consumeCapabilityFocus(),
             ),
           ),
         ),

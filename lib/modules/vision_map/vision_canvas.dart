@@ -35,6 +35,8 @@ class VisionCanvas extends StatefulWidget {
     required this.onVisionAction,
     required this.onCapabilityAction,
     required this.onRequestVisionSwitch,
+    this.focusNodeId,
+    this.onFocusHandled,
   });
 
   final Vision vision;
@@ -46,6 +48,10 @@ class VisionCanvas extends StatefulWidget {
   final void Function(Vision vision, MapNodeAction action) onVisionAction;
   final void Function(Capability capability, MapNodeAction action) onCapabilityAction;
   final ValueChanged<String> onRequestVisionSwitch;
+
+  /// 一次性聚焦：定位并选中某个能力节点（来自复盘/统计跳转）。
+  final String? focusNodeId;
+  final VoidCallback? onFocusHandled;
 
   @override
   State<VisionCanvas> createState() => _VisionCanvasState();
@@ -61,6 +67,7 @@ class _VisionCanvasState extends State<VisionCanvas> {
   bool _dragging = false;
 
   Map<String, ActionItem> _tasksById = <String, ActionItem>{};
+  String? _handledFocusId;
 
   @override
   void initState() {
@@ -79,6 +86,7 @@ class _VisionCanvasState extends State<VisionCanvas> {
       _dragId = null;
       _dragDelta = Offset.zero;
       _dragging = false;
+      _handledFocusId = null;
     }
   }
 
@@ -430,6 +438,31 @@ class _VisionCanvasState extends State<VisionCanvas> {
       final Offset? base = layout.capabilityTopLeft[capability.id];
       if (base == null) continue;
       capabilityPositions[capability.id] = _withDrag(capability.id, base);
+    }
+
+    final String? focusId = widget.focusNodeId;
+    if (focusId != null && focusId != _handledFocusId) {
+      final Offset? topLeft = capabilityPositions[focusId];
+      if (topLeft != null) {
+        _handledFocusId = focusId;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _selection = MapSelection(MapNodeType.capability, focusId);
+          });
+          final Size? viewport = context.size;
+          if (viewport != null) {
+            widget.transformController.value = Matrix4.identity()
+              ..translate(
+                viewport.width / 2 -
+                    (topLeft.dx + MapMetrics.capabilityWidth / 2),
+                viewport.height / 2 -
+                    (topLeft.dy + MapMetrics.capabilityHeight / 2),
+              );
+          }
+          widget.onFocusHandled?.call();
+        });
+      }
     }
 
     final Map<String, Offset> taskPositions = <String, Offset>{};

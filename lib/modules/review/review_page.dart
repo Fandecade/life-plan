@@ -8,6 +8,8 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/services/action_line.dart';
+import '../../core/services/habit_service.dart';
 import '../../core/services/review_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
@@ -17,6 +19,8 @@ import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
 import '../fogg_habit/habit_action_line_dialog.dart';
+import '../fogg_habit/habit_recipe_dialog.dart';
+import '../time_box/routine_schedule_view.dart';
 
 /// 及时复盘：日 / 周 / 月 / 年四级。
 ///
@@ -122,6 +126,172 @@ class _ReviewPageState extends State<ReviewPage> {
     _syncFromStore();
   }
 
+  Future<void> _openHistory() async {
+    final AppPalette palette = context.palette;
+    final List<ReviewLog> logs = context
+        .read<ReviewLogRepository>()
+        .all
+        .where((ReviewLog log) =>
+            log.isCompleted ||
+            log.winsText.isNotEmpty ||
+            log.blockersText.isNotEmpty ||
+            log.adjustmentsText.isNotEmpty ||
+            log.focusText.isNotEmpty)
+        .toList()
+      ..sort((ReviewLog a, ReviewLog b) => b.updatedAt.compareTo(a.updatedAt));
+
+    final ReviewLog? picked = await showDialog<ReviewLog>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: palette.border),
+        ),
+        title: Text('历史复盘', style: dialogContext.texts.titleLarge),
+        content: SizedBox(
+          width: 520,
+          child: logs.isEmpty
+              ? Text('还没有历史复盘。', style: dialogContext.texts.bodySmall)
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: <Widget>[
+                      for (final ReviewLog log in logs)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          onTap: () => Navigator.of(dialogContext).pop(log),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 4,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                AppChip(
+                                  label: '${log.periodType.label}复盘',
+                                  dense: true,
+                                  color: palette.accent,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        ReviewWindow.of(
+                                          log.periodType,
+                                          _anchorOfLog(log),
+                                        ).label,
+                                        style: dialogContext.texts.bodyMedium,
+                                      ),
+                                      if (log.winsText.isNotEmpty)
+                                        Text(
+                                          _firstSentence(log.winsText, 24),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style:
+                                              dialogContext.texts.labelSmall,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (log.isCompleted)
+                                  AppChip(
+                                    label: '已完成',
+                                    dense: true,
+                                    color: palette.success,
+                                  ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  AppDate.monthDayLabel(log.updatedAt),
+                                  style: dialogContext.texts.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _type = picked.periodType;
+      _anchor = _anchorOfLog(picked);
+    });
+    _syncFromStore();
+  }
+
+  DateTime _anchorOfLog(ReviewLog log) {
+    switch (log.periodType) {
+      case ReviewPeriodType.daily:
+        return DateTime.tryParse(log.periodKey) ?? DateTime.now();
+      case ReviewPeriodType.monthly:
+        final List<String> parts = log.periodKey.split('-');
+        if (parts.length < 2) return DateTime.now();
+        return DateTime(
+          int.tryParse(parts[0]) ?? DateTime.now().year,
+          int.tryParse(parts[1]) ?? 1,
+        );
+      case ReviewPeriodType.yearly:
+        return DateTime(int.tryParse(log.periodKey) ?? DateTime.now().year);
+      case ReviewPeriodType.weekly:
+        final List<String> parts = log.periodKey.split('-W');
+        final int year = int.tryParse(parts.first) ?? DateTime.now().year;
+        final int week =
+            parts.length > 1 ? int.tryParse(parts[1]) ?? 1 : 1;
+        final DateTime jan4 = DateTime(year, 1, 4);
+        final DateTime firstMonday =
+            jan4.subtract(Duration(days: jan4.weekday - 1));
+        return firstMonday.add(Duration(days: (week - 1) * 7));
+    }
+  }
+
+  Future<void> _sedimentHabit() async {
+    final String source = _wins.text.trim();
+    if (source.isEmpty) {
+      _toast('先写一条本周有效模式，再沉淀为微习惯');
+      return;
+    }
+    final bool changed = await showHabitRecipeDialog(
+      context,
+      initialAnchor: '在「本周有效模式」之后',
+      initialTiny: _firstSentence(source, 28),
+    );
+    if (!mounted || !changed) return;
+    _toast('已沉淀为微习惯');
+  }
+
+  Future<void> _sedimentTemplate() async {
+    final String source = _wins.text.trim();
+    if (source.isEmpty) {
+      _toast('先写一条本周有效模式，再存为学习模板');
+      return;
+    }
+    await context.read<ActionItemRepository>().create(
+          title: '学习模板：${_firstSentence(source, 20)}',
+          executionMode: ExecutionMode.outputLearning,
+          estimatedMinutes: 5,
+          note: '复盘沉淀的学习模板：$source\n'
+              '建议先用 5 分钟微输出验证一次，再固化为长期做法。',
+        );
+    if (!mounted) return;
+    _toast('已存为学习模板任务（任务池）');
+  }
+
+  String _firstSentence(String text, int maxChars) {
+    final String first = text
+        .split(RegExp(r'[。！？!?\n;；]'))
+        .map((String part) => part.trim())
+        .firstWhere((String part) => part.isNotEmpty, orElse: () => text);
+    return first.length > maxChars ? '${first.substring(0, maxChars)}…' : first;
+  }
+
   void _scheduleSave() {
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 600), _persist);
@@ -157,11 +327,29 @@ class _ReviewPageState extends State<ReviewPage> {
     context.watch<ActionItemRepository>();
     context.watch<TimeBlockRepository>();
     context.watch<HabitLogRepository>();
-    context.watch<FoggHabitRepository>();
+    final List<FoggHabit> activeHabits =
+        context.watch<FoggHabitRepository>().active;
     context.watch<LearningReviewRepository>();
     context.watch<LearningSessionRepository>();
 
     final ReviewSnapshot snapshot = service.snapshot(_window);
+    final bool deepPeriod = _type == ReviewPeriodType.monthly ||
+        _type == ReviewPeriodType.yearly;
+    final List<LearningBlindSpot> spots = _type == ReviewPeriodType.daily
+        ? const <LearningBlindSpot>[]
+        : service.blindSpots(_window);
+    final List<CapabilityProgress> progress =
+        deepPeriod ? service.capabilityProgress(_window) : const <CapabilityProgress>[];
+    final List<FoggHabit> recipeHabits =
+        deepPeriod ? service.habitsWithRecipeHistory() : const <FoggHabit>[];
+    final List<HeatCell> heat = switch (_type) {
+      ReviewPeriodType.monthly => service.dailyHeat(_window),
+      ReviewPeriodType.yearly => service.monthlyHeat(_window.start.year),
+      _ => const <HeatCell>[],
+    };
+    final List<LearningHighlight> highlights = _type == ReviewPeriodType.yearly
+        ? service.annualHighlights(_window)
+        : const <LearningHighlight>[];
     final List<ReviewItem> live = service.pending(_window, snapshot);
     final Set<String> liveIds =
         live.map((ReviewItem item) => item.id).toSet();
@@ -170,8 +358,13 @@ class _ReviewPageState extends State<ReviewPage> {
       for (final ReviewItem item in _handledItems.values)
         if (!liveIds.contains(item.id)) item,
     ];
-    final int openItems =
-        items.where((ReviewItem item) => !_handled.contains(item.id)).length;
+    final Set<String> handledIds = <String>{
+      ...(log?.handledItems ?? const <String>[]),
+      ..._handled,
+    };
+    final int openItems = items
+        .where((ReviewItem item) => !handledIds.contains(item.id))
+        .length;
 
     return Column(
       children: <Widget>[
@@ -186,15 +379,34 @@ class _ReviewPageState extends State<ReviewPage> {
               AppSpacing.xxl,
             ),
             children: <Widget>[
-              _metrics(context, palette, snapshot),
+              _metrics(
+                context,
+                palette,
+                snapshot,
+                service.snapshot(service.previousWindow(_window)),
+              ),
               const SizedBox(height: AppSpacing.md),
               _capabilityBar(context, palette, snapshot),
+              if (_type != ReviewPeriodType.daily) ...<Widget>[
+                const SizedBox(height: AppSpacing.lg),
+                _insights(
+                  context,
+                  palette,
+                  snapshot,
+                  spots,
+                  progress,
+                  recipeHabits,
+                  heat,
+                  activeHabits,
+                  highlights,
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
                   final Widget reflection = _reflectionCard(context, palette);
                   final Widget pending =
-                      _pendingCard(context, palette, items, openItems);
+                      _pendingCard(context, palette, items, openItems, handledIds);
                   if (constraints.maxWidth >= 940) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,6 +457,13 @@ class _ReviewPageState extends State<ReviewPage> {
                   style: context.texts.bodySmall,
                 ),
               ),
+              AppGhostButton(
+                label: '历史',
+                icon: Icons.history_rounded,
+                dense: true,
+                onPressed: _openHistory,
+              ),
+              const SizedBox(width: 6),
               AppChip(
                 label: log?.isCompleted == true ? '已完成' : '未复盘',
                 dense: true,
@@ -320,7 +539,11 @@ class _ReviewPageState extends State<ReviewPage> {
     BuildContext context,
     AppPalette palette,
     ReviewSnapshot snapshot,
+    ReviewSnapshot previous,
   ) {
+    final double hourDelta = snapshot.completedHours - previous.completedHours;
+    final int taskDelta = snapshot.completedTasks - previous.completedTasks;
+    final int habitDelta = snapshot.habitPercent - previous.habitPercent;
     final List<Widget> cards = <Widget>[
       _metricCard(
         context,
@@ -329,6 +552,9 @@ class _ReviewPageState extends State<ReviewPage> {
         value: '${snapshot.completedHours.toStringAsFixed(1)}h',
         detail: '计划 ${snapshot.plannedHours.toStringAsFixed(1)}h · '
             '完成率 ${(snapshot.blockRate * 100).round()}%',
+        delta: '较上期 ${hourDelta >= 0 ? '+' : ''}'
+            '${hourDelta.toStringAsFixed(1)}h',
+        deltaPositive: hourDelta >= 0,
         progress: snapshot.blockRate,
         tone: palette.accent,
       ),
@@ -339,6 +565,8 @@ class _ReviewPageState extends State<ReviewPage> {
         value: '完成 ${snapshot.completedTasks}',
         detail: '新增巩固 ${snapshot.consolidatingTasks} · '
             '独立输出 ${snapshot.outputs}',
+        delta: '较上期 ${taskDelta >= 0 ? '+' : ''}$taskDelta 项',
+        deltaPositive: taskDelta >= 0,
         progress: snapshot.completedTasks == 0
             ? 0
             : (snapshot.completedTasks /
@@ -353,6 +581,8 @@ class _ReviewPageState extends State<ReviewPage> {
         value: '${snapshot.habitPercent}%',
         detail: '完成 ${snapshot.habitChecks}/${snapshot.habitTarget} 次 · '
             '${snapshot.lowHabits.length} 项需调配方',
+        delta: '较上期 ${habitDelta >= 0 ? '+' : ''}$habitDelta 个百分点',
+        deltaPositive: habitDelta >= 0,
         progress: snapshot.habitRate,
         tone: snapshot.lowHabits.isEmpty ? palette.success : palette.warning,
       ),
@@ -388,6 +618,8 @@ class _ReviewPageState extends State<ReviewPage> {
     required String label,
     required String value,
     required String detail,
+    String? delta,
+    bool deltaPositive = true,
     required double progress,
     required Color tone,
   }) {
@@ -401,11 +633,29 @@ class _ReviewPageState extends State<ReviewPage> {
           Text(value, style: context.texts.titleLarge),
           const SizedBox(height: 2),
           Text(detail, style: context.texts.bodySmall),
+          if (delta != null) ...<Widget>[
+            const SizedBox(height: 2),
+            Text(
+              delta,
+              style: context.texts.labelSmall?.copyWith(
+                color: deltaPositive ? palette.success : palette.danger,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           ProgressHairline(value: progress, color: tone),
         ],
       ),
     );
+  }
+
+  void _openCapabilityOf(String? capabilityId) {
+    final UiController ui = context.read<UiController>();
+    if (capabilityId == null) {
+      ui.setRoute('/vision-map');
+    } else {
+      ui.openCapability(capabilityId);
+    }
   }
 
   Widget _capabilityBar(
@@ -435,9 +685,7 @@ class _ReviewPageState extends State<ReviewPage> {
                     Expanded(
                       flex: math.max(1, slices[i].minutes),
                       child: InkWell(
-                        onTap: () => context
-                            .read<UiController>()
-                            .setRoute('/vision-map'),
+                        onTap: () => _openCapabilityOf(slices[i].capabilityId),
                         child: ColoredBox(
                           color: slices[i].capabilityId == null
                               ? palette.surfaceMuted
@@ -457,8 +705,7 @@ class _ReviewPageState extends State<ReviewPage> {
               for (int i = 0; i < slices.length; i++)
                 InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.sm),
-                  onTap: () =>
-                      context.read<UiController>().setRoute('/vision-map'),
+                  onTap: () => _openCapabilityOf(slices[i].capabilityId),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
@@ -488,6 +735,551 @@ class _ReviewPageState extends State<ReviewPage> {
     );
   }
 
+  Widget _insights(
+    BuildContext context,
+    AppPalette palette,
+    ReviewSnapshot snapshot,
+    List<LearningBlindSpot> spots,
+    List<CapabilityProgress> progress,
+    List<FoggHabit> recipeHabits,
+    List<HeatCell> heat,
+    List<FoggHabit> activeHabits,
+    List<LearningHighlight> highlights,
+  ) {
+    final bool deep = _type == ReviewPeriodType.monthly ||
+        _type == ReviewPeriodType.yearly;
+    final List<Widget> blocks = <Widget>[
+      LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final Widget learning = _learningCard(context, palette, snapshot, spots);
+          final Widget? capability =
+              deep ? _capabilityCard(context, palette, progress) : null;
+          if (capability == null) return learning;
+          if (constraints.maxWidth >= 900) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(child: learning),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(child: capability),
+              ],
+            );
+          }
+          return Column(
+            children: <Widget>[
+              learning,
+              const SizedBox(height: AppSpacing.md),
+              capability,
+            ],
+          );
+        },
+      ),
+    ];
+
+    if (heat.isNotEmpty) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_heatCard(context, palette, heat));
+    }
+
+    if (recipeHabits.isNotEmpty) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_recipeCard(context, palette, recipeHabits));
+    }
+
+    if (_type != ReviewPeriodType.weekly) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_actionLineMiniCard(context, palette, activeHabits));
+    }
+
+    if (_type == ReviewPeriodType.yearly) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_highlightsCard(context, palette, highlights));
+    }
+
+    return Column(children: blocks);
+  }
+
+  Widget _learningCard(
+    BuildContext context,
+    AppPalette palette,
+    ReviewSnapshot snapshot,
+    List<LearningBlindSpot> spots,
+  ) {
+    final int due = snapshot.reviewsDue;
+    final int done = snapshot.reviewsDone;
+    final String recallRate =
+        due == 0 ? '—' : '${((done / due) * 100).clamp(0, 100).round()}%';
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '学习系统摘要',
+            subtitle: '独立输出、复习节奏与卡壳盲区',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: <Widget>[
+              _miniStat(context, palette, '应复习', '$due'),
+              _miniStat(context, palette, '已复习', '$done'),
+              _miniStat(context, palette, '按时率', recallRate),
+              _miniStat(context, palette, '独立输出', '${snapshot.outputs}'),
+            ],
+          ),
+          if (spots.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            Text('卡壳盲区 · ${spots.length} 条', style: context.texts.labelSmall),
+            const SizedBox(height: 4),
+            for (final LearningBlindSpot spot in spots.take(2))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  '· ${spot.text}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.bodySmall,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat(
+    BuildContext context,
+    AppPalette palette,
+    String label,
+    String value,
+  ) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(value, style: context.texts.titleSmall),
+          const SizedBox(height: 1),
+          Text(label, style: context.texts.labelSmall),
+        ],
+      ),
+    );
+  }
+
+  Widget _capabilityCard(
+    BuildContext context,
+    AppPalette palette,
+    List<CapabilityProgress> progress,
+  ) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '能力推进',
+            subtitle: '彻底完成 / 巩固中 / 本期投入',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (progress.isEmpty)
+            Text('本期没有能力推进数据。', style: context.texts.bodySmall)
+          else
+            for (final CapabilityProgress item in progress.take(5))
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                onTap: () => _openCapabilityOf(item.capabilityId),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.texts.bodyMedium,
+                        ),
+                      ),
+                      Text(
+                        '完成 ${item.completed} · 巩固 ${item.consolidating}',
+                        style: context.texts.labelSmall,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(item.minutes / 60).toStringAsFixed(1)}h',
+                        style: context.texts.labelSmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heatCard(
+    BuildContext context,
+    AppPalette palette,
+    List<HeatCell> cells,
+  ) {
+    final bool monthly = _type == ReviewPeriodType.monthly;
+    int maxValue = 0;
+    for (final HeatCell cell in cells) {
+      if (cell.value > maxValue) maxValue = cell.value;
+    }
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: monthly ? '本月负荷热力' : '全年活跃热力',
+            subtitle: monthly ? '每天已完成的时间块时长' : '每月已完成的时间块数',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            height: 46,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                for (final HeatCell cell in cells)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1.2),
+                      child: Column(
+                        children: <Widget>[
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: maxValue == 0
+                                    ? 0.06
+                                    : (cell.value / maxValue).clamp(0.06, 1),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: palette.accent.withValues(
+                                      alpha: cell.value == 0 ? 0.08 : 0.45,
+                                    ),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            cell.label,
+                            style: context.texts.labelSmall?.copyWith(
+                              fontSize: 8,
+                              height: 1,
+                              color: palette.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recipeCard(
+    BuildContext context,
+    AppPalette palette,
+    List<FoggHabit> habits,
+  ) {
+    final ReviewService service = context.read<ReviewService>();
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '配方版本执行率',
+            subtitle: '调整前后对比：v1 → v2 是否真的更容易发生',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final FoggHabit habit in habits.take(3))
+            Builder(
+              builder: (BuildContext context) {
+                final List<RecipeEffect> effects = service.recipeEffects(habit.id);
+                if (effects.length < 2) return const SizedBox.shrink();
+                final RecipeEffect previous = effects[effects.length - 2];
+                final RecipeEffect latest = effects.last;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              habit.tinyBehavior,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.texts.bodyMedium,
+                            ),
+                          ),
+                          Text(
+                            'v${previous.revision} → v${latest.revision}',
+                            style: context.texts.labelSmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: ProgressHairline(
+                              value: previous.rate,
+                              color: palette.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ProgressHairline(
+                              value: latest.rate,
+                              color: palette.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            '${(previous.rate * 100).round()}%',
+                            style: context.texts.labelSmall,
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${(latest.rate * 100).round()}%',
+                            style: context.texts.labelSmall?.copyWith(
+                              color: palette.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionLineMiniCard(
+    BuildContext context,
+    AppPalette palette,
+    List<FoggHabit> habits,
+  ) {
+    final HabitService habitService = context.read<HabitService>();
+    final List<FoggHabit> shown = habits.take(5).toList(growable: false);
+    const ActionLineModel line = ActionLineModel();
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: SectionHeader(
+                  title: '习惯行动线',
+                  subtitle: '点击节点可调配方；落在行动线下方优先缩小微行为',
+                ),
+              ),
+              AppGhostButton(
+                label: '改固定安排',
+                icon: Icons.event_repeat_rounded,
+                dense: true,
+                onPressed: () => showRoutineSchedule(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (shown.isEmpty)
+            Text('还没有可诊断的微习惯。', style: context.texts.bodySmall)
+          else
+            SizedBox(
+              height: 150,
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final Size size =
+                      Size(constraints.maxWidth, constraints.maxHeight);
+                  final Rect plot =
+                      Rect.fromLTRB(8, 8, size.width - 8, size.height - 8);
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: palette.surfaceMuted.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(color: palette.hairline),
+                    ),
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _MiniActionLinePainter(
+                              plot: plot,
+                              line: line,
+                              accent: palette.accent,
+                              success: palette.success,
+                              danger: palette.danger,
+                              axis: palette.border,
+                            ),
+                          ),
+                        ),
+                        for (final FoggHabit habit in shown)
+                          _miniHabitPoint(
+                            context,
+                            palette,
+                            habitService,
+                            habit,
+                            plot,
+                            size,
+                            line,
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniHabitPoint(
+    BuildContext context,
+    AppPalette palette,
+    HabitService habitService,
+    FoggHabit habit,
+    Rect plot,
+    Size size,
+    ActionLineModel line,
+  ) {
+    final ActionPoint point = habitService.currentActionPoint(habit);
+    final bool above = line.isAbove(point);
+    final Offset offset = Offset(
+      plot.left + point.ability / 10 * plot.width,
+      plot.bottom - point.motivation / 10 * plot.height,
+    );
+    final String label = habit.tinyBehavior.length > 6
+        ? '${habit.tinyBehavior.substring(0, 6)}…'
+        : habit.tinyBehavior;
+
+    return Positioned(
+      left: (offset.dx - 20).clamp(4, size.width - 72),
+      top: (offset.dy - 8).clamp(4, size.height - 18),
+      child: GestureDetector(
+        onTap: () => showHabitActionLineDialog(context, habit: habit),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: above ? palette.success : palette.danger,
+                shape: BoxShape.circle,
+                border: Border.all(color: palette.surface, width: 1.2),
+              ),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: context.texts.labelSmall?.copyWith(fontSize: 9),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _highlightsCard(
+    BuildContext context,
+    AppPalette palette,
+    List<LearningHighlight> highlights,
+  ) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '年度成果精选',
+            subtitle: '输出式学习完成的作品与摘要，点击查看任务',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (highlights.isEmpty)
+            Text('今年还没有完成的输出成果。', style: context.texts.bodySmall)
+          else
+            for (final LearningHighlight highlight in highlights)
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                onTap: () =>
+                    context.read<UiController>().openDetail(highlight.actionItemId),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: palette.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              highlight.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: context.texts.bodyMedium,
+                            ),
+                            if (highlight.summary.isNotEmpty)
+                              Text(
+                                highlight.summary,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: context.texts.labelSmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        AppDate.monthDayLabel(highlight.completedAt),
+                        style: context.texts.labelSmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
   Widget _reflectionCard(BuildContext context, AppPalette palette) {
     final List<_Question> questions = _questionsFor(_type);
     return AppCard(
@@ -514,6 +1306,28 @@ class _ReviewPageState extends State<ReviewPage> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
+          if (_type != ReviewPeriodType.daily) ...<Widget>[
+            const SizedBox(height: 2),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                AppGhostButton(
+                  label: '沉淀为微习惯',
+                  icon: Icons.loop_rounded,
+                  dense: true,
+                  onPressed: _sedimentHabit,
+                ),
+                AppGhostButton(
+                  label: '存为学习模板',
+                  icon: Icons.school_outlined,
+                  dense: true,
+                  onPressed: _sedimentTemplate,
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 4),
           Text(
             '自动保存草稿 · 离开页面也不会丢',
             style: context.texts.labelSmall?.copyWith(
@@ -579,6 +1393,7 @@ class _ReviewPageState extends State<ReviewPage> {
     AppPalette palette,
     List<ReviewItem> items,
     int openItems,
+    Set<String> handledIds,
   ) {
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -594,7 +1409,7 @@ class _ReviewPageState extends State<ReviewPage> {
             Text('本期没有需要处理的事项。', style: context.texts.bodySmall)
           else
             for (final ReviewItem item in items) ...<Widget>[
-              _pendingRow(context, palette, item),
+              _pendingRow(context, palette, item, handledIds),
               const SizedBox(height: 6),
             ],
         ],
@@ -606,8 +1421,9 @@ class _ReviewPageState extends State<ReviewPage> {
     BuildContext context,
     AppPalette palette,
     ReviewItem item,
+    Set<String> handledIds,
   ) {
-    final bool handled = _handled.contains(item.id);
+    final bool handled = handledIds.contains(item.id);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
@@ -678,10 +1494,29 @@ class _ReviewPageState extends State<ReviewPage> {
           ],
         );
       case ReviewItemKind.overdueReview:
-        return AppGhostButton(
-          label: '排入明日',
-          dense: true,
-          onPressed: () => _runItem(item, 'postpone'),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppGhostButton(
+              label: '排入明日',
+              dense: true,
+              onPressed: () => _runItem(item, 'postpone'),
+            ),
+            Builder(
+              builder: (BuildContext anchorContext) => AppIconButton(
+                icon: Icons.more_horiz_rounded,
+                iconSize: 15,
+                size: 26,
+                tooltip: '更多处理',
+                onPressed: () async {
+                  final String? action =
+                      await _showReviewMenu(anchorContext, palette);
+                  if (action == null) return;
+                  await _runItem(item, action);
+                },
+              ),
+            ),
+          ],
         );
       case ReviewItemKind.lowHabit:
         return AppGhostButton(
@@ -695,7 +1530,50 @@ class _ReviewPageState extends State<ReviewPage> {
           dense: true,
           onPressed: () => _runItem(item, 'archive'),
         );
+      case ReviewItemKind.learningBlindSpot:
+        return AppGhostButton(
+          label: '生成补盲任务',
+          dense: true,
+          onPressed: () => _runItem(item, 'blind'),
+        );
     }
+  }
+
+  Future<String?> _showReviewMenu(
+    BuildContext anchorContext,
+    AppPalette palette,
+  ) async {
+    final RenderBox box = anchorContext.findRenderObject()! as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(anchorContext).context.findRenderObject()! as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    return showMenu<String>(
+      context: anchorContext,
+      position: position,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'fragment',
+          height: 38,
+          child: Text('排进明日碎片时间', style: context.texts.bodyMedium),
+        ),
+        PopupMenuItem<String>(
+          value: 'spread',
+          height: 38,
+          child: Text('降低负载（分散 3 天）', style: context.texts.bodyMedium),
+        ),
+      ],
+    );
   }
 
   Future<String?> _showBlockMenu(
@@ -789,6 +1667,17 @@ class _ReviewPageState extends State<ReviewPage> {
         if (task != null) await service.archiveTask(task);
       case 'postpone':
         if (review != null) await service.postponeReview(review);
+      case 'blind':
+        final LearningBlindSpot? spot = item.blindSpot;
+        if (spot != null) await service.createBlindSpotTask(spot);
+      case 'spread':
+        if (review != null) {
+          await service.spreadReviewLoad(<LearningReview>[review]);
+        }
+      case 'fragment':
+        if (review != null) {
+          await service.scheduleReviewFragment(review);
+        }
     }
 
     await service.markHandled(_window, item.id);
@@ -810,6 +1699,8 @@ class _ReviewPageState extends State<ReviewPage> {
         return palette.warning;
       case ReviewItemKind.staleTask:
         return palette.textTertiary;
+      case ReviewItemKind.learningBlindSpot:
+        return palette.accent;
     }
   }
 
@@ -827,6 +1718,12 @@ class _ReviewPageState extends State<ReviewPage> {
         return '已归档，腾出时间盒空间';
       case 'postpone':
         return '已顺延到明日 20:00';
+      case 'blind':
+        return '已生成回炉补盲任务，已放入任务池';
+      case 'spread':
+        return '已把这条复习分散到未来三天';
+      case 'fragment':
+        return '已排进明日 12:30 的碎片时间盒';
       default:
         return '已处理';
     }
@@ -858,6 +1755,80 @@ class _Question {
   final String title;
   final String hint;
   final TextEditingController controller;
+}
+
+class _MiniActionLinePainter extends CustomPainter {
+  const _MiniActionLinePainter({
+    required this.plot,
+    required this.line,
+    required this.accent,
+    required this.success,
+    required this.danger,
+    required this.axis,
+  });
+
+  final Rect plot;
+  final ActionLineModel line;
+  final Color accent;
+  final Color success;
+  final Color danger;
+  final Color axis;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(plot, Paint()..color = danger.withValues(alpha: 0.04));
+
+    final Path curve = Path();
+    for (int i = 0; i <= 40; i++) {
+      final double ability = i / 40 * 10;
+      final Offset point = Offset(
+        plot.left + ability / 10 * plot.width,
+        plot.bottom - line.requiredMotivation(ability) / 10 * plot.height,
+      );
+      if (i == 0) {
+        curve.moveTo(point.dx, point.dy);
+      } else {
+        curve.lineTo(point.dx, point.dy);
+      }
+    }
+    final Path aboveArea = Path.from(curve)
+      ..lineTo(plot.right, plot.top)
+      ..lineTo(plot.left, plot.top)
+      ..close();
+    canvas.drawPath(
+      aboveArea,
+      Paint()..color = success.withValues(alpha: 0.06),
+    );
+
+    final Paint axisPaint = Paint()
+      ..color = axis
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(plot.left, plot.top),
+      Offset(plot.left, plot.bottom),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(plot.left, plot.bottom),
+      Offset(plot.right, plot.bottom),
+      axisPaint,
+    );
+
+    canvas.drawPath(
+      curve,
+      Paint()
+        ..color = accent.withValues(alpha: 0.7)
+        ..strokeWidth = 1.6
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniActionLinePainter oldDelegate) =>
+      oldDelegate.plot != plot ||
+      oldDelegate.line.threshold != line.threshold ||
+      oldDelegate.line.curvature != line.curvature ||
+      oldDelegate.accent != accent;
 }
 
 /// 低饱和能力配色，避免时间分布条变成高饱和色块。

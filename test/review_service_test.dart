@@ -205,6 +205,240 @@ void main() {
     expect(AppDate.isSameDay(postponed.dueDate, tomorrow), isTrue);
   });
 
+  test('学习盲区解析与一键补盲任务', () async {
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.daily, DateTime.now());
+    final Capability capability = bootstrap.capabilities.all.first;
+    final ActionItem task = await bootstrap.actions.create(
+      title: '学习盲区任务',
+      capabilityId: capability.id,
+    );
+    final LearningDraft draft = LearningDraft.initial(LearningType.declarative)
+        .copyWith(blocker: '写不出适用边界，概念盲区');
+    await bootstrap.learningSessions.put(
+      LearningSession.create(actionItemId: task.id).copyWith(
+        isFinished: true,
+        completedAt: DateTime.now(),
+        stepsDataJson: draft.encode(),
+      ),
+    );
+
+    final List<LearningBlindSpot> spots =
+        bootstrap.reviewService.blindSpots(window);
+    expect(
+      spots.any((LearningBlindSpot spot) => spot.text.contains('写不出')),
+      isTrue,
+    );
+
+    final int before = bootstrap.actions.all.length;
+    final ActionItem created =
+        await bootstrap.reviewService.createBlindSpotTask(spots.first);
+    expect(created.title, contains('回炉补盲'));
+    expect(created.note, contains('盲区'));
+    expect(created.capabilityId, capability.id);
+    expect(created.status, ActionItemStatus.inbox);
+    expect(bootstrap.actions.all.length, before + 1);
+  });
+
+  test('配方版本生效期执行率可对比', () async {
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    final FoggHabit habit = await bootstrap.foggHabits.create(
+      anchorPrompt: '配方对比锚点',
+      tinyBehavior: '配方对比习惯',
+    );
+    HabitRecipeVersion version({
+      required String id,
+      required int revision,
+      required DateTime createdAt,
+    }) =>
+        HabitRecipeVersion(
+          id: id,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+          habitId: habit.id,
+          revision: revision,
+          anchorPrompt: '锚点 v$revision',
+          tinyBehavior: '微行为 v$revision',
+          celebration: '庆祝',
+        );
+
+    final DateTime v1Start = today.subtract(const Duration(days: 6));
+    final DateTime v2Start = today.subtract(const Duration(days: 3));
+    await bootstrap.habitRecipeVersions.put(
+      version(id: 'rv-1-${habit.id}', revision: 1, createdAt: v1Start),
+    );
+    await bootstrap.habitRecipeVersions.put(
+      version(id: 'rv-2-${habit.id}', revision: 2, createdAt: v2Start),
+    );
+    await bootstrap.habitLogs.logDay(
+      habit.id,
+      AppDate.dateKey(today.subtract(const Duration(days: 4))),
+    );
+    await bootstrap.habitLogs.logDay(
+      habit.id,
+      AppDate.dateKey(today.subtract(const Duration(days: 2))),
+    );
+    await bootstrap.habitLogs.logDay(
+      habit.id,
+      AppDate.dateKey(today.subtract(const Duration(days: 1))),
+    );
+
+    final List<RecipeEffect> effects =
+        bootstrap.reviewService.recipeEffects(habit.id);
+    expect(effects.length, 2);
+    expect(effects.first.revision, 1);
+    expect(effects.first.days, 3);
+    expect(effects.first.checks, 1);
+    expect(effects.last.checks, 2);
+    expect(
+      effects.last.rate,
+      greaterThan(effects.first.rate),
+      reason: 'v2 生效期执行率应更高，形成可对比的改善',
+    );
+    expect(
+      bootstrap.reviewService
+          .habitsWithRecipeHistory()
+          .any((FoggHabit item) => item.id == habit.id),
+      isTrue,
+    );
+  });
+
+  test('能力推进与月度负荷热力', () async {
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.monthly, DateTime.now());
+    final Capability capability = bootstrap.capabilities.all.first;
+    final ActionItem task = await bootstrap.actions.create(
+      title: '月度推进任务',
+      capabilityId: capability.id,
+      estimatedMinutes: 45,
+      status: ActionItemStatus.scheduled,
+    );
+    await bootstrap.actions.save(
+      task.copyWith(
+        status: ActionItemStatus.completed,
+        completedAt: DateTime.now().subtract(const Duration(hours: 2)),
+      ),
+    );
+    final TimeBlock block = await bootstrap.timeBlocks.schedule(
+      title: '月度推进任务',
+      startAt: DateTime.now().subtract(const Duration(hours: 2)),
+      durationMinutes: 45,
+      actionItemId: task.id,
+    );
+    await bootstrap.timeBlocks.setCompleted(block.id, true);
+
+    final List<CapabilityProgress> progress =
+        bootstrap.reviewService.capabilityProgress(window);
+    final CapabilityProgress row = progress.firstWhere(
+      (CapabilityProgress item) => item.capabilityId == capability.id,
+      orElse: () => const CapabilityProgress(
+        capabilityId: '',
+        title: '',
+        completed: 0,
+        consolidating: 0,
+        minutes: 0,
+      ),
+    );
+    expect(row.completed, greaterThanOrEqualTo(1));
+    expect(row.minutes, greaterThanOrEqualTo(45));
+
+    final List<HeatCell> heat = bootstrap.reviewService.dailyHeat(window);
+    expect(heat.length, window.days);
+    expect(
+      heat.any((HeatCell cell) => cell.value >= 45),
+      isTrue,
+    );
+
+    final List<HeatCell> yearlyHeat =
+        bootstrap.reviewService.monthlyHeat(window.start.year);
+    expect(yearlyHeat.length, 12);
+    expect(
+      yearlyHeat[DateTime.now().month - 1].value,
+      greaterThanOrEqualTo(1),
+    );
+  });
+
+  test('上一周期与复习负载调整', () async {
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.weekly, DateTime.now());
+    final ReviewService service = bootstrap.reviewService;
+    final ReviewWindow previous = service.previousWindow(window);
+    expect(previous.end, window.start);
+    expect(previous.periodKey, isNot(window.periodKey));
+
+    final ActionItem task = await bootstrap.actions.create(title: '复习负载任务');
+    final LearningReview review = LearningReview.create(
+      sessionId: 'load',
+      actionItemId: task.id,
+      dueDate: AppDate.startOfWeek(DateTime.now())
+          .subtract(const Duration(days: 3)),
+      intervalDays: 3,
+    );
+    await bootstrap.learningReviews.put(review);
+
+    final int count = await service.spreadReviewLoad(<LearningReview>[review]);
+    expect(count, 1);
+    final LearningReview spread = bootstrap.learningReviews.byId(review.id)!;
+    final int days = AppDate.startOfDay(spread.dueDate)
+        .difference(AppDate.startOfDay(DateTime.now()))
+        .inDays;
+    expect(days, inInclusiveRange(1, 3));
+    expect(spread.dueDate.hour, 20);
+
+    final TimeBlock fragment = await service.scheduleReviewFragment(spread);
+    expect(fragment.plannedMinutes, 10);
+    expect(fragment.learningReviewId, review.id);
+    expect(fragment.startAt.hour, 12);
+    expect(
+      AppDate.isSameDay(
+        fragment.startAt,
+        DateTime.now().add(const Duration(days: 1)),
+      ),
+      isTrue,
+    );
+  });
+
+  test('年度成果精选汇总输出式学习完成项', () async {
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.yearly, DateTime.now());
+    final ActionItem task = await bootstrap.actions.create(
+      title: '年度作品 A',
+      executionMode: ExecutionMode.outputLearning,
+      status: ActionItemStatus.scheduled,
+    );
+    await bootstrap.actions.save(
+      task.copyWith(
+        status: ActionItemStatus.completed,
+        completedAt: DateTime.now(),
+      ),
+    );
+    final LearningDraft base = LearningDraft.initial(LearningType.declarative);
+    final List<LearningStepDraft> steps =
+        List<LearningStepDraft>.from(base.fullSteps);
+    steps[2] = steps[2].copyWith(text: '用费曼讲清了边界条件');
+    await bootstrap.learningSessions.put(
+      LearningSession.create(actionItemId: task.id).copyWith(
+        isFinished: true,
+        completedAt: DateTime.now(),
+        stepsDataJson: base.copyWith(fullSteps: steps).encode(),
+      ),
+    );
+
+    final List<LearningHighlight> highlights =
+        bootstrap.reviewService.annualHighlights(window);
+    final LearningHighlight row = highlights.firstWhere(
+      (LearningHighlight item) => item.actionItemId == task.id,
+      orElse: () => LearningHighlight(
+        actionItemId: '',
+        title: '',
+        completedAt: DateTime(2000),
+        summary: '',
+      ),
+    );
+    expect(row.title, '年度作品 A');
+    expect(row.summary, contains('费曼'));
+  });
+
   test('复盘文本自动保存、划掉事项与完成标记可持久化', () async {
     final ReviewWindow window =
         ReviewWindow.of(ReviewPeriodType.daily, DateTime.now());

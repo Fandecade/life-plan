@@ -17,22 +17,33 @@ Future<bool> showHabitRecipeDialog(
   BuildContext context, {
   FoggHabit? habit,
   String? linkedActionItemId,
+  String? initialAnchor,
+  String? initialTiny,
 }) async {
   final bool? changed = await showDialog<bool>(
     context: context,
     builder: (BuildContext dialogContext) => _HabitRecipeDialog(
       habit: habit,
       linkedActionItemId: linkedActionItemId,
+      initialAnchor: initialAnchor,
+      initialTiny: initialTiny,
     ),
   );
   return changed ?? false;
 }
 
 class _HabitRecipeDialog extends StatefulWidget {
-  const _HabitRecipeDialog({this.habit, this.linkedActionItemId});
+  const _HabitRecipeDialog({
+    this.habit,
+    this.linkedActionItemId,
+    this.initialAnchor,
+    this.initialTiny,
+  });
 
   final FoggHabit? habit;
   final String? linkedActionItemId;
+  final String? initialAnchor;
+  final String? initialTiny;
 
   @override
   State<_HabitRecipeDialog> createState() => _HabitRecipeDialogState();
@@ -57,8 +68,12 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
   void initState() {
     super.initState();
     final FoggHabit? habit = widget.habit;
-    _anchor = TextEditingController(text: habit?.anchorPrompt ?? '');
-    _tiny = TextEditingController(text: habit?.tinyBehavior ?? '');
+    _anchor = TextEditingController(
+      text: habit?.anchorPrompt ?? widget.initialAnchor ?? '',
+    );
+    _tiny = TextEditingController(
+      text: habit?.tinyBehavior ?? widget.initialTiny ?? '',
+    );
     _celebration = TextEditingController(
       text: habit?.celebration ?? '握拳，默念：我做到了',
     );

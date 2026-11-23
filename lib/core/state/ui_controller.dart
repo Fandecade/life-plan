@@ -17,6 +17,7 @@ class UiController extends ChangeNotifier {
   String? _focusBlockId;
   String? _learningTaskId;
   String? _learningReviewId;
+  String? _focusCapabilityId;
 
   String get currentRoute => _currentRoute;
 
@@ -41,6 +42,9 @@ class UiController extends ChangeNotifier {
   /// 「输出式学习」的一次性跳转请求：要打开的复习节点。
   String? get learningReviewId => _learningReviewId;
 
+  /// 「图谱」的一次性聚焦请求：要定位的能力节点。
+  String? get focusCapabilityId => _focusCapabilityId;
+
   bool get hasOverlay => detailOpen || inboxOpen || _scheduleOpen;
 
   void setRoute(String route) {
@@ -53,6 +57,7 @@ class UiController extends ChangeNotifier {
     _focusBlockId = null;
     _learningTaskId = null;
     _learningReviewId = null;
+    _focusCapabilityId = null;
     notifyListeners();
   }
 
@@ -156,6 +161,26 @@ class UiController extends ChangeNotifier {
   void consumeLearningReview() {
     if (_learningReviewId == null) return;
     _learningReviewId = null;
+    notifyListeners();
+  }
+
+  /// 从复盘/统计跳到图谱并定位某个能力节点。
+  void openCapability(String capabilityId) {
+    _focusCapabilityId = capabilityId;
+    _currentRoute = '/vision-map';
+    _detailItemId = null;
+    _inboxOpen = false;
+    _scheduleOpen = false;
+    _focusDate = null;
+    _focusBlockId = null;
+    _learningTaskId = null;
+    _learningReviewId = null;
+    notifyListeners();
+  }
+
+  void consumeCapabilityFocus() {
+    if (_focusCapabilityId == null) return;
+    _focusCapabilityId = null;
     notifyListeners();
   }
 
