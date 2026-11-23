@@ -3,6 +3,7 @@ import '../core/database/repositories.dart';
 import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
+import '../core/services/habit_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
@@ -23,6 +24,11 @@ class AppBootstrap {
     required this.weeklyRoutines,
     required this.routineExceptions,
     required this.reviewLogs,
+    required this.foggHabits,
+    required this.habitLogs,
+    required this.behaviorCandidates,
+    required this.habitRecipeVersions,
+    required this.habitService,
     required this.routines,
     required this.schedules,
     required this.modules,
@@ -39,6 +45,11 @@ class AppBootstrap {
   final WeeklyRoutineRepository weeklyRoutines;
   final RoutineExceptionRepository routineExceptions;
   final ReviewLogRepository reviewLogs;
+  final FoggHabitRepository foggHabits;
+  final HabitLogRepository habitLogs;
+  final BehaviorCandidateRepository behaviorCandidates;
+  final HabitRecipeVersionRepository habitRecipeVersions;
+  final HabitService habitService;
   final RoutineService routines;
   final ScheduleService schedules;
   final ModuleRegistry modules;
@@ -61,6 +72,17 @@ class AppBootstrap {
     final RoutineExceptionRepository routineExceptions =
         RoutineExceptionRepository(db.routineExceptions);
     final ReviewLogRepository reviewLogs = ReviewLogRepository(db.reviewLogs);
+    final FoggHabitRepository foggHabits = FoggHabitRepository(db.foggHabits);
+    final HabitLogRepository habitLogs = HabitLogRepository(db.habitLogs);
+    final BehaviorCandidateRepository behaviorCandidates =
+        BehaviorCandidateRepository(db.behaviorCandidates);
+    final HabitRecipeVersionRepository habitRecipeVersions =
+        HabitRecipeVersionRepository(db.habitRecipeVersions);
+    final HabitService habitService = HabitService(
+      habits: foggHabits,
+      logs: habitLogs,
+      versions: habitRecipeVersions,
+    );
     final RoutineService routines = RoutineService(
       routines: weeklyRoutines,
       exceptions: routineExceptions,
@@ -94,6 +116,11 @@ class AppBootstrap {
       weeklyRoutines: weeklyRoutines,
       routineExceptions: routineExceptions,
       reviewLogs: reviewLogs,
+      foggHabits: foggHabits,
+      habitLogs: habitLogs,
+      behaviorCandidates: behaviorCandidates,
+      habitRecipeVersions: habitRecipeVersions,
+      habitService: habitService,
       routines: routines,
       schedules: schedules,
       modules: modules,
@@ -111,6 +138,10 @@ class AppBootstrap {
     weeklyRoutines.dispose();
     routineExceptions.dispose();
     reviewLogs.dispose();
+    foggHabits.dispose();
+    habitLogs.dispose();
+    behaviorCandidates.dispose();
+    habitRecipeVersions.dispose();
     modules.dispose();
     theme.dispose();
     db.close();

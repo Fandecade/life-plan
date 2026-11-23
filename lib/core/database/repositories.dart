@@ -515,3 +515,192 @@ class ReviewLogRepository extends JsonEntityRepository<ReviewLog> {
     return months;
   }
 }
+class FoggHabitRepository extends JsonEntityRepository<FoggHabit> {
+  FoggHabitRepository(Box<String> box) : super(box, FoggHabit.fromJson);
+
+  List<FoggHabit> get active => all
+      .where((FoggHabit habit) => habit.isActive)
+      .toList(growable: false);
+
+  FoggHabit? forActionItem(String actionItemId) {
+    for (final FoggHabit habit in all) {
+      if (habit.linkedActionItemId == actionItemId) return habit;
+    }
+    return null;
+  }
+
+  FoggHabit? forCapability(String capabilityId) {
+    for (final FoggHabit habit in all) {
+      if (habit.linkedCapabilityId == capabilityId) return habit;
+    }
+    return null;
+  }
+
+  Future<FoggHabit> create({
+    required String anchorPrompt,
+    required String tinyBehavior,
+    String? linkedCapabilityId,
+    String? linkedActionItemId,
+    AnchorPeriod anchorPeriod = AnchorPeriod.anytime,
+    String celebration = '握拳，默念：我做到了',
+    FrictionProfile frictions = const FrictionProfile(),
+    String abilityFrictionTip = '',
+    String motivationNote = '',
+  }) async {
+    final FoggHabit habit = FoggHabit.create(
+      anchorPrompt: anchorPrompt,
+      tinyBehavior: tinyBehavior,
+      linkedCapabilityId: linkedCapabilityId,
+      linkedActionItemId: linkedActionItemId,
+      anchorPeriod: anchorPeriod,
+      celebration: celebration,
+      frictions: frictions,
+      abilityFrictionTip: abilityFrictionTip,
+      motivationNote: motivationNote,
+    );
+    await put(habit);
+    return habit;
+  }
+
+  Future<void> save(FoggHabit habit) =>
+      put(habit.copyWith(syncStatus: SyncStatus.pendingUpdate));
+}
+
+class HabitLogRepository extends JsonEntityRepository<HabitLog> {
+  HabitLogRepository(Box<String> box) : super(box, HabitLog.fromJson);
+
+  List<HabitLog> forHabit(String habitId) => all
+      .where((HabitLog log) => log.habitId == habitId)
+      .toList(growable: false);
+
+  HabitLog? forDay(String habitId, String dateKey) {
+    for (final HabitLog log in all) {
+      if (log.habitId == habitId && log.dateKey == dateKey) return log;
+    }
+    return null;
+  }
+
+  Set<String> completedDates(String habitId) => forHabit(habitId)
+      .where((HabitLog log) => log.isCompleted)
+      .map((HabitLog log) => log.dateKey)
+      .toSet();
+
+  Future<HabitLog> logDay(
+    String habitId,
+    String dateKey, {
+    bool isExtra = false,
+  }) async {
+    final HabitLog? existing = forDay(habitId, dateKey);
+    if (existing != null) {
+      final HabitLog updated = existing.copyWith(
+        isCompleted: true,
+        isExtra: isExtra || existing.isExtra,
+        syncStatus: SyncStatus.pendingUpdate,
+      );
+      await put(updated);
+      return updated;
+    }
+    final HabitLog log = HabitLog.create(
+      habitId: habitId,
+      dateKey: dateKey,
+      isExtra: isExtra,
+    );
+    await put(log);
+    return log;
+  }
+
+  Future<void> removeDay(String habitId, String dateKey) async {
+    final HabitLog? existing = forDay(habitId, dateKey);
+    if (existing == null) return;
+    await softDelete(existing.id);
+  }
+
+  /// 温和连续天数：今天未打卡时从昨天往前算，不显示「断签」。
+  int streak(String habitId, {DateTime? now}) {
+    final Set<String> dates = completedDates(habitId);
+    DateTime cursor = AppDate.startOfDay(now ?? DateTime.now());
+    if (!dates.contains(AppDate.dateKey(cursor))) {
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    int count = 0;
+    while (dates.contains(AppDate.dateKey(cursor))) {
+      count += 1;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return count;
+  }
+}
+
+class BehaviorCandidateRepository extends JsonEntityRepository<BehaviorCandidate> {
+  BehaviorCandidateRepository(Box<String> box)
+      : super(box, BehaviorCandidate.fromJson);
+
+  List<BehaviorCandidate> get selected => all
+      .where((BehaviorCandidate candidate) => candidate.isSelected)
+      .toList(growable: false);
+
+  List<BehaviorCandidate> get golden => all
+      .where((BehaviorCandidate candidate) => candidate.isGolden)
+      .toList(growable: false);
+
+  Future<BehaviorCandidate> add({
+    required String title,
+    int impact = 3,
+    int effort = 3,
+  }) async {
+    final BehaviorCandidate candidate = BehaviorCandidate.create(
+      title: title,
+      impact: impact,
+      effort: effort,
+    );
+    await put(candidate);
+    return candidate;
+  }
+
+  Future<void> save(BehaviorCandidate candidate) =>
+      put(candidate.copyWith(syncStatus: SyncStatus.pendingUpdate));
+}
+
+class HabitRecipeVersionRepository
+    extends JsonEntityRepository<HabitRecipeVersion> {
+  HabitRecipeVersionRepository(Box<String> box)
+      : super(box, HabitRecipeVersion.fromJson);
+
+  List<HabitRecipeVersion> forHabit(String habitId) {
+    final List<HabitRecipeVersion> versions = all
+        .where((HabitRecipeVersion version) => version.habitId == habitId)
+        .toList();
+    versions.sort((HabitRecipeVersion a, HabitRecipeVersion b) =>
+        b.revision.compareTo(a.revision));
+    return versions;
+  }
+
+  int nextRevision(String habitId) {
+    int max = 0;
+    for (final HabitRecipeVersion version in forHabit(habitId)) {
+      if (version.revision > max) max = version.revision;
+    }
+    return max + 1;
+  }
+
+  Future<HabitRecipeVersion> add({
+    required String habitId,
+    required String anchorPrompt,
+    required String tinyBehavior,
+    required String celebration,
+    String frictionsJson = '{}',
+    String note = '',
+  }) async {
+    final HabitRecipeVersion version = HabitRecipeVersion.create(
+      habitId: habitId,
+      revision: nextRevision(habitId),
+      anchorPrompt: anchorPrompt,
+      tinyBehavior: tinyBehavior,
+      celebration: celebration,
+      frictionsJson: frictionsJson,
+      note: note,
+    );
+    await put(version);
+    return version;
+  }
+}

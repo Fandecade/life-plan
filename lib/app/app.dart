@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/database/repositories.dart';
 import '../core/plugin/module_registry.dart';
+import '../core/services/habit_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
@@ -48,6 +49,19 @@ class LifePlannerApp extends StatelessWidget {
         ChangeNotifierProvider<ReviewLogRepository>.value(
           value: bootstrap.reviewLogs,
         ),
+        ChangeNotifierProvider<FoggHabitRepository>.value(
+          value: bootstrap.foggHabits,
+        ),
+        ChangeNotifierProvider<HabitLogRepository>.value(
+          value: bootstrap.habitLogs,
+        ),
+        ChangeNotifierProvider<BehaviorCandidateRepository>.value(
+          value: bootstrap.behaviorCandidates,
+        ),
+        ChangeNotifierProvider<HabitRecipeVersionRepository>.value(
+          value: bootstrap.habitRecipeVersions,
+        ),
+        Provider<HabitService>.value(value: bootstrap.habitService),
         Provider<ScheduleService>.value(value: bootstrap.schedules),
         Provider<RoutineService>.value(value: bootstrap.routines),
         ChangeNotifierProvider<UiController>(create: (_) => UiController()),

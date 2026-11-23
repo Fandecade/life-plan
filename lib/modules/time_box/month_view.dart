@@ -23,6 +23,7 @@ class MonthView extends StatelessWidget {
     required this.completedCount,
     required this.reviewed,
     required this.dueTasksByDay,
+    this.habitDotsByDay = const <String, int>{},
     required this.onEnterDay,
   });
 
@@ -37,6 +38,9 @@ class MonthView extends StatelessWidget {
 
   /// 当天截止的任务标题（dateKey → titles）。
   final Map<String, List<String>> dueTasksByDay;
+
+  /// 每日完成的微习惯数（dateKey → 次数），月历底部微节律点。
+  final Map<String, int> habitDotsByDay;
   final ValueChanged<DateTime> onEnterDay;
 
   @override
@@ -106,6 +110,9 @@ class MonthView extends StatelessWidget {
                               countByDay[AppDate.dateKey(days[week * 7 + index])] ?? 0,
                               dueTasksByDay[AppDate.dateKey(days[week * 7 + index])] ??
                                   const <String>[],
+                              habitDotsByDay[
+                                      AppDate.dateKey(days[week * 7 + index])] ??
+                                  0,
                             ),
                           ),
                       ],
@@ -175,6 +182,7 @@ class MonthView extends StatelessWidget {
     int minutes,
     int count,
     List<String> dueTasks,
+    int habitDots,
   ) {
     final AppPalette palette = context.palette;
     final bool inMonth = day.month == anchor.month;
@@ -277,6 +285,35 @@ class MonthView extends StatelessWidget {
                   ),
                 ),
               ),
+            if (habitDots > 0) ...<Widget>[
+              const SizedBox(height: 3),
+              Row(
+                children: <Widget>[
+                  for (int i = 0; i < (habitDots > 4 ? 4 : habitDots); i++)
+                    ...<Widget>[
+                      if (i > 0) const SizedBox(width: 2),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: palette.accent.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  if (habitDots > 4) ...<Widget>[
+                    const SizedBox(width: 3),
+                    Text(
+                      '+${habitDots - 4}',
+                      style: context.texts.labelSmall?.copyWith(
+                        fontSize: 8,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
         ),
       ),

@@ -5,6 +5,8 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/plugin/module_registry.dart';
+import '../../core/services/habit_service.dart';
 import '../../core/services/routine_service.dart';
 import '../../core/services/schedule_service.dart';
 import '../../core/state/ui_controller.dart';
@@ -264,6 +266,17 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
               .putIfAbsent(AppDate.dateKey(due), () => <String>[])
               .add(item.title);
         }
+        // 微节律点：仅当福格习惯模块启用时叠加，模块关闭不污染月历。
+        final bool habitEnabled =
+            context.watch<ModuleRegistry>().isEnabled('fogg_habit');
+        final List<FoggHabit> activeHabits =
+            context.watch<FoggHabitRepository>().active;
+        context.watch<HabitLogRepository>();
+        final Map<String, int> habitDotsByDay = habitEnabled
+            ? context.read<HabitService>().completedCountByDay(
+                  activeHabits.map((FoggHabit habit) => habit.id),
+                )
+            : const <String, int>{};
         return MonthView(
           anchor: _anchor,
           blocks: blocks,
@@ -272,6 +285,7 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
           completedCount: completedCount,
           reviewed: reviewed,
           dueTasksByDay: dueTasksByDay,
+          habitDotsByDay: habitDotsByDay,
           onEnterDay: (DateTime day) {
             setState(() {
               _anchor = day;

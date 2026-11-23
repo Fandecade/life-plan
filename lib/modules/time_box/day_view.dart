@@ -14,6 +14,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import '../fogg_habit/habit_strip.dart';
 import 'routine_schedule_view.dart';
 import 'time_box_common.dart';
 
@@ -153,10 +154,17 @@ class _DayViewState extends State<DayView> {
                     ),
                   ),
                 ),
-                child: _timeline(
-                  context,
-                  slots,
-                  constraints.maxWidth - (showRail ? _railWidth : 0),
+                child: Column(
+                  children: <Widget>[
+                    if (_isToday) const HabitAnchorStrip(),
+                    Expanded(
+                      child: _timeline(
+                        context,
+                        slots,
+                        constraints.maxWidth - (showRail ? _railWidth : 0),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

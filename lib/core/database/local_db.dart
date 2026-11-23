@@ -16,6 +16,8 @@ class LocalDatabase {
   static const String boxRoutineExceptions = 'routine_exceptions';
   static const String boxFoggHabits = 'fogg_habits';
   static const String boxHabitLogs = 'habit_logs';
+  static const String boxBehaviorCandidates = 'behavior_candidates';
+  static const String boxHabitRecipeVersions = 'habit_recipe_versions';
   static const String boxReviewLogs = 'review_logs';
   static const String boxSettings = 'settings';
 
@@ -29,6 +31,8 @@ class LocalDatabase {
   late final Box<String> routineExceptions;
   late final Box<String> foggHabits;
   late final Box<String> habitLogs;
+  late final Box<String> behaviorCandidates;
+  late final Box<String> habitRecipeVersions;
   late final Box<String> reviewLogs;
   late final Box<dynamic> settings;
 
@@ -50,6 +54,8 @@ class LocalDatabase {
     routineExceptions = await Hive.openBox<String>(boxRoutineExceptions);
     foggHabits = await Hive.openBox<String>(boxFoggHabits);
     habitLogs = await Hive.openBox<String>(boxHabitLogs);
+    behaviorCandidates = await Hive.openBox<String>(boxBehaviorCandidates);
+    habitRecipeVersions = await Hive.openBox<String>(boxHabitRecipeVersions);
     reviewLogs = await Hive.openBox<String>(boxReviewLogs);
     settings = await Hive.openBox<dynamic>(boxSettings);
   }
@@ -65,6 +71,8 @@ class LocalDatabase {
         routineExceptions,
         foggHabits,
         habitLogs,
+        behaviorCandidates,
+        habitRecipeVersions,
         reviewLogs,
       ];
 

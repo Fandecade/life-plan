@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/router/module_routes.dart';
 import '../../modules/fogg_habit/fogg_habit_page.dart';
+import '../../modules/fogg_habit/habit_detail_slot.dart';
 import '../../modules/output_learning/learning_detail_slot.dart';
 import '../../modules/output_learning/output_learning_page.dart';
 import '../../modules/review/review_page.dart';
@@ -9,7 +10,7 @@ import '../../modules/settings/settings_page.dart';
 import '../../modules/time_box/time_box_page.dart';
 import '../../modules/vision_map/vision_map_page.dart';
 import '../models/models.dart';
-import '../widgets/detail_slot_placeholder.dart';
+
 import 'app_module_descriptor.dart';
 
 /// 内置模块清单。后续新增模块只需在此追加描述符，Shell 与详情抽屉自动挂载。
@@ -51,11 +52,8 @@ List<AppModuleDescriptor> buildModuleDescriptors() => <AppModuleDescriptor>[
         pageBuilder: (BuildContext context) => const FoggHabitPage(),
         description: '锚点 → 微动作的温和习惯系统',
         milestone: 'Milestone 4',
-        detailSlotBuilder: (BuildContext context, _) => const DetailSlotPlaceholder(
-          icon: Icons.loop_outlined,
-          title: '福格微习惯',
-          note: '锚点与微动作配置将在 Milestone 4 挂载到这里',
-        ),
+        detailSlotBuilder: (BuildContext context, ActionItem item) =>
+            HabitDetailSlot(task: item),
       ),
       AppModuleDescriptor(
         id: 'review',
