@@ -5,6 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/services/routine_service.dart';
 import '../../core/services/schedule_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
@@ -12,6 +13,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
 import 'day_view.dart';
 import 'month_view.dart';
+import 'routine_schedule_view.dart';
 import 'task_picker.dart';
 import 'time_box_common.dart';
 import 'week_view.dart';
@@ -32,6 +34,7 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
   DateTime _anchor = DateTime.now();
   String? _focusBlockId;
   int _focusSeq = 0;
+  String? _routineScopeKey;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +53,14 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
         });
         ui.consumeScheduleFocus();
       });
+    }
+    if (_scope == TimeBoxScope.day || _scope == TimeBoxScope.week) {
+      final DateTime from =
+          _scope == TimeBoxScope.day ? _anchor : AppDate.startOfWeek(_anchor);
+      final DateTime to = _scope == TimeBoxScope.day
+          ? _anchor
+          : from.add(const Duration(days: 6));
+      _ensureRoutines(from, to);
     }
     final List<TimeBlock> allBlocks = context.watch<TimeBlockRepository>().all;
     final List<ActionItem> actions = context.watch<ActionItemRepository>().all;
@@ -145,7 +156,18 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  scopeBar,
+                  Row(
+                    children: <Widget>[
+                      scopeBar,
+                      const SizedBox(width: AppSpacing.sm),
+                      AppGhostButton(
+                        label: '固定安排',
+                        icon: Icons.event_repeat_rounded,
+                        dense: true,
+                        onPressed: _openRoutineSchedule,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   nav,
                 ],
@@ -155,6 +177,13 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
           return Row(
             children: <Widget>[
               scopeBar,
+              const SizedBox(width: AppSpacing.sm),
+              AppGhostButton(
+                label: '固定安排',
+                icon: Icons.event_repeat_rounded,
+                dense: true,
+                onPressed: _openRoutineSchedule,
+              ),
               const Spacer(),
               nav,
             ],
@@ -187,6 +216,7 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
           inboxItems: inbox,
           onOpenAction: ui.openDetail,
           onOpenReview: ui.openReview,
+          onRoutineAction: _handleRoutineAction,
           labels: labels,
           onPickTask: _pickTaskAt,
           focusBlockId: _focusBlockId,
@@ -200,15 +230,49 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
           capabilities: capabilities,
           onOpenAction: ui.openDetail,
           onOpenReview: ui.openReview,
+          onRoutineAction: _handleRoutineAction,
           onMoveBlock: _moveBlock,
+          onRescheduleBlock: _rescheduleBlock,
           labels: labels,
           onPickTask: _pickTaskAt,
         );
       case TimeBoxScope.month:
+        final Set<String> reviewDays = <String>{
+          for (final LearningReview review
+              in context.watch<LearningReviewRepository>().pending)
+            AppDate.dateKey(review.dueDate),
+        };
+        final int consolidatingCount = actions
+            .where((ActionItem item) =>
+                item.status == ActionItemStatus.consolidating)
+            .length;
+        final int completedCount = actions
+            .where(
+              (ActionItem item) =>
+                  item.status == ActionItemStatus.completed,
+            )
+            .length;
+        final bool reviewed = context
+            .watch<ReviewLogRepository>()
+            .hasMonthly('${_anchor.year}-${AppDate.two(_anchor.month)}');
+        // 未完成任务的截止日 → 月历 DDL 徽章
+        final Map<String, List<String>> dueTasksByDay = <String, List<String>>{};
+        for (final ActionItem item in actions) {
+          final DateTime? due = item.dueDate;
+          if (due == null || item.isCompleted) continue;
+          dueTasksByDay
+              .putIfAbsent(AppDate.dateKey(due), () => <String>[])
+              .add(item.title);
+        }
         return MonthView(
           anchor: _anchor,
           blocks: blocks,
-          onDrillDay: (DateTime day) {
+          reviewDays: reviewDays,
+          consolidatingCount: consolidatingCount,
+          completedCount: completedCount,
+          reviewed: reviewed,
+          dueTasksByDay: dueTasksByDay,
+          onEnterDay: (DateTime day) {
             setState(() {
               _anchor = day;
               _scope = TimeBoxScope.day;
@@ -216,9 +280,17 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
           },
         );
       case TimeBoxScope.year:
+        final ReviewLogRepository reviewLogs =
+            context.watch<ReviewLogRepository>();
         return YearView(
           anchor: _anchor,
           blocks: blocks,
+          reviewedMonths: reviewLogs.reviewedMonthsOf(_anchor.year),
+          visionTitles: context
+              .watch<VisionRepository>()
+              .all
+              .map((Vision vision) => vision.title)
+              .toList(growable: false),
           onDrillMonth: (int month) {
             setState(() {
               _anchor = DateTime(_anchor.year, month);
@@ -289,6 +361,65 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
     });
   }
 
+  void _ensureRoutines(DateTime from, DateTime to) {
+    final String key = '${AppDate.dateKey(from)}|${AppDate.dateKey(to)}';
+    if (_routineScopeKey == key) return;
+    _routineScopeKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await context.read<RoutineService>().ensureGenerated(from, to);
+    });
+  }
+
+  Future<void> _openRoutineSchedule() async {
+    final bool changed = await showRoutineSchedule(context);
+    if (!mounted || !changed) return;
+    await context.read<RoutineService>().refreshAllGenerated();
+    if (!mounted) return;
+    _routineScopeKey = null;
+    setState(() {});
+  }
+
+  Future<void> _handleRoutineAction(
+    TimeBlock block,
+    RoutineBlockAction action,
+  ) async {
+    final RoutineService service = context.read<RoutineService>();
+    final WeeklyRoutineRepository routines =
+        context.read<WeeklyRoutineRepository>();
+
+    switch (action) {
+      case RoutineBlockAction.skipWeek:
+        await service.skipForWeek(block);
+        if (!mounted) return;
+        _toast('本周已跳过，其他周次保持原课表');
+      case RoutineBlockAction.restore:
+        await service.restoreDefault(block);
+        if (!mounted) return;
+        _toast('已恢复为固定安排默认');
+      case RoutineBlockAction.editRoutine:
+        final WeeklyRoutine? routine =
+            block.routineId == null ? null : routines.byId(block.routineId!);
+        if (routine == null) return;
+        final bool changed = await showRoutineEditor(context, routine: routine);
+        if (!mounted || !changed) return;
+        await service.refreshGenerated(routine.id);
+        if (!mounted) return;
+        _routineScopeKey = null;
+        setState(() {});
+        _toast('固定项已更新，本周按新时间重新生成');
+      case RoutineBlockAction.deleteRoutine:
+        final WeeklyRoutine? routine =
+            block.routineId == null ? null : routines.byId(block.routineId!);
+        if (routine == null) return;
+        await service.deleteRoutine(routine);
+        if (!mounted) return;
+        _routineScopeKey = null;
+        setState(() {});
+        _toast('已从固定安排删除');
+    }
+  }
+
   Future<void> _pickTaskAt(DateTime start, int? durationMinutes) async {
     final List<ActionItem> tasks = context.read<ActionItemRepository>().all;
     final List<Capability> capabilities = context.read<CapabilityRepository>().all;
@@ -320,6 +451,18 @@ class _TimeBoxPageState extends State<TimeBoxPage> {
     final int minutes = durationMinutes ?? item.estimatedMinutes ?? 30;
     final DateTime end = start.add(Duration(minutes: minutes));
     _toast('已排入 ${AppDate.timeLabel(start)} - ${AppDate.timeLabel(end)}');
+  }
+
+  Future<void> _rescheduleBlock(TimeBlock block, DateTime newStart) async {
+    await context.read<TimeBlockRepository>().save(
+          block.copyWith(
+            startAt: newStart,
+            endAt: newStart.add(Duration(minutes: block.plannedMinutes)),
+            isOverridden: block.routineId != null ? true : null,
+          ),
+        );
+    if (!mounted) return;
+    _toast('已改到 ${AppDate.timeLabel(newStart)}');
   }
 
   Future<void> _moveBlock(TimeBlock block, DateTime day) async {

@@ -4,21 +4,40 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/date_utils.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
 import 'time_box_common.dart';
 
-/// 月视图：极简日历网格，只显示工时密度与块数，点击钻取到日视图。
+/// 月视图：看节奏密度、关键复习节点与周期复盘，不塞细碎任务标题。
+///
+/// 点击日期先弹出「当天简报」（负荷 / 块概览 / 复习节点），
+/// 再由简报里的按钮进入当日时间盒。
 class MonthView extends StatelessWidget {
   const MonthView({
     super.key,
     required this.anchor,
     required this.blocks,
-    required this.onDrillDay,
+    required this.reviewDays,
+    required this.consolidatingCount,
+    required this.completedCount,
+    required this.reviewed,
+    required this.dueTasksByDay,
+    required this.onEnterDay,
   });
 
   final DateTime anchor;
   final List<TimeBlock> blocks;
-  final ValueChanged<DateTime> onDrillDay;
+
+  /// 有到期间隔复习的日期（dateKey）。
+  final Set<String> reviewDays;
+  final int consolidatingCount;
+  final int completedCount;
+  final bool reviewed;
+
+  /// 当天截止的任务标题（dateKey → titles）。
+  final Map<String, List<String>> dueTasksByDay;
+  final ValueChanged<DateTime> onEnterDay;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +104,8 @@ class MonthView extends StatelessWidget {
                               days[week * 7 + index],
                               minutesByDay[AppDate.dateKey(days[week * 7 + index])] ?? 0,
                               countByDay[AppDate.dateKey(days[week * 7 + index])] ?? 0,
+                              dueTasksByDay[AppDate.dateKey(days[week * 7 + index])] ??
+                                  const <String>[],
                             ),
                           ),
                       ],
@@ -99,13 +120,8 @@ class MonthView extends StatelessWidget {
   }
 
   Widget _summary(BuildContext context, List<TimeBlock> monthBlocks) {
+    final AppPalette palette = context.palette;
     final int minutes = totalMinutesOf(monthBlocks);
-    final int completed =
-        monthBlocks.where((TimeBlock block) => block.isCompleted).length;
-    final int activeDays = monthBlocks
-        .map((TimeBlock block) => AppDate.dateKey(block.startAt))
-        .toSet()
-        .length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -114,10 +130,21 @@ class MonthView extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          _metric(context, '总投入', minutes > 0 ? AppDate.durationLabel(minutes) : '—'),
+          _metric(
+            context,
+            '总投入',
+            minutes > 0 ? AppDate.durationLabel(minutes) : '—',
+          ),
           _metric(context, '时间块', '${monthBlocks.length}'),
-          _metric(context, '已完成', '$completed'),
-          _metric(context, '有安排', '$activeDays 天'),
+          _metric(context, '巩固中', '$consolidatingCount'),
+          _metric(context, '已完成', '$completedCount'),
+          const SizedBox(width: AppSpacing.sm),
+          AppChip(
+            label: reviewed ? '已复盘' : '待复盘',
+            dense: true,
+            filled: true,
+            color: reviewed ? palette.success : palette.warning,
+          ),
         ],
       ),
     );
@@ -147,6 +174,7 @@ class MonthView extends StatelessWidget {
     DateTime day,
     int minutes,
     int count,
+    List<String> dueTasks,
   ) {
     final AppPalette palette = context.palette;
     final bool inMonth = day.month == anchor.month;
@@ -154,9 +182,10 @@ class MonthView extends StatelessWidget {
     final bool isPast = AppDate.startOfDay(day).isBefore(
           AppDate.startOfDay(DateTime.now()),
         );
+    final bool hasReview = reviewDays.contains(AppDate.dateKey(day));
 
     return InkWell(
-      onTap: () => onDrillDay(day),
+      onTap: () => _showDayBrief(context, day),
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
@@ -187,8 +216,44 @@ class MonthView extends StatelessWidget {
                   StatusDot(color: palette.accent, size: 3.5),
                 ],
                 const Spacer(),
-                if (count > 0)
+                if (dueTasks.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(left: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: palette.danger.withValues(alpha: 0.35),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      dueTasks.length > 1 ? 'DDL ${dueTasks.length}' : 'DDL',
+                      style: context.texts.labelSmall?.copyWith(
+                        fontSize: 8,
+                        height: 1,
+                        color: palette.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                if (hasReview)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Icon(
+                      Icons.psychology_outlined,
+                      size: 10,
+                      color: palette.warning,
+                    ),
+                  ),
+                if (count > 0) ...<Widget>[
+                  const SizedBox(width: 3),
                   Text('$count', style: context.texts.labelSmall),
+                ],
               ],
             ),
             const Spacer(),
@@ -216,5 +281,173 @@ class MonthView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showDayBrief(BuildContext context, DateTime day) async {
+
+    final List<TimeBlock> dayBlocks = blocks
+        .where((TimeBlock block) => AppDate.isSameDay(block.startAt, day))
+        .toList()
+      ..sort((TimeBlock a, TimeBlock b) => a.startAt.compareTo(b.startAt));
+    final int minutes = totalMinutesOf(dayBlocks);
+    final bool hasReview = reviewDays.contains(AppDate.dateKey(day));
+    final List<String> dueTasks =
+        dueTasksByDay[AppDate.dateKey(day)] ?? const <String>[];
+
+    final bool? enter = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        final AppPalette p = dialogContext.palette;
+        return AlertDialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            side: BorderSide(color: p.border),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.lg,
+            AppSpacing.xl,
+            0,
+          ),
+          title: Row(
+            children: <Widget>[
+              Text(
+                '${AppDate.monthDayLabel(day)} · ${AppDate.weekdayLabel(day)}',
+                style: dialogContext.texts.titleLarge,
+              ),
+              const Spacer(),
+              if (dueTasks.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: AppChip(
+                    label: 'DDL ${dueTasks.length}',
+                    dense: true,
+                    filled: true,
+                    color: p.danger,
+                  ),
+                ),
+              if (hasReview)
+                AppChip(
+                  label: '有复习节点',
+                  dense: true,
+                  filled: true,
+                  color: p.warning,
+                ),
+            ],
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            0,
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '负荷 ${minutes > 0 ? AppDate.durationLabel(minutes) : '—'}'
+                  ' · ${dayBlocks.length} 个时间块',
+                  style: dialogContext.texts.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (dueTasks.isNotEmpty) ...<Widget>[
+                  Row(
+                    children: <Widget>[
+                      Icon(Icons.flag_rounded, size: 13, color: p.danger),
+                      const SizedBox(width: 5),
+                      Text(
+                        '截止任务',
+                        style: dialogContext.texts.labelMedium
+                            ?.copyWith(color: p.danger),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  for (final String title in dueTasks.take(3))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: <Widget>[
+                          Text('· ', style: dialogContext.texts.bodyMedium),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: dialogContext.texts.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (dueTasks.length > 3)
+                    Text(
+                      '还有 ${dueTasks.length - 3} 个截止任务…',
+                      style: dialogContext.texts.labelSmall,
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+                if (dayBlocks.isEmpty)
+                  Text('当天没有排期', style: dialogContext.texts.bodyMedium)
+                else
+                  for (final TimeBlock block in dayBlocks.take(6))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: <Widget>[
+                          SizedBox(
+                            width: 42,
+                            child: Text(
+                              AppDate.timeLabel(block.startAt),
+                              style: dialogContext.texts.labelSmall,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              block.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: dialogContext.texts.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                if (dayBlocks.length > 6)
+                  Text(
+                    '还有 ${dayBlocks.length - 6} 个时间块…',
+                    style: dialogContext.texts.labelSmall,
+                  ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            0,
+            AppSpacing.xl,
+            AppSpacing.md,
+          ),
+          actions: <Widget>[
+            AppGhostButton(
+              label: '关闭',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            AppPrimaryButton(
+              label: '进入当日时间盒',
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (enter == true && context.mounted) {
+      onEnterDay(day);
+    }
+
   }
 }

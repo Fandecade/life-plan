@@ -23,6 +23,17 @@ void main() {
       expect(restored.createdAt, item.createdAt);
     });
 
+    test('截止日可持久化并清除', () {
+      final DateTime due = DateTime(2026, 12, 31);
+      final ActionItem item = ActionItem.create(
+        title: '阶段验收',
+        dueDate: due,
+      );
+      final ActionItem restored = ActionItem.fromJson(item.toJson());
+      expect(restored.dueDate, due);
+      expect(item.copyWith(clearDueDate: true).dueDate, isNull);
+    });
+
     test('copyWith 可清空可空字段并刷新 updatedAt', () {
       final ActionItem item = ActionItem.create(
         title: '挂载任务',

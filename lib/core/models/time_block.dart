@@ -17,7 +17,9 @@ class TimeBlock extends SyncEntity {
     required this.endAt,
     this.actionItemId,
     this.learningReviewId,
+    this.routineId,
     this.isCompleted = false,
+    this.isOverridden = false,
     this.actualMinutes,
     super.deletedAt,
     super.syncStatus,
@@ -25,10 +27,16 @@ class TimeBlock extends SyncEntity {
 
   final String? actionItemId;
   final String? learningReviewId;
+
+  /// 由周固定安排生成时记录来源，用于单周跳过与恢复。
+  final String? routineId;
   final String title;
   final DateTime startAt;
   final DateTime endAt;
   final bool isCompleted;
+
+  /// 单周特例：用户在本周修改过该固定块。
+  final bool isOverridden;
   final int? actualMinutes;
 
   int get plannedMinutes => endAt.difference(startAt).inMinutes;
@@ -41,6 +49,7 @@ class TimeBlock extends SyncEntity {
     String title = '',
     String? actionItemId,
     String? learningReviewId,
+    String? routineId,
   }) {
     final now = DateTime.now();
     return TimeBlock(
@@ -52,6 +61,7 @@ class TimeBlock extends SyncEntity {
       endAt: endAt,
       actionItemId: actionItemId,
       learningReviewId: learningReviewId,
+      routineId: routineId,
     );
   }
 
@@ -63,7 +73,10 @@ class TimeBlock extends SyncEntity {
     bool clearActionItem = false,
     String? learningReviewId,
     bool clearLearningReview = false,
+    String? routineId,
+    bool clearRoutine = false,
     bool? isCompleted,
+    bool? isOverridden,
     int? actualMinutes,
     bool clearActualMinutes = false,
     DateTime? updatedAt,
@@ -81,7 +94,9 @@ class TimeBlock extends SyncEntity {
       actionItemId: clearActionItem ? null : (actionItemId ?? this.actionItemId),
       learningReviewId:
           clearLearningReview ? null : (learningReviewId ?? this.learningReviewId),
+      routineId: clearRoutine ? null : (routineId ?? this.routineId),
       isCompleted: isCompleted ?? this.isCompleted,
+      isOverridden: isOverridden ?? this.isOverridden,
       actualMinutes:
           clearActualMinutes ? null : (actualMinutes ?? this.actualMinutes),
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
@@ -94,10 +109,12 @@ class TimeBlock extends SyncEntity {
         ...baseToJson(),
         'actionItemId': actionItemId,
         'learningReviewId': learningReviewId,
+        'routineId': routineId,
         'title': title,
         'startAt': startAt.toIso8601String(),
         'endAt': endAt.toIso8601String(),
         'isCompleted': isCompleted,
+        'isOverridden': isOverridden,
         'actualMinutes': actualMinutes,
       };
 
@@ -111,7 +128,9 @@ class TimeBlock extends SyncEntity {
       endAt: parseDate(json['endAt']),
       actionItemId: json['actionItemId'] as String?,
       learningReviewId: json['learningReviewId'] as String?,
+      routineId: json['routineId'] as String?,
       isCompleted: json['isCompleted'] as bool? ?? false,
+      isOverridden: json['isOverridden'] as bool? ?? false,
       actualMinutes: (json['actualMinutes'] as num?)?.toInt(),
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),

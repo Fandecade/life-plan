@@ -3,6 +3,7 @@ import '../core/database/repositories.dart';
 import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
+import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
 
@@ -19,6 +20,10 @@ class AppBootstrap {
     required this.timeBlocks,
     required this.learningSessions,
     required this.learningReviews,
+    required this.weeklyRoutines,
+    required this.routineExceptions,
+    required this.reviewLogs,
+    required this.routines,
     required this.schedules,
     required this.modules,
     required this.theme,
@@ -31,6 +36,10 @@ class AppBootstrap {
   final TimeBlockRepository timeBlocks;
   final LearningSessionRepository learningSessions;
   final LearningReviewRepository learningReviews;
+  final WeeklyRoutineRepository weeklyRoutines;
+  final RoutineExceptionRepository routineExceptions;
+  final ReviewLogRepository reviewLogs;
+  final RoutineService routines;
   final ScheduleService schedules;
   final ModuleRegistry modules;
   final ThemeController theme;
@@ -47,6 +56,17 @@ class AppBootstrap {
         LearningSessionRepository(db.learningSessions);
     final LearningReviewRepository learningReviews =
         LearningReviewRepository(db.learningReviews);
+    final WeeklyRoutineRepository weeklyRoutines =
+        WeeklyRoutineRepository(db.weeklyRoutines);
+    final RoutineExceptionRepository routineExceptions =
+        RoutineExceptionRepository(db.routineExceptions);
+    final ReviewLogRepository reviewLogs = ReviewLogRepository(db.reviewLogs);
+    final RoutineService routines = RoutineService(
+      routines: weeklyRoutines,
+      exceptions: routineExceptions,
+      blocks: timeBlocks,
+      actions: actions,
+    );
     final ScheduleService schedules =
         ScheduleService(actions: actions, blocks: timeBlocks);
     final ModuleRegistry modules = ModuleRegistry(
@@ -71,6 +91,10 @@ class AppBootstrap {
       timeBlocks: timeBlocks,
       learningSessions: learningSessions,
       learningReviews: learningReviews,
+      weeklyRoutines: weeklyRoutines,
+      routineExceptions: routineExceptions,
+      reviewLogs: reviewLogs,
+      routines: routines,
       schedules: schedules,
       modules: modules,
       theme: theme,
@@ -84,6 +108,9 @@ class AppBootstrap {
     timeBlocks.dispose();
     learningSessions.dispose();
     learningReviews.dispose();
+    weeklyRoutines.dispose();
+    routineExceptions.dispose();
+    reviewLogs.dispose();
     modules.dispose();
     theme.dispose();
     db.close();

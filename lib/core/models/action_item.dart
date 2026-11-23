@@ -55,6 +55,7 @@ class ActionItem extends SyncEntity {
     this.posX = 0,
     this.posY = 0,
     this.completedAt,
+    this.dueDate,
     this.isCollapsed = false,
     super.deletedAt,
     super.syncStatus,
@@ -70,6 +71,7 @@ class ActionItem extends SyncEntity {
   final double posX;
   final double posY;
   final DateTime? completedAt;
+  final DateTime? dueDate;
   final bool isCollapsed;
 
   bool get isCompleted => status == ActionItemStatus.completed;
@@ -89,6 +91,7 @@ class ActionItem extends SyncEntity {
     ExecutionMode executionMode = ExecutionMode.standard,
     int? estimatedMinutes,
     ActionItemStatus status = ActionItemStatus.inbox,
+    DateTime? dueDate,
   }) {
     final now = DateTime.now();
     return ActionItem(
@@ -102,6 +105,7 @@ class ActionItem extends SyncEntity {
       executionMode: executionMode,
       estimatedMinutes: estimatedMinutes,
       status: status,
+      dueDate: dueDate,
     );
   }
 
@@ -120,6 +124,8 @@ class ActionItem extends SyncEntity {
     double? posY,
     DateTime? completedAt,
     bool clearCompletedAt = false,
+    DateTime? dueDate,
+    bool clearDueDate = false,
     bool? isCollapsed,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -141,6 +147,7 @@ class ActionItem extends SyncEntity {
       posX: posX ?? this.posX,
       posY: posY ?? this.posY,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
       isCollapsed: isCollapsed ?? this.isCollapsed,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       syncStatus: syncStatus ?? this.syncStatus,
@@ -160,6 +167,7 @@ class ActionItem extends SyncEntity {
         'posX': posX,
         'posY': posY,
         'completedAt': completedAt?.toIso8601String(),
+        'dueDate': dueDate?.toIso8601String(),
         'isCollapsed': isCollapsed,
       };
 
@@ -178,6 +186,7 @@ class ActionItem extends SyncEntity {
       posX: (json['posX'] as num?)?.toDouble() ?? 0,
       posY: (json['posY'] as num?)?.toDouble() ?? 0,
       completedAt: parseNullableDate(json['completedAt']),
+      dueDate: parseNullableDate(json['dueDate']),
       isCollapsed: json['isCollapsed'] as bool? ?? false,
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),

@@ -14,6 +14,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import 'routine_schedule_view.dart';
 import 'time_box_common.dart';
 
 /// 日视图：06:00–24:00 时间轴，左侧待排期任务可直接拖入。
@@ -27,6 +28,7 @@ class DayView extends StatefulWidget {
     required this.inboxItems,
     required this.onOpenAction,
     required this.onOpenReview,
+    required this.onRoutineAction,
     required this.labels,
     required this.onPickTask,
     required this.focusSeq,
@@ -40,6 +42,7 @@ class DayView extends StatefulWidget {
   final List<ActionItem> inboxItems;
   final ValueChanged<String> onOpenAction;
   final ValueChanged<String> onOpenReview;
+  final void Function(TimeBlock block, RoutineBlockAction action) onRoutineAction;
   final TaskLabelResolver labels;
   /// [durationMinutes] 为空表示沿用任务自身的预计时长。
   final void Function(DateTime start, int? durationMinutes) onPickTask;
@@ -333,7 +336,9 @@ class _DayViewState extends State<DayView> {
     final bool showMeta = label != null && height >= 58;
     final bool showTime = height >= 78;
     final String? statusTag;
-    if (block.learningReviewId != null) {
+    if (block.isOverridden) {
+      statusTag = '本周特例';
+    } else if (block.learningReviewId != null) {
       statusTag = block.isCompleted ? '已回忆' : '待回忆';
     } else if (action != null) {
       if (action.isCompleted) {
@@ -356,6 +361,28 @@ class _DayViewState extends State<DayView> {
         }
         final String? id = block.actionItemId;
         if (id != null) widget.onOpenAction(id);
+      },
+      onSecondaryTapUp: (TapUpDetails details) async {
+        if (block.routineId == null) return;
+        final RoutineBlockAction? routineAction = await showRoutineBlockMenu(
+          context,
+          block: block,
+          globalPosition: details.globalPosition,
+        );
+        if (routineAction != null) {
+          widget.onRoutineAction(block, routineAction);
+        }
+      },
+      onLongPressStart: (LongPressStartDetails details) async {
+        if (block.routineId == null) return;
+        final RoutineBlockAction? routineAction = await showRoutineBlockMenu(
+          context,
+          block: block,
+          globalPosition: details.globalPosition,
+        );
+        if (routineAction != null) {
+          widget.onRoutineAction(block, routineAction);
+        }
       },
       onPanStart: (_) => setState(() {
         _moveId = block.id;
@@ -381,6 +408,16 @@ class _DayViewState extends State<DayView> {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
+                      if (block.routineId != null) ...<Widget>[
+                        Icon(
+                          block.actionItemId != null
+                              ? Icons.link_rounded
+                              : Icons.repeat_rounded,
+                          size: 10,
+                          color: tone,
+                        ),
+                        const SizedBox(width: 3),
+                      ],
                       Expanded(
                         child: Text(
                           block.title,
@@ -433,10 +470,12 @@ class _DayViewState extends State<DayView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: context.texts.labelSmall?.copyWith(
-                                color: (statusTag == '已掌握' ||
-                                        statusTag == '已回忆')
-                                    ? palette.success
-                                    : palette.accent,
+                                color: statusTag == '本周特例'
+                                    ? palette.warning
+                                    : ((statusTag == '已掌握' ||
+                                            statusTag == '已回忆')
+                                        ? palette.success
+                                        : palette.accent),
                               ),
                             ),
                           ),
@@ -639,6 +678,7 @@ class _DayViewState extends State<DayView> {
           block.copyWith(
             startAt: newStart,
             endAt: newStart.add(Duration(minutes: duration)),
+            isOverridden: block.routineId != null ? true : null,
           ),
         );
   }
@@ -664,6 +704,7 @@ class _DayViewState extends State<DayView> {
     await context.read<TimeBlockRepository>().save(
           block.copyWith(
             endAt: block.startAt.add(Duration(minutes: duration)),
+            isOverridden: block.routineId != null ? true : null,
           ),
         );
   }

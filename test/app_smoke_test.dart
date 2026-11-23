@@ -18,6 +18,11 @@ void main() {
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('life_planner_test');
     bootstrap = await AppBootstrap.create(storagePath: tempDir.path);
+    // 预置一个当天截止的任务，供月视图 DDL 徽章断言。
+    await bootstrap.actions.create(
+      title: '阶段验收准备',
+      dueDate: DateTime.now(),
+    );
   });
 
   tearDownAll(() async {
@@ -263,10 +268,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('周一'), findsOneWidget);
 
+
     await tester.tap(find.text('月'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('总投入'), findsOneWidget);
+    expect(find.textContaining('DDL'), findsWidgets);
 
     await tester.tap(find.text('年'));
     await tester.pump();

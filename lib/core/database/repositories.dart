@@ -177,6 +177,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
     ExecutionMode executionMode = ExecutionMode.standard,
     int? estimatedMinutes,
     ActionItemStatus status = ActionItemStatus.inbox,
+    DateTime? dueDate,
   }) async {
     final ActionItem item = ActionItem.create(
       title: title.trim(),
@@ -186,6 +187,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
       executionMode: executionMode,
       estimatedMinutes: estimatedMinutes,
       status: status,
+      dueDate: dueDate,
     );
     await put(item);
     return item;
@@ -254,6 +256,7 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
     required int durationMinutes,
     String? actionItemId,
     String? learningReviewId,
+    String? routineId,
   }) async {
     final TimeBlock block = TimeBlock.create(
       startAt: startAt,
@@ -261,6 +264,7 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
       title: title,
       actionItemId: actionItemId,
       learningReviewId: learningReviewId,
+      routineId: routineId,
     );
     await put(block);
     return block;
@@ -412,5 +416,102 @@ class LearningReviewRepository extends JsonEntityRepository<LearningReview> {
     );
     await put(next);
     return next;
+  }
+}
+class WeeklyRoutineRepository extends JsonEntityRepository<WeeklyRoutine> {
+  WeeklyRoutineRepository(Box<String> box) : super(box, WeeklyRoutine.fromJson);
+
+  List<WeeklyRoutine> get active => all
+      .where((WeeklyRoutine routine) => routine.isActive)
+      .toList(growable: false);
+
+  List<WeeklyRoutine> forWeekday(int weekday) => all
+      .where((WeeklyRoutine routine) => routine.weekday == weekday)
+      .toList(growable: false);
+
+  Future<WeeklyRoutine> create({
+    required String title,
+    required int weekday,
+    required int startMinutes,
+    required int durationMinutes,
+    RoutineKind kind = RoutineKind.fixedRoutine,
+    String? actionItemId,
+    int colorIndex = 0,
+  }) async {
+    final WeeklyRoutine routine = WeeklyRoutine.create(
+      title: title,
+      weekday: weekday,
+      startMinutes: startMinutes,
+      durationMinutes: durationMinutes,
+      kind: kind,
+      actionItemId: actionItemId,
+      colorIndex: colorIndex,
+    );
+    await put(routine);
+    return routine;
+  }
+
+  Future<void> save(WeeklyRoutine routine) =>
+      put(routine.copyWith(syncStatus: SyncStatus.pendingUpdate));
+}
+
+class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> {
+  RoutineExceptionRepository(Box<String> box)
+      : super(box, RoutineException.fromJson);
+
+  bool isSkipped(String routineId, String dateKey) {
+    for (final RoutineException exception in all) {
+      if (exception.routineId == routineId &&
+          exception.dateKey == dateKey &&
+          exception.isSkipped) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<RoutineException> forRoutine(String routineId) => all
+      .where((RoutineException exception) => exception.routineId == routineId)
+      .toList(growable: false);
+
+  Future<void> addSkip(String routineId, String dateKey) async {
+    if (isSkipped(routineId, dateKey)) return;
+    await put(
+      RoutineException.createSkip(routineId: routineId, dateKey: dateKey),
+    );
+  }
+
+  Future<void> removeSkip(String routineId, String dateKey) async {
+    for (final RoutineException exception in forRoutine(routineId)) {
+      if (exception.dateKey == dateKey) {
+        await softDelete(exception.id);
+      }
+    }
+  }
+}
+class ReviewLogRepository extends JsonEntityRepository<ReviewLog> {
+  ReviewLogRepository(Box<String> box) : super(box, ReviewLog.fromJson);
+
+  ReviewLog? forPeriod(ReviewPeriodType type, String periodKey) {
+    for (final ReviewLog log in all) {
+      if (log.periodType == type && log.periodKey == periodKey) return log;
+    }
+    return null;
+  }
+
+  bool hasMonthly(String periodKey) =>
+      forPeriod(ReviewPeriodType.monthly, periodKey) != null;
+
+  Set<int> reviewedMonthsOf(int year) {
+    final Set<int> months = <int>{};
+    for (final ReviewLog log in all) {
+      if (log.periodType != ReviewPeriodType.monthly) continue;
+      final List<String> parts = log.periodKey.split('-');
+      if (parts.length < 2) continue;
+      final int? logYear = int.tryParse(parts[0]);
+      final int? logMonth = int.tryParse(parts[1]);
+      if (logYear == year && logMonth != null) months.add(logMonth);
+    }
+    return months;
   }
 }

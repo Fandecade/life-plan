@@ -214,6 +214,11 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
               ),
               _section(
                 context,
+                '截止日',
+                _dueDateCard(context, item),
+              ),
+              _section(
+                context,
                 '备注与动机',
                 AppTextField(
                   controller: _noteController,
@@ -465,6 +470,86 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
         ],
       ),
     );
+  }
+
+  Widget _dueDateCard(BuildContext context, ActionItem item) {
+    final AppPalette palette = context.palette;
+    final DateTime? due = item.dueDate;
+    final bool overdue = due != null &&
+        !item.isCompleted &&
+        AppDate.startOfDay(due).isBefore(AppDate.startOfDay(DateTime.now()));
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            Icons.flag_outlined,
+            size: 16,
+            color: due == null
+                ? palette.textTertiary
+                : (overdue ? palette.danger : palette.accent),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              due == null
+                  ? '未设置截止日'
+                  : '${AppDate.fullDateLabel(due)}${overdue ? ' · 已逾期' : ''}',
+              style: context.texts.bodyMedium?.copyWith(
+                color: due == null
+                    ? palette.textSecondary
+                    : (overdue ? palette.danger : palette.textPrimary),
+              ),
+            ),
+          ),
+          AppGhostButton(
+            label: due == null ? '设置' : '修改',
+            icon: Icons.event_outlined,
+            dense: true,
+            onPressed: () => _pickDueDate(item),
+          ),
+          if (due != null)
+            AppGhostButton(
+              label: '清除',
+              tone: palette.danger,
+              dense: true,
+              onPressed: () => _clearDueDate(item),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickDueDate(ActionItem item) async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = item.dueDate ?? now;
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 3650)),
+      helpText: '选择截止日',
+      cancelText: '取消',
+      confirmText: '确定',
+    );
+    if (picked == null || !mounted) return;
+    await context.read<ActionItemRepository>().save(
+          item.copyWith(dueDate: picked),
+        );
+    if (!mounted) return;
+    _toast('截止日已设为 ${AppDate.monthDayLabel(picked)}');
+  }
+
+  Future<void> _clearDueDate(ActionItem item) async {
+    await context.read<ActionItemRepository>().save(
+          item.copyWith(clearDueDate: true),
+        );
+    if (!mounted) return;
+    _toast('已清除截止日');
   }
 
   Future<void> _pickSchedule(ActionItem item) async {

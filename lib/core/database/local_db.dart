@@ -12,6 +12,8 @@ class LocalDatabase {
   static const String boxTimeBlocks = 'time_blocks';
   static const String boxLearningSessions = 'learning_sessions';
   static const String boxLearningReviews = 'learning_reviews';
+  static const String boxWeeklyRoutines = 'weekly_routines';
+  static const String boxRoutineExceptions = 'routine_exceptions';
   static const String boxFoggHabits = 'fogg_habits';
   static const String boxHabitLogs = 'habit_logs';
   static const String boxReviewLogs = 'review_logs';
@@ -23,6 +25,8 @@ class LocalDatabase {
   late final Box<String> timeBlocks;
   late final Box<String> learningSessions;
   late final Box<String> learningReviews;
+  late final Box<String> weeklyRoutines;
+  late final Box<String> routineExceptions;
   late final Box<String> foggHabits;
   late final Box<String> habitLogs;
   late final Box<String> reviewLogs;
@@ -42,6 +46,8 @@ class LocalDatabase {
     timeBlocks = await Hive.openBox<String>(boxTimeBlocks);
     learningSessions = await Hive.openBox<String>(boxLearningSessions);
     learningReviews = await Hive.openBox<String>(boxLearningReviews);
+    weeklyRoutines = await Hive.openBox<String>(boxWeeklyRoutines);
+    routineExceptions = await Hive.openBox<String>(boxRoutineExceptions);
     foggHabits = await Hive.openBox<String>(boxFoggHabits);
     habitLogs = await Hive.openBox<String>(boxHabitLogs);
     reviewLogs = await Hive.openBox<String>(boxReviewLogs);
@@ -55,6 +61,8 @@ class LocalDatabase {
         timeBlocks,
         learningSessions,
         learningReviews,
+        weeklyRoutines,
+        routineExceptions,
         foggHabits,
         habitLogs,
         reviewLogs,
