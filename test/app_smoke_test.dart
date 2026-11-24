@@ -233,10 +233,13 @@ void main() {
     final Rect trackRect = tester.getRect(
       find.byKey(const ValueKey<String>('time-track')),
     );
-    await tester.dragFrom(
+    final TestGesture selectGesture = await tester.startGesture(
       Offset(trackRect.left + 80, trackRect.top + 7 * 60),
-      const Offset(0, 120),
     );
+    await tester.pump(const Duration(milliseconds: 650));
+    await selectGesture.moveBy(const Offset(0, 120));
+    await tester.pump();
+    await selectGesture.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('安排任务'), findsOneWidget);

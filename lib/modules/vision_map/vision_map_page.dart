@@ -22,6 +22,7 @@ class VisionMapPage extends StatefulWidget {
 class _VisionMapPageState extends State<VisionMapPage> {
   final TransformationController _transform = TransformationController();
   String? _activeVisionId;
+  String? _dragOverVisionId;
 
   @override
   void dispose() {
@@ -39,7 +40,7 @@ class _VisionMapPageState extends State<VisionMapPage> {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final List<Vision> visions = context.watch<VisionRepository>().all;
+    final List<Vision> visions = context.watch<VisionRepository>().ordered;
     final UiController ui = context.watch<UiController>();
     final Vision? vision = _currentVision(visions);
     final String? focusCapabilityId = ui.focusCapabilityId;
@@ -143,6 +144,123 @@ class _VisionMapPageState extends State<VisionMapPage> {
     );
   }
 
+  Widget _draggablePill(
+    BuildContext context,
+    AppPalette palette,
+    List<Vision> visions,
+    int index,
+    Vision current,
+  ) {
+    final Vision vision = visions[index];
+    final Color accent = context.hexColor(
+      vision.colorHex,
+      fallback: palette.accent,
+    );
+    final Widget pill = _VisionPill(
+      vision: vision,
+      selected: vision.id == current.id,
+      onTap: () {
+        setState(() => _activeVisionId = vision.id);
+        _transform.value = Matrix4.identity();
+      },
+      onMenuRequested: (Offset position) =>
+          _showVisionMenu(context, vision, position),
+    );
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (DragTargetDetails<String> details) {
+        if (details.data == vision.id) return false;
+        setState(() => _dragOverVisionId = vision.id);
+        return true;
+      },
+      onLeave: (_) {
+        if (_dragOverVisionId == vision.id) {
+          setState(() => _dragOverVisionId = null);
+        }
+      },
+      onAcceptWithDetails: (DragTargetDetails<String> details) {
+        setState(() => _dragOverVisionId = null);
+        context.read<VisionRepository>().moveTo(details.data, index);
+      },
+      builder: (
+        BuildContext context,
+        List<String?> candidate,
+        List<dynamic> rejected,
+      ) {
+        final bool active = candidate.isNotEmpty;
+        return Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.xs + 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: active ? 2 : 0,
+                height: 18,
+                margin: const EdgeInsets.only(right: 3),
+                decoration: BoxDecoration(
+                  color: palette.accent,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+              Draggable<String>(
+                data: vision.id,
+                feedback: _pillFeedback(context, palette, vision, accent),
+                childWhenDragging: Opacity(opacity: 0.35, child: pill),
+                child: pill,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pillFeedback(
+    BuildContext context,
+    AppPalette palette,
+    Vision vision,
+    Color accent,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: accent.withValues(alpha: 0.6)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: palette.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        constraints: const BoxConstraints(maxWidth: 196),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            StatusDot(color: accent, size: 5),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                vision.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.texts.labelLarge?.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _toolbar(BuildContext context, List<Vision> visions, Vision current) {
     final AppPalette palette = context.palette;
     return Container(
@@ -155,18 +273,8 @@ class _VisionMapPageState extends State<VisionMapPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: <Widget>[
-                  for (final Vision vision in visions)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.xs + 2),
-                      child: _VisionPill(
-                        vision: vision,
-                        selected: vision.id == current.id,
-                        onTap: () {
-                          setState(() => _activeVisionId = vision.id);
-                          _transform.value = Matrix4.identity();
-                        },
-                      ),
-                    ),
+                  for (int i = 0; i < visions.length; i++)
+                    _draggablePill(context, palette, visions, i, current),
                   AppIconButton(
                     icon: Icons.add_rounded,
                     tooltip: '新建愿景',
@@ -286,7 +394,7 @@ class _VisionMapPageState extends State<VisionMapPage> {
       case MapNodeAction.addCapability:
         await _createCapability(vision);
       case MapNodeAction.delete:
-        await _deleteVision(vision, capabilities, tasksByCapability);
+        await _deleteVision(vision);
       case MapNodeAction.addTask:
         break;
     }
@@ -336,30 +444,93 @@ class _VisionMapPageState extends State<VisionMapPage> {
         );
   }
 
-  Future<void> _deleteVision(
-    Vision vision,
-    List<Capability> capabilities,
-    Map<String, List<ActionItem>> tasksByCapability,
-  ) async {
+  Future<void> _deleteVision(Vision vision) async {
     final bool ok = await _confirm(
       title: '删除整个愿景？',
       message: '将同时软删除其下的能力与任务，数据仍保留在本地以便二期同步。',
     );
     if (!ok || !mounted) return;
 
-    final CapabilityRepository capabilityRepo = context.read<CapabilityRepository>();
+    final CapabilityRepository capabilityRepo =
+        context.read<CapabilityRepository>();
     final ActionItemRepository actionRepo = context.read<ActionItemRepository>();
+    final List<Capability> capabilities = capabilityRepo.forVision(vision.id);
+    final Set<String> capabilityIds =
+        capabilities.map((Capability item) => item.id).toSet();
+    final List<ActionItem> tasks = actionRepo.all
+        .where((ActionItem item) =>
+            item.capabilityId != null &&
+            capabilityIds.contains(item.capabilityId))
+        .toList(growable: false);
+
+    for (final ActionItem item in tasks) {
+      await actionRepo.softDelete(item.id);
+    }
     for (final Capability capability in capabilities) {
-      for (final ActionItem item in tasksByCapability[capability.id] ??
-          const <ActionItem>[]) {
-        await actionRepo.softDelete(item.id);
-      }
       await capabilityRepo.softDelete(capability.id);
     }
     await context.read<VisionRepository>().softDelete(vision.id);
     if (!mounted) return;
-    setState(() => _activeVisionId = null);
+    setState(() {
+      if (_activeVisionId == vision.id) _activeVisionId = null;
+    });
     _toast('愿景已删除');
+  }
+
+  /// 愿景切换胶囊的右键 / 长按菜单：调整顺序或删除。
+  Future<void> _showVisionMenu(
+    BuildContext anchorContext,
+    Vision vision,
+    Offset globalPosition,
+  ) async {
+    final AppPalette palette = anchorContext.palette;
+    final RenderBox overlay =
+        Overlay.of(anchorContext).context.findRenderObject()! as RenderBox;
+    final String? action = await showMenu<String>(
+      context: anchorContext,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        overlay.size.width - globalPosition.dx,
+        overlay.size.height - globalPosition.dy,
+      ),
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'up',
+          height: 38,
+          child: Text('前移', style: context.texts.bodyMedium),
+        ),
+        PopupMenuItem<String>(
+          value: 'down',
+          height: 38,
+          child: Text('后移', style: context.texts.bodyMedium),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 38,
+          child: Text(
+            '删除这个愿景',
+            style: context.texts.bodyMedium?.copyWith(color: palette.danger),
+          ),
+        ),
+      ],
+    );
+    if (action == null || !mounted) return;
+    final VisionRepository repo = context.read<VisionRepository>();
+    switch (action) {
+      case 'up':
+        await repo.move(vision.id, -1);
+      case 'down':
+        await repo.move(vision.id, 1);
+      case 'delete':
+        await _deleteVision(vision);
+    }
   }
 
   Future<void> _handleCapabilityAction(
@@ -487,20 +658,27 @@ class _VisionPill extends StatelessWidget {
     required this.vision,
     required this.selected,
     required this.onTap,
+    this.onMenuRequested,
   });
 
   final Vision vision;
   final bool selected;
   final VoidCallback onTap;
+  final ValueChanged<Offset>? onMenuRequested;
 
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final Color accent = context.hexColor(vision.colorHex, fallback: palette.accent);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
+    return GestureDetector(
+      onSecondaryTapUp: (TapUpDetails details) =>
+          onMenuRequested?.call(details.globalPosition),
+      onLongPressStart: (LongPressStartDetails details) =>
+          onMenuRequested?.call(details.globalPosition),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -530,6 +708,7 @@ class _VisionPill extends StatelessWidget {
                 ),
               ),
             ],
+            ),
           ),
         ),
       ),

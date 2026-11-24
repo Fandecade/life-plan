@@ -208,6 +208,7 @@ class VisionNodeCard extends StatelessWidget {
                       MapNodeAction.addCapability,
                       MapNodeAction.delete,
                     ],
+                    deleteLabel: '删除愿景',
                     onAction: onAction,
                   ),
                 ],
@@ -352,6 +353,7 @@ class CapabilityNodeCard extends StatelessWidget {
                       MapNodeAction.addTask,
                       MapNodeAction.delete,
                     ],
+                    deleteLabel: '删除能力',
                     onAction: onAction,
                   ),
                 ],
@@ -557,10 +559,15 @@ class TaskNodeCard extends StatelessWidget {
 }
 
 class _NodeMenu extends StatelessWidget {
-  const _NodeMenu({required this.actions, required this.onAction});
+  const _NodeMenu({
+    required this.actions,
+    required this.onAction,
+    this.deleteLabel = '删除',
+  });
 
   final List<MapNodeAction> actions;
   final ValueChanged<MapNodeAction> onAction;
+  final String deleteLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -629,7 +636,7 @@ class _NodeMenu extends StatelessWidget {
       case MapNodeAction.toggleCollapse:
         return '折叠 / 展开';
       case MapNodeAction.delete:
-        return '删除';
+        return deleteLabel;
     }
   }
 }

@@ -17,6 +17,7 @@ class Vision extends SyncEntity {
     this.posX = 0,
     this.posY = 0,
     this.isCollapsed = false,
+    this.sortOrder = 0,
     super.deletedAt,
     super.syncStatus,
   });
@@ -29,6 +30,9 @@ class Vision extends SyncEntity {
   final double posY;
   final bool isCollapsed;
 
+  /// 愿景在切换栏中的顺序（越小越靠前），新建默认追加到末尾。
+  final int sortOrder;
+
   String get horizonLabel => '$timeHorizon愿景';
 
   factory Vision.create({
@@ -36,6 +40,7 @@ class Vision extends SyncEntity {
     String description = '',
     String timeHorizon = '3年',
     String colorHex = '#4A5F7A',
+    int sortOrder = 0,
   }) {
     final now = DateTime.now();
     return Vision(
@@ -46,6 +51,7 @@ class Vision extends SyncEntity {
       description: description,
       timeHorizon: timeHorizon,
       colorHex: colorHex,
+      sortOrder: sortOrder,
     );
   }
 
@@ -57,6 +63,7 @@ class Vision extends SyncEntity {
     double? posX,
     double? posY,
     bool? isCollapsed,
+    int? sortOrder,
     DateTime? updatedAt,
     DateTime? deletedAt,
     bool clearDeletedAt = false,
@@ -73,6 +80,7 @@ class Vision extends SyncEntity {
       posX: posX ?? this.posX,
       posY: posY ?? this.posY,
       isCollapsed: isCollapsed ?? this.isCollapsed,
+      sortOrder: sortOrder ?? this.sortOrder,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       syncStatus: syncStatus ?? this.syncStatus,
     );
@@ -88,6 +96,7 @@ class Vision extends SyncEntity {
         'posX': posX,
         'posY': posY,
         'isCollapsed': isCollapsed,
+        'sortOrder': sortOrder,
       };
 
   factory Vision.fromJson(Map<String, dynamic> json) {
@@ -102,6 +111,7 @@ class Vision extends SyncEntity {
       posX: (json['posX'] as num?)?.toDouble() ?? 0,
       posY: (json['posY'] as num?)?.toDouble() ?? 0,
       isCollapsed: json['isCollapsed'] as bool? ?? false,
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),
     );

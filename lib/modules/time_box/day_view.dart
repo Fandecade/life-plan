@@ -193,10 +193,23 @@ class _DayViewState extends State<DayView> {
                   color: palette.accentSoft.withValues(alpha: 0.35),
                 )
               : const BoxDecoration(),
-          child: SingleChildScrollView(
-            controller: _scroll,
-            child: SizedBox(
-              height: contentHeight,
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 4, 10, 2),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '滚轮 / 拖动滚动 · 长按拖动圈选时间',
+                    style: context.texts.labelSmall?.copyWith(fontSize: 9),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  child: SizedBox(
+                    height: contentHeight,
               child: Stack(
                 key: _trackKey,
                 children: <Widget>[
@@ -244,12 +257,13 @@ class _DayViewState extends State<DayView> {
                       behavior: HitTestBehavior.opaque,
                       onTapUp: (TapUpDetails details) =>
                           _handleTapAt(details.localPosition),
-                      onVerticalDragStart: (DragStartDetails details) =>
+                      onLongPressStart: (LongPressStartDetails details) =>
                           _handleSelectStart(details.localPosition),
-                      onVerticalDragUpdate: (DragUpdateDetails details) =>
-                          _handleSelectUpdate(details.localPosition),
-                      onVerticalDragEnd: (_) => _handleSelectEnd(),
-                      onVerticalDragCancel: _clearSelection,
+                      onLongPressMoveUpdate:
+                          (LongPressMoveUpdateDetails details) =>
+                              _handleSelectUpdate(details.localPosition),
+                      onLongPressEnd: (_) => _handleSelectEnd(),
+                      onLongPressCancel: _clearSelection,
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -291,7 +305,10 @@ class _DayViewState extends State<DayView> {
                     ),
                 ],
               ),
-            ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -566,8 +583,7 @@ class _DayViewState extends State<DayView> {
     final DateTime? anchor = _selectAnchor;
     final DateTime? current = _selectCurrent;
     if (anchor == null || current == null) return null;
-    final DateTime later = anchor.isAfter(current) ? anchor : current;
-    return later.add(const Duration(minutes: TimeBoxMetrics.snapMinutes));
+    return anchor.isAfter(current) ? anchor : current;
   }
 
   void _handleSelectStart(Offset local) {

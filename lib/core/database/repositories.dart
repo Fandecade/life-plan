@@ -99,20 +99,70 @@ class JsonEntityRepository<T extends SyncEntity> extends ChangeNotifier {
 class VisionRepository extends JsonEntityRepository<Vision> {
   VisionRepository(Box<String> box) : super(box, Vision.fromJson);
 
+  /// 切换栏顺序：显式 sortOrder 优先，其次按创建时间稳定排列。
+  static int compareOrder(Vision a, Vision b) {
+    if (a.sortOrder != b.sortOrder) {
+      return a.sortOrder.compareTo(b.sortOrder);
+    }
+    return a.createdAt.compareTo(b.createdAt);
+  }
+
+  List<Vision> get ordered =>
+      all.toList(growable: false)..sort(compareOrder);
+
   Future<Vision> create({
     required String title,
     String description = '',
     String timeHorizon = '3年',
     String colorHex = '#4A5F7A',
+    int? sortOrder,
   }) async {
+    final List<Vision> existing = all;
+    int maxOrder = -1;
+    for (final Vision item in existing) {
+      if (item.sortOrder > maxOrder) maxOrder = item.sortOrder;
+    }
     final Vision vision = Vision.create(
       title: title.trim(),
       description: description,
       timeHorizon: timeHorizon,
       colorHex: colorHex,
+      sortOrder: sortOrder ?? maxOrder + 1,
     );
     await put(vision);
     return vision;
+  }
+
+  /// 拖动排序：把愿景移动到目标索引（拖动落点所在项的位置）。
+  Future<void> moveTo(String visionId, int targetIndex) async {
+    final List<Vision> list = ordered.toList();
+    final int from = list.indexWhere((Vision item) => item.id == visionId);
+    if (from < 0) return;
+    final int to = targetIndex.clamp(0, list.length - 1);
+    if (from == to) return;
+    final Vision moved = list.removeAt(from);
+    list.insert(to, moved);
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].sortOrder != i) {
+        await save(list[i].copyWith(sortOrder: i));
+      }
+    }
+  }
+
+  /// 在切换栏中前后移动（delta = -1 前移，+1 后移）。
+  Future<void> move(String visionId, int delta) async {
+    final List<Vision> list = ordered;
+    final int index = list.indexWhere((Vision item) => item.id == visionId);
+    final int target = index + delta;
+    if (index < 0 || target < 0 || target >= list.length) return;
+
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].sortOrder != i) {
+        await save(list[i].copyWith(sortOrder: i));
+      }
+    }
+    await save(list[index].copyWith(sortOrder: target));
+    await save(list[target].copyWith(sortOrder: index));
   }
 
   Future<void> save(Vision vision) =>
