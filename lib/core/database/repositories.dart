@@ -228,6 +228,8 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
     int? estimatedMinutes,
     ActionItemStatus status = ActionItemStatus.inbox,
     DateTime? dueDate,
+    String ifThenText = '',
+    CognitiveLoad cognitiveLoad = CognitiveLoad.medium,
   }) async {
     final ActionItem item = ActionItem.create(
       title: title.trim(),
@@ -238,6 +240,8 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
       estimatedMinutes: estimatedMinutes,
       status: status,
       dueDate: dueDate,
+      ifThenText: ifThenText,
+      cognitiveLoad: cognitiveLoad,
     );
     await put(item);
     return item;

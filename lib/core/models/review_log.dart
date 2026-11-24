@@ -36,6 +36,9 @@ class ReviewLog extends SyncEntity {
     this.adjustmentsText = '',
     this.focusText = '',
     this.ifThenText = '',
+    this.adjustmentPlan = '',
+    this.expectedOutcome = '',
+    this.actualOutcome = '',
     this.isCompleted = false,
     this.handledItemsJson = '[]',
     this.snapshotStatsJson = '{}',
@@ -54,6 +57,15 @@ class ReviewLog extends SyncEntity {
 
   /// If–Then 应对预案。
   final String ifThenText;
+
+  /// 本期调整方案（下一周期验证用）。
+  final String adjustmentPlan;
+
+  /// 调整的预期效果（可验证指标）。
+  final String expectedOutcome;
+
+  /// 调整的实际效果（由下一周期回看时补填）。
+  final String actualOutcome;
 
   /// 是否已完成本次复盘。
   final bool isCompleted;
@@ -90,6 +102,8 @@ class ReviewLog extends SyncEntity {
   factory ReviewLog.create({
     required ReviewPeriodType periodType,
     required String periodKey,
+    String adjustmentPlan = '',
+    String expectedOutcome = '',
   }) {
     final now = DateTime.now();
     return ReviewLog(
@@ -98,6 +112,8 @@ class ReviewLog extends SyncEntity {
       updatedAt: now,
       periodType: periodType,
       periodKey: periodKey,
+      adjustmentPlan: adjustmentPlan,
+      expectedOutcome: expectedOutcome,
     );
   }
 
@@ -109,6 +125,9 @@ class ReviewLog extends SyncEntity {
     String? adjustmentsText,
     String? focusText,
     String? ifThenText,
+    String? adjustmentPlan,
+    String? expectedOutcome,
+    String? actualOutcome,
     bool? isCompleted,
     String? handledItemsJson,
     String? snapshotStatsJson,
@@ -128,6 +147,9 @@ class ReviewLog extends SyncEntity {
       adjustmentsText: adjustmentsText ?? this.adjustmentsText,
       focusText: focusText ?? this.focusText,
       ifThenText: ifThenText ?? this.ifThenText,
+      adjustmentPlan: adjustmentPlan ?? this.adjustmentPlan,
+      expectedOutcome: expectedOutcome ?? this.expectedOutcome,
+      actualOutcome: actualOutcome ?? this.actualOutcome,
       isCompleted: isCompleted ?? this.isCompleted,
       handledItemsJson: handledItemsJson ?? this.handledItemsJson,
       snapshotStatsJson: snapshotStatsJson ?? this.snapshotStatsJson,
@@ -146,6 +168,9 @@ class ReviewLog extends SyncEntity {
         'adjustmentsText': adjustmentsText,
         'focusText': focusText,
         'ifThenText': ifThenText,
+        'adjustmentPlan': adjustmentPlan,
+        'expectedOutcome': expectedOutcome,
+        'actualOutcome': actualOutcome,
         'isCompleted': isCompleted,
         'handledItemsJson': handledItemsJson,
         'snapshotStatsJson': snapshotStatsJson,
@@ -163,6 +188,9 @@ class ReviewLog extends SyncEntity {
       adjustmentsText: json['adjustmentsText'] as String? ?? '',
       focusText: json['focusText'] as String? ?? '',
       ifThenText: json['ifThenText'] as String? ?? '',
+      adjustmentPlan: json['adjustmentPlan'] as String? ?? '',
+      expectedOutcome: json['expectedOutcome'] as String? ?? '',
+      actualOutcome: json['actualOutcome'] as String? ?? '',
       isCompleted: json['isCompleted'] as bool? ?? false,
       handledItemsJson: json['handledItemsJson'] as String? ?? '[]',
       snapshotStatsJson: json['snapshotStatsJson'] as String? ?? '{}',

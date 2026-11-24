@@ -43,6 +43,13 @@ class _ReviewPageState extends State<ReviewPage> {
   final TextEditingController _adjustments = TextEditingController();
   final TextEditingController _focus = TextEditingController();
   final TextEditingController _ifThen = TextEditingController();
+  final TextEditingController _plan = TextEditingController();
+  final TextEditingController _expected = TextEditingController();
+  final TextEditingController _actual = TextEditingController();
+
+  ReviewLog? _previousLog;
+  String _previousPlan = '';
+  String _previousExpected = '';
 
   final Set<String> _handled = <String>{};
 
@@ -74,6 +81,9 @@ class _ReviewPageState extends State<ReviewPage> {
     _adjustments.dispose();
     _focus.dispose();
     _ifThen.dispose();
+    _plan.dispose();
+    _expected.dispose();
+    _actual.dispose();
     super.dispose();
   }
 
@@ -86,6 +96,19 @@ class _ReviewPageState extends State<ReviewPage> {
     _adjustments.text = log?.adjustmentsText ?? '';
     _focus.text = log?.focusText ?? '';
     _ifThen.text = log?.ifThenText ?? '';
+    _plan.text = log?.adjustmentPlan ?? '';
+    _expected.text = log?.expectedOutcome ?? '';
+
+    final ReviewWindow previous =
+        context.read<ReviewService>().previousWindow(window);
+    final ReviewLog? previousLog = context
+        .read<ReviewLogRepository>()
+        .forPeriod(previous.type, previous.periodKey);
+    _previousLog = previousLog;
+    _previousPlan = previousLog?.adjustmentPlan ?? '';
+    _previousExpected = previousLog?.expectedOutcome ?? '';
+    _actual.text = previousLog?.actualOutcome ?? '';
+
     _handled
       ..clear()
       ..addAll(log?.handledItems ?? const <String>[]);
@@ -318,6 +341,8 @@ class _ReviewPageState extends State<ReviewPage> {
       adjustments: _adjustments.text,
       focus: _focus.text,
       ifThen: _ifThen.text,
+      adjustmentPlan: _plan.text,
+      expectedOutcome: _expected.text,
       isCompleted: isCompleted,
       handled: _handled,
       stats: service.snapshotStats(window),
@@ -1304,11 +1329,52 @@ class _ReviewPageState extends State<ReviewPage> {
                 ? '3–5 分钟：只看今天执行与明日微调'
                 : '对事不对人：先分清系统问题与外部干扰',
           ),
-          const SizedBox(height: AppSpacing.sm),
+          if (_previousPlan.isNotEmpty) ...<Widget>[
+            Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              padding: const EdgeInsets.all(AppSpacing.sm + 2),
+              decoration: BoxDecoration(
+                color: palette.surfaceMuted.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: palette.hairline),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('上期调整回看', style: context.texts.titleSmall),
+                  const SizedBox(height: 4),
+                  Text('方案：$_previousPlan', style: context.texts.bodySmall),
+                  if (_previousExpected.isNotEmpty)
+                    Text(
+                      '预期：$_previousExpected',
+                      style: context.texts.bodySmall,
+                    ),
+                  const SizedBox(height: 6),
+                  AppTextField(
+                    key: const ValueKey<String>('review-previous-actual'),
+                    controller: _actual,
+                    maxLines: 2,
+                    minLines: 1,
+                    hintText: '实际效果如何？写下来，下期闭环才算完成',
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: AppGhostButton(
+                      label: '保存实际效果',
+                      dense: true,
+                      onPressed: _savePreviousOutcome,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           for (final _Question question in questions) ...<Widget>[
             Text(question.title, style: context.texts.labelSmall),
             const SizedBox(height: 4),
             AppTextField(
+              key: ValueKey<String>('review-q-${question.title}'),
               controller: question.controller,
               hintText: question.hint,
               maxLines: 3,
@@ -1379,12 +1445,32 @@ class _ReviewPageState extends State<ReviewPage> {
             '例：如果周三加班，就把 1 小时学习缩成 5 分钟微输出',
             _ifThen,
           ),
+          _Question(
+            '本期调整方案（可验证）',
+            '具体改什么：任务颗粒度 / 时间安排 / 学习策略 / 习惯配方',
+            _plan,
+          ),
+          _Question(
+            '预期效果',
+            '希望看到什么变化？例：完成率 +10%、估时误差下降、复习按时率提升',
+            _expected,
+          ),
         ];
       case ReviewPeriodType.monthly:
         return <_Question>[
           _Question('能力推进评估', '哪些能力有实质突破？哪些连续两周停滞？', _wins),
           _Question('停滞与偏离', '沉没成本止损：哪些目标已不合时宜？', _blockers),
           _Question('目标减法（Stop Doing）', '决定暂停或归档什么，给核心能力腾空间', _adjustments),
+          _Question(
+            '本期调整方案（可验证）',
+            '具体改什么：能力布局 / 时间结构 / 项目取舍',
+            _plan,
+          ),
+          _Question(
+            '预期效果',
+            '希望看到什么变化？例：核心能力投入占比提升、停滞能力恢复推进',
+            _expected,
+          ),
         ];
       case ReviewPeriodType.yearly:
         return <_Question>[
@@ -1973,6 +2059,16 @@ class _ReviewPageState extends State<ReviewPage> {
         },
       ),
     );
+  }
+
+  Future<void> _savePreviousOutcome() async {
+    final ReviewLog? previous = _previousLog;
+    if (previous == null) return;
+    await context.read<ReviewLogRepository>().save(
+          previous.copyWith(actualOutcome: _actual.text),
+        );
+    if (!mounted) return;
+    _toast('已记录上期调整的实际效果');
   }
 
   Future<void> _undoItem(ReviewItem item) async {

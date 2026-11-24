@@ -115,6 +115,14 @@ void main() {
       wins: '历史一条',
       isCompleted: true,
     );
+    final ReviewWindow lastWeek = bootstrap.reviewService.previousWindow(
+      ReviewWindow.of(ReviewPeriodType.weekly, DateTime.now()),
+    );
+    await bootstrap.reviewService.saveEntry(
+      lastWeek,
+      adjustmentPlan: '把学习任务颗粒度缩小一半',
+      expectedOutcome: '完成率 +10%',
+    );
 
     final ActionItem work = await bootstrap.actions.create(
       title: '年度作品 B',
@@ -329,6 +337,36 @@ void main() {
     );
   });
 
+  testWidgets('上期调整回看可补填实际效果', (WidgetTester tester) async {
+    await openReview(tester);
+
+    await tester.tap(find.text('周复盘'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('上期调整回看'), findsOneWidget);
+    expect(find.textContaining('把学习任务颗粒度缩小一半'), findsWidgets);
+
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('review-previous-actual')),
+      '实际完成率 +6%，未达预期',
+    );
+    await tester.pump();
+
+    final Finder save = find.text('保存实际效果');
+    await tester.ensureVisible(save);
+    await tester.pump();
+    await tester.tap(save);
+    await settle(tester);
+
+    final ReviewWindow lastWeek = bootstrap.reviewService.previousWindow(
+      ReviewWindow.of(ReviewPeriodType.weekly, DateTime.now()),
+    );
+    final ReviewLog? previous =
+        bootstrap.reviewLogs.forPeriod(lastWeek.type, lastWeek.periodKey);
+    expect(previous?.actualOutcome, contains('+6%'));
+  });
+
   testWidgets('月复盘展示学习摘要、能力推进、热力与配方对比', (
     WidgetTester tester,
   ) async {
@@ -396,14 +434,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     await tester.enterText(
-      find.byType(TextField).first,
+      find.byKey(const ValueKey<String>('review-q-本周有效模式（Keep）')),
       '每天先做 5 分钟微输出，再展开完整学习',
     );
     await tester.pump(const Duration(milliseconds: 700));
 
     final Finder sediment = find.text('沉淀为微习惯');
-    await tester.scrollUntilVisible(sediment, 200,
-        scrollable: find.byType(Scrollable).first);
+    final Finder list = find.byType(ListView).first;
+    for (int i = 0; i < 8; i++) {
+      if (tester.any(sediment.hitTestable())) break;
+      await tester.drag(list, const Offset(0, -300));
+      await tester.pump();
+    }
     await tester.tap(sediment);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -414,8 +456,11 @@ void main() {
     await settle(tester);
 
     final Finder template = find.text('存为学习模板');
-    await tester.scrollUntilVisible(template, 200,
-        scrollable: find.byType(Scrollable).first);
+    for (int i = 0; i < 8; i++) {
+      if (tester.any(template.hitTestable())) break;
+      await tester.drag(list, const Offset(0, -300));
+      await tester.pump();
+    }
     await tester.tap(template);
     await settle(tester);
 

@@ -32,6 +32,7 @@ class ActionItemDetailDrawer extends StatefulWidget {
 class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
   late final TextEditingController _titleController;
   late final TextEditingController _noteController;
+  late final TextEditingController _ifThenController;
   Timer? _debounce;
 
   @override
@@ -41,6 +42,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
         context.read<ActionItemRepository>().byId(widget.actionItemId);
     _titleController = TextEditingController(text: item?.title ?? '');
     _noteController = TextEditingController(text: item?.note ?? '');
+    _ifThenController = TextEditingController(text: item?.ifThenText ?? '');
   }
 
   @override
@@ -51,6 +53,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
           context.read<ActionItemRepository>().byId(widget.actionItemId);
       _titleController.text = item?.title ?? '';
       _noteController.text = item?.note ?? '';
+      _ifThenController.text = item?.ifThenText ?? '';
     }
   }
 
@@ -59,6 +62,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     _debounce?.cancel();
     _titleController.dispose();
     _noteController.dispose();
+    _ifThenController.dispose();
     super.dispose();
   }
 
@@ -75,6 +79,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
         item.copyWith(
           title: title.isEmpty ? item.title : title,
           note: _noteController.text,
+          ifThenText: _ifThenController.text,
         ),
       );
     });
@@ -226,6 +231,35 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                   minLines: 3,
                   hintText: '为什么做这件事？完成后希望得到什么？',
                   onChanged: (_) => _scheduleSave(),
+                ),
+              ),
+              _section(
+                context,
+                'If–Then 预案',
+                AppTextField(
+                  controller: _ifThenController,
+                  maxLines: 3,
+                  minLines: 2,
+                  hintText: '如果……（触发情境），那么我就……（具体动作）',
+                  onChanged: (_) => _scheduleSave(),
+                ),
+              ),
+              _section(
+                context,
+                '认知负荷',
+                Wrap(
+                  spacing: AppSpacing.xs + 2,
+                  runSpacing: AppSpacing.xs + 2,
+                  children: <Widget>[
+                    for (final CognitiveLoad load in CognitiveLoad.values)
+                      AppChip(
+                        label: load.label,
+                        filled: item.cognitiveLoad == load,
+                        color: palette.accent,
+                        onTap: () =>
+                            repo.save(item.copyWith(cognitiveLoad: load)),
+                      ),
+                  ],
                 ),
               ),
               if (slots.isNotEmpty)

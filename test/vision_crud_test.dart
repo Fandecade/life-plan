@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/app.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
+import 'package:life_planner/core/widgets/state_views.dart';
 
 void main() {
   late AppBootstrap bootstrap;
@@ -140,6 +141,67 @@ void main() {
     await settle(tester);
 
     expect(bootstrap.visions.byId(pillVision.id), isNull);
+  });
+
+  testWidgets('能力阶段成果可添加并标记达成', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('人生规划').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // 前面用例可能切换过愿景：先切回带能力的愿景再操作。
+    final Vision withCapabilities = bootstrap.visions.all.firstWhere(
+      (Vision vision) => bootstrap.capabilities.all
+          .any((Capability item) => item.visionId == vision.id),
+    );
+    await tester.tap(find.text(withCapabilities.title).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byTooltip('更多操作').at(1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('阶段成果'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('milestone-title')),
+      '能独立解释核心概念',
+    );
+    await tester.pump();
+    await tester.tap(find.text('添加'));
+    await settle(tester);
+
+    final Capability capability = bootstrap.capabilities.all.firstWhere(
+      (Capability item) => item.milestones.isNotEmpty,
+      orElse: () => bootstrap.capabilities.all.first,
+    );
+    expect(capability.milestones, isNotEmpty);
+    expect(capability.milestones.first.title, contains('核心概念'));
+
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(AppCheckCircle),
+          )
+          .first,
+    );
+    await settle(tester);
+    expect(
+      bootstrap.capabilities.byId(capability.id)!.achievedMilestones,
+      1,
+    );
+
+    await tester.tap(find.text('完成'));
+    await tester.pump();
   });
 
   testWidgets('愿景可从节点菜单删除，并连带清理能力与任务', (WidgetTester tester) async {

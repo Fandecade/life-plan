@@ -495,6 +495,28 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   _diagnosis(selected, done),
                   style: context.texts.bodySmall,
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Text('COM-B', style: context.texts.labelSmall),
+                    const SizedBox(width: 6),
+                    for (final String dimension in const <String>['能力', '机会', '动机'])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: AppChip(
+                          label: dimension,
+                          dense: true,
+                          filled: _combFocus(selected) == dimension,
+                          color: palette.accent,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _combHint(selected),
+                  style: context.texts.labelSmall,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 _sliders(context, palette),
               ],
@@ -503,6 +525,26 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
         ],
       ),
     );
+  }
+
+  String _combFocus(FoggHabit habit) {
+    if (habit.frictions.energy || habit.frictions.brain) return '能力';
+    final ActionPoint point = _preview;
+    final double gap =
+        _line.requiredMotivation(point.ability) - point.motivation;
+    if (!_line.isAbove(point) && gap > 0.6) return '动机';
+    return '机会';
+  }
+
+  String _combHint(FoggHabit habit) {
+    switch (_combFocus(habit)) {
+      case '能力':
+        return 'COM-B · 能力优先：先把微行为缩小，或补一次短训练。';
+      case '动机':
+        return 'COM-B · 动机优先：明确意义、强化即时庆祝，或换更稳的锚点。';
+      default:
+        return 'COM-B · 机会优先：调整环境、时间窗与锚点提示。';
+    }
   }
 
   Widget _sliders(BuildContext context, AppPalette palette) {

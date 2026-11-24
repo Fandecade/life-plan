@@ -9,6 +9,7 @@ import '../../core/state/ui_controller.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/state_views.dart';
 import 'vision_canvas.dart';
+import 'capability_milestones_dialog.dart';
 import 'vision_editor_dialogs.dart';
 import 'vision_nodes.dart';
 
@@ -397,6 +398,8 @@ class _VisionMapPageState extends State<VisionMapPage> {
         await _deleteVision(vision);
       case MapNodeAction.addTask:
         break;
+      case MapNodeAction.milestones:
+        break;
     }
   }
 
@@ -547,6 +550,11 @@ class _VisionMapPageState extends State<VisionMapPage> {
             .save(capability.copyWith(isCollapsed: !capability.isCollapsed));
       case MapNodeAction.addTask:
         await _createTask(capability);
+      case MapNodeAction.milestones:
+        await showCapabilityMilestonesDialog(
+          context,
+          capability: capability,
+        );
       case MapNodeAction.delete:
         await _deleteCapability(capability, tasks);
       case MapNodeAction.addCapability:

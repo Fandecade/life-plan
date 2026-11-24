@@ -83,6 +83,35 @@ class LocalDatabase {
     }
   }
 
+  /// 全量导出：13 个业务 box 的 JSON 字符串（不含设置）。
+  Map<String, dynamic> exportData() {
+    final Map<String, dynamic> result = <String, dynamic>{};
+    for (final box in entityBoxes) {
+      final Map<String, dynamic> entries = <String, dynamic>{};
+      for (final Object? key in box.keys) {
+        final Object? value = box.get(key);
+        if (value is String) entries['$key'] = value;
+      }
+      result[box.name] = entries;
+    }
+    return result;
+  }
+
+  /// 全量导入：先清空业务数据，再按 box 写回。
+  Future<void> importData(Map<String, dynamic> data) async {
+    await wipeData();
+    for (final box in entityBoxes) {
+      final Object? values = data[box.name];
+      if (values is! Map) continue;
+      for (final MapEntry<dynamic, dynamic> entry in values.entries) {
+        final Object? value = entry.value;
+        if (value is String) {
+          await box.put('${entry.key}', value);
+        }
+      }
+    }
+  }
+
   Future<void> wipeAll() async {
     await wipeData();
     await settings.clear();

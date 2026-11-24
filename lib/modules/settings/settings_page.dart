@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/bootstrap.dart';
@@ -209,6 +212,16 @@ class _LocalDataSection extends StatelessWidget {
               onPressed: () => _reloadSeed(context),
             ),
             AppGhostButton(
+              label: '导出备份',
+              icon: Icons.download_rounded,
+              onPressed: () => _exportBackup(context),
+            ),
+            AppGhostButton(
+              label: '从剪贴板恢复',
+              icon: Icons.upload_rounded,
+              onPressed: () => _confirmImportBackup(context),
+            ),
+            AppGhostButton(
               label: '清空全部数据',
               icon: Icons.delete_outline_rounded,
               tone: palette.danger,
@@ -232,6 +245,80 @@ class _LocalDataSection extends StatelessWidget {
     if (!context.mounted) return;
     context.read<UiController>().closeOverlays();
     _toast(context, '示例数据已载入');
+  }
+
+  Future<void> _exportBackup(BuildContext context) async {
+    final AppBootstrap bootstrap = context.read<AppBootstrap>();
+    final String raw = jsonEncode(bootstrap.db.exportData());
+    await Clipboard.setData(ClipboardData(text: raw));
+    if (!context.mounted) return;
+    _toast(
+      context,
+      '备份已复制到剪贴板 · ${(raw.length / 1024).toStringAsFixed(1)} KB',
+    );
+  }
+
+  Future<void> _confirmImportBackup(BuildContext context) async {
+    final ClipboardData? clipboard =
+        await Clipboard.getData(Clipboard.kTextPlain);
+    final String raw = clipboard?.text?.trim() ?? '';
+    if (!context.mounted) return;
+    if (raw.isEmpty) {
+      _toast(context, '剪贴板里没有可恢复的备份');
+      return;
+    }
+    Object? parsed;
+    try {
+      parsed = jsonDecode(raw);
+    } catch (_) {
+      _toast(context, '剪贴板内容不是有效的备份 JSON');
+      return;
+    }
+    if (parsed is! Map) {
+      _toast(context, '剪贴板内容不是有效的备份 JSON');
+      return;
+    }
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        final AppPalette palette = dialogContext.palette;
+        return AlertDialog(
+          backgroundColor: palette.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            side: BorderSide(color: palette.border),
+          ),
+          title: Text('用剪贴板备份恢复？', style: dialogContext.texts.titleLarge),
+          content: Text(
+            '当前全部业务数据会被覆盖，设置项保持不变。恢复后建议重启应用以刷新所有页面。',
+            style: dialogContext.texts.bodyMedium
+                ?.copyWith(color: palette.textSecondary),
+          ),
+          actions: <Widget>[
+            AppGhostButton(
+              label: '取消',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            AppPrimaryButton(
+              label: '确认恢复',
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final AppBootstrap bootstrap = context.read<AppBootstrap>();
+      await bootstrap.db.importData(parsed.cast<String, dynamic>());
+      if (!context.mounted) return;
+      _toast(context, '备份已恢复，建议重启应用以刷新所有页面');
+    } catch (_) {
+      if (!context.mounted) return;
+      _toast(context, '恢复失败：备份结构无法识别');
+    }
   }
 
   Future<void> _confirmWipe(BuildContext context) async {

@@ -11,7 +11,7 @@ import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
 import 'vision_layout.dart';
 
-enum MapNodeAction { edit, addCapability, addTask, toggleCollapse, delete }
+enum MapNodeAction { edit, addCapability, addTask, milestones, toggleCollapse, delete }
 
 /// 节点就地重命名输入框：Enter 提交、Esc 取消、失焦自动提交。
 class InlineNodeTitle extends StatefulWidget {
@@ -284,6 +284,12 @@ class CapabilityNodeCard extends StatelessWidget {
     final AppPalette palette = context.palette;
     final double ratio = progress.clamp(0.0, 1.0);
 
+    String progressLabel() {
+      final List<CapabilityMilestone> milestones = capability.milestones;
+      if (milestones.isEmpty) return '$completed/$total';
+      return '$completed/$total · M ${capability.achievedMilestones}/${milestones.length}';
+    }
+
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 200),
       opacity: dimmed ? 0.38 : 1,
@@ -351,6 +357,7 @@ class CapabilityNodeCard extends StatelessWidget {
                     actions: <MapNodeAction>[
                       MapNodeAction.edit,
                       MapNodeAction.addTask,
+                      MapNodeAction.milestones,
                       MapNodeAction.delete,
                     ],
                     deleteLabel: '删除能力',
@@ -370,7 +377,7 @@ class CapabilityNodeCard extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    '$completed/$total',
+                    progressLabel(),
                     style: context.texts.labelSmall?.copyWith(
                       color: total > 0 ? palette.textSecondary : palette.textTertiary,
                     ),
@@ -633,6 +640,8 @@ class _NodeMenu extends StatelessWidget {
         return '添加能力';
       case MapNodeAction.addTask:
         return '添加任务';
+      case MapNodeAction.milestones:
+        return '阶段成果';
       case MapNodeAction.toggleCollapse:
         return '折叠 / 展开';
       case MapNodeAction.delete:
