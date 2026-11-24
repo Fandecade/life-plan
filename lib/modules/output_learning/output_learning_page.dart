@@ -11,6 +11,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import 'artifact_dialog.dart';
 import 'learning_common.dart';
 import 'learning_review_flow.dart';
 import 'learning_session_flow.dart';
@@ -759,6 +760,35 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
           label: '重新学习',
           icon: Icons.refresh_rounded,
           onPressed: widget.onRestart,
+        ),
+        AppGhostButton(
+          label: '记为能力成果',
+          icon: Icons.workspace_premium_outlined,
+          onPressed: () async {
+            final Artifact? artifact = await showArtifactFromLearningDialog(
+              context,
+              session: widget.session,
+              task: widget.task,
+              draft: widget.draft,
+            );
+            if (artifact == null || !context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '已记为能力成果：${artifact.title}',
+                  style: context.texts.bodyMedium
+                      ?.copyWith(color: palette.background),
+                ),
+                backgroundColor: palette.textPrimary,
+                behavior: SnackBarBehavior.floating,
+                width: 320,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
         ),
         AppPrimaryButton(
           label: '关闭',

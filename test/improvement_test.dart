@@ -117,6 +117,44 @@ void main() {
     expect(reloaded.adjustmentPlan, contains('颗粒度'));
   });
 
+  test('能力证据 Artifact 可创建并按能力 / 任务查询', () async {
+    final Capability capability = bootstrap.capabilities.all.first;
+    final ActionItem task = await bootstrap.actions.create(
+      title: '成果证据任务',
+      capabilityId: capability.id,
+    );
+
+    final Artifact artifact = await bootstrap.artifacts.create(
+      title: 'DPLL 算法实现与正确性验证',
+      type: ArtifactType.code,
+      capabilityId: capability.id,
+      actionItemId: task.id,
+      sessionId: 'session-demo',
+      url: 'https://github.com/example/dpll',
+      note: '通过全部测试用例',
+    );
+
+    expect(
+      bootstrap.artifacts
+          .forCapability(capability.id)
+          .any((Artifact item) => item.id == artifact.id),
+      isTrue,
+    );
+    expect(
+      bootstrap.artifacts
+          .forActionItem(task.id)
+          .any((Artifact item) => item.id == artifact.id),
+      isTrue,
+    );
+    final Artifact loaded = bootstrap.artifacts.byId(artifact.id)!;
+    expect(loaded.type, ArtifactType.code);
+    expect(loaded.url, contains('github.com'));
+
+    await bootstrap.artifacts.softDelete(artifact.id);
+    await bootstrap.actions.softDelete(task.id);
+    expect(bootstrap.artifacts.byId(artifact.id), isNull);
+  });
+
   test('全量备份导出 / 恢复 roundtrip', () async {
     final int actionsBefore = bootstrap.actions.all.length;
     final int capabilitiesBefore = bootstrap.capabilities.all.length;

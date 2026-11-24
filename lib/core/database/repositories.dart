@@ -546,6 +546,43 @@ class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> 
     }
   }
 }
+class ArtifactRepository extends JsonEntityRepository<Artifact> {
+  ArtifactRepository(Box<String> box) : super(box, Artifact.fromJson);
+
+  List<Artifact> forCapability(String capabilityId) => all
+      .where((Artifact item) => item.capabilityId == capabilityId)
+      .toList(growable: false);
+
+  List<Artifact> forActionItem(String actionItemId) => all
+      .where((Artifact item) => item.actionItemId == actionItemId)
+      .toList(growable: false);
+
+  Future<Artifact> create({
+    required String title,
+    ArtifactType type = ArtifactType.explanation,
+    String? capabilityId,
+    String? actionItemId,
+    String? sessionId,
+    String url = '',
+    String note = '',
+  }) async {
+    final Artifact artifact = Artifact.create(
+      title: title,
+      type: type,
+      capabilityId: capabilityId,
+      actionItemId: actionItemId,
+      sessionId: sessionId,
+      url: url,
+      note: note,
+    );
+    await put(artifact);
+    return artifact;
+  }
+
+  Future<void> save(Artifact artifact) =>
+      put(artifact.copyWith(syncStatus: SyncStatus.pendingUpdate));
+}
+
 class ReviewLogRepository extends JsonEntityRepository<ReviewLog> {
   ReviewLogRepository(Box<String> box) : super(box, ReviewLog.fromJson);
 

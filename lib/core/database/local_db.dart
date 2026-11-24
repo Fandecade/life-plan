@@ -19,6 +19,7 @@ class LocalDatabase {
   static const String boxBehaviorCandidates = 'behavior_candidates';
   static const String boxHabitRecipeVersions = 'habit_recipe_versions';
   static const String boxReviewLogs = 'review_logs';
+  static const String boxArtifacts = 'artifacts';
   static const String boxSettings = 'settings';
 
   late final Box<String> visions;
@@ -34,6 +35,7 @@ class LocalDatabase {
   late final Box<String> behaviorCandidates;
   late final Box<String> habitRecipeVersions;
   late final Box<String> reviewLogs;
+  late final Box<String> artifacts;
   late final Box<dynamic> settings;
 
   /// [storagePath] 为空时走 Flutter 默认目录（移动/桌面/Web）；
@@ -57,6 +59,7 @@ class LocalDatabase {
     behaviorCandidates = await Hive.openBox<String>(boxBehaviorCandidates);
     habitRecipeVersions = await Hive.openBox<String>(boxHabitRecipeVersions);
     reviewLogs = await Hive.openBox<String>(boxReviewLogs);
+    artifacts = await Hive.openBox<String>(boxArtifacts);
     settings = await Hive.openBox<dynamic>(boxSettings);
   }
 
@@ -74,6 +77,7 @@ class LocalDatabase {
         behaviorCandidates,
         habitRecipeVersions,
         reviewLogs,
+        artifacts,
       ];
 
   /// 清空全部业务数据，保留设置项。

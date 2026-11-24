@@ -1,4 +1,5 @@
 export 'action_item.dart';
+export 'artifact.dart';
 export 'capability.dart';
 export 'fogg_models.dart';
 export 'learning_methods.dart';

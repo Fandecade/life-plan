@@ -110,6 +110,9 @@ class _CapabilityMilestonesDialogState
     final int achieved = _items
         .where((CapabilityMilestone item) => item.achieved)
         .length;
+    final List<Artifact> artifacts = context
+        .watch<ArtifactRepository>()
+        .forCapability(widget.capability.id);
 
     return AlertDialog(
       backgroundColor: palette.surface,
@@ -153,6 +156,44 @@ class _CapabilityMilestonesDialogState
               '它不计入任务数，只作为能力证据与复盘依据。',
               style: context.texts.bodySmall,
             ),
+            if (artifacts.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                '能力证据 · ${artifacts.length}（来自学习成果库）',
+                style: context.texts.labelSmall,
+              ),
+              const SizedBox(height: 3),
+              for (final Artifact artifact in artifacts.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: palette.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${artifact.title} · ${artifact.type.label}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.texts.bodySmall,
+                        ),
+                      ),
+                      if (artifact.url.isNotEmpty)
+                        Text(
+                          '有链接',
+                          style: context.texts.labelSmall,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
             const SizedBox(height: AppSpacing.sm),
             if (_items.isEmpty)
               Padding(

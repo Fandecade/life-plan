@@ -29,6 +29,7 @@ class AppBootstrap {
     required this.habitLogs,
     required this.behaviorCandidates,
     required this.habitRecipeVersions,
+    required this.artifacts,
     required this.habitService,
     required this.reviewService,
     required this.routines,
@@ -51,6 +52,7 @@ class AppBootstrap {
   final HabitLogRepository habitLogs;
   final BehaviorCandidateRepository behaviorCandidates;
   final HabitRecipeVersionRepository habitRecipeVersions;
+  final ArtifactRepository artifacts;
   final HabitService habitService;
   final ReviewService reviewService;
   final RoutineService routines;
@@ -81,6 +83,7 @@ class AppBootstrap {
         BehaviorCandidateRepository(db.behaviorCandidates);
     final HabitRecipeVersionRepository habitRecipeVersions =
         HabitRecipeVersionRepository(db.habitRecipeVersions);
+    final ArtifactRepository artifacts = ArtifactRepository(db.artifacts);
     final HabitService habitService = HabitService(
       habits: foggHabits,
       logs: habitLogs,
@@ -135,6 +138,7 @@ class AppBootstrap {
       habitLogs: habitLogs,
       behaviorCandidates: behaviorCandidates,
       habitRecipeVersions: habitRecipeVersions,
+      artifacts: artifacts,
       habitService: habitService,
       reviewService: reviewService,
       routines: routines,
@@ -158,6 +162,7 @@ class AppBootstrap {
     habitLogs.dispose();
     behaviorCandidates.dispose();
     habitRecipeVersions.dispose();
+    artifacts.dispose();
     modules.dispose();
     theme.dispose();
     db.close();
