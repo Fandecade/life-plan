@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
 import 'package:life_planner/core/services/review_service.dart';
+import 'package:life_planner/core/utils/date_utils.dart';
 
 void main() {
   late AppBootstrap bootstrap;
@@ -115,6 +116,52 @@ void main() {
         .forPeriod(previous.type, previous.periodKey)!;
     expect(reloaded.actualOutcome, contains('+6%'));
     expect(reloaded.adjustmentPlan, contains('颗粒度'));
+  });
+
+  test('同一任务可追加多个时间块，默认仍只更新一个', () async {
+    final DateTime base =
+        AppDate.startOfDay(DateTime.now().add(const Duration(days: 1)));
+
+    final ActionItem multi = await bootstrap.actions.create(
+      title: '多次推进任务',
+      estimatedMinutes: 30,
+      status: ActionItemStatus.scheduled,
+    );
+    await bootstrap.schedules.scheduleAction(
+      multi,
+      DateTime(base.year, base.month, base.day, 9),
+    );
+    await bootstrap.schedules.scheduleAction(
+      multi,
+      DateTime(base.year, base.month, base.day, 14),
+      append: true,
+    );
+    expect(
+      bootstrap.timeBlocks.blocksForActionItem(multi.id).length,
+      2,
+      reason: 'append=true 应保留旧块并追加新块',
+    );
+    expect(bootstrap.timeBlocks.forActionItem(multi.id), isNotNull);
+
+    final ActionItem single =
+        await bootstrap.actions.create(title: '单块任务');
+    await bootstrap.schedules.scheduleAction(
+      single,
+      DateTime(base.year, base.month, base.day, 9),
+    );
+    await bootstrap.schedules.scheduleAction(
+      single,
+      DateTime(base.year, base.month, base.day, 15),
+    );
+    expect(
+      bootstrap.timeBlocks.blocksForActionItem(single.id).length,
+      1,
+      reason: '默认排期仍更新同一块，保持旧行为',
+    );
+    expect(
+      bootstrap.timeBlocks.forActionItem(single.id)!.startAt.hour,
+      15,
+    );
   });
 
   test('能力证据 Artifact 可创建并按能力 / 任务查询', () async {

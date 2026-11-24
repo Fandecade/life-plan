@@ -18,9 +18,10 @@ class ScheduleService {
     ActionItem item,
     DateTime startAt, {
     int? durationMinutes,
+    bool append = false,
   }) async {
     final int minutes = durationMinutes ?? item.estimatedMinutes ?? 30;
-    final TimeBlock? existing = blocks.forActionItem(item.id);
+    final TimeBlock? existing = append ? null : blocks.forActionItem(item.id);
     if (existing != null) {
       await blocks.save(
         existing.copyWith(

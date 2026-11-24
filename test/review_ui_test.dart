@@ -240,6 +240,34 @@ void main() {
     expect(find.text('安排日期'), findsWidgets);
   });
 
+  testWidgets('待校准事项可判断原因并按原因调整', (WidgetTester tester) async {
+    await openReview(tester);
+
+    final Finder more = find.byTooltip('更多处理').first;
+    await tester.ensureVisible(more);
+    await tester.pump();
+    await tester.tap(more);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('判断原因并调整…'), findsOneWidget);
+    await tester.tap(find.text('判断原因并调整…'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('这件事为什么没推进？'), findsOneWidget);
+    await tester.tap(find.text('目标过大'));
+    await tester.pump();
+    await tester.tap(find.text('按此调整'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // 该块没有关联任务：目标过大 → 重新安排并调整时长。
+    expect(find.text('安排时间块'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+  });
+
   testWidgets('疑似卡点只作建议，确认后才生成补盲任务', (WidgetTester tester) async {
     await openReview(tester);
 

@@ -1720,6 +1720,12 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
+          value: 'rootcause',
+          height: 38,
+          child: Text('判断原因并调整…', style: context.texts.bodyMedium),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
           value: 'skip',
           height: 38,
           child: Text(label, style: context.texts.bodyMedium),
@@ -1757,6 +1763,11 @@ class _ReviewPageState extends State<ReviewPage> {
           child: Text('分散复习负载…', style: context.texts.bodyMedium),
         ),
         const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'rootcause',
+          height: 38,
+          child: Text('判断原因并调整…', style: context.texts.bodyMedium),
+        ),
         PopupMenuItem<String>(
           value: 'skip',
           height: 38,
@@ -1809,6 +1820,11 @@ class _ReviewPageState extends State<ReviewPage> {
         ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
+          value: 'rootcause',
+          height: 38,
+          child: Text('判断原因并调整…', style: context.texts.bodyMedium),
+        ),
+        PopupMenuItem<String>(
           value: 'skip',
           height: 38,
           child: Text('暂不调整（维持现状）', style: context.texts.bodyMedium),
@@ -1824,6 +1840,11 @@ class _ReviewPageState extends State<ReviewPage> {
     final LearningReviewRepository reviewRepo =
         context.read<LearningReviewRepository>();
     final UiController ui = context.read<UiController>();
+
+    if (action == 'rootcause') {
+      await _openRootCauseDialog(item);
+      return;
+    }
 
     if (action == 'habit') {
       final FoggHabit? habit = item.habit;
@@ -1963,6 +1984,99 @@ class _ReviewPageState extends State<ReviewPage> {
       _undo[item.id] = restore ?? () async {};
     });
     _toast(_actionToast(action));
+  }
+
+  Future<void> _openRootCauseDialog(ReviewItem item) async {
+    const List<String> causes = <String>[
+      '目标过大',
+      '能力不足',
+      '时间不足',
+      '行为阻力',
+      '目标不再重要',
+      '估时不准',
+    ];
+    final AppPalette palette = context.palette;
+    String? selected;
+    final String? cause = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setLocal) => AlertDialog(
+          backgroundColor: palette.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            side: BorderSide(color: palette.border),
+          ),
+          title: Text('这件事为什么没推进？', style: context.texts.titleLarge),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '先判断原因，再选择对应调整方式，而不是一律重排时间。',
+                  style: context.texts.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    for (final String item in causes)
+                      AppChip(
+                        label: item,
+                        dense: true,
+                        filled: selected == item,
+                        color: palette.accent,
+                        onTap: () => setLocal(() => selected = item),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            AppGhostButton(
+              label: '取消',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            AppPrimaryButton(
+              label: '按此调整',
+              onPressed: selected == null
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(selected),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (cause == null || !mounted) return;
+    final String action = _actionForCause(item, cause);
+    await _runItem(item, action);
+    if (!mounted) return;
+    _toast('已按「$cause」处理：${_actionToast(action)}');
+  }
+
+  String _actionForCause(ReviewItem item, String cause) {
+    switch (cause) {
+      case '目标过大':
+        return item.task != null ? 'decompose' : 'scheduleBlock';
+      case '能力不足':
+        if (item.blindSpot != null) return 'blind';
+        return item.task != null ? 'decompose' : 'skip';
+      case '时间不足':
+        if (item.block != null) return 'scheduleBlock';
+        if (item.review != null) return 'scheduleReview';
+        return 'skip';
+      case '行为阻力':
+        return item.habit != null ? 'habit' : 'skip';
+      case '目标不再重要':
+        if (item.task != null) return 'archive';
+        return item.block != null ? 'cancel' : 'skip';
+      case '估时不准':
+        return item.block != null ? 'scheduleBlock' : 'skip';
+    }
+    return 'skip';
   }
 
   Future<({int days, int perDay, int hour})?> _openSpreadDialog() {

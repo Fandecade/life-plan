@@ -445,6 +445,9 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
       );
     }
 
+    final int blockCount =
+        context.watch<TimeBlockRepository>().blocksForActionItem(item.id).length;
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -464,7 +467,8 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${AppDate.durationLabel(block.plannedMinutes)} · ${block.isCompleted ? '已完成' : '待执行'}',
+                      '${AppDate.durationLabel(block.plannedMinutes)} · ${block.isCompleted ? '已完成' : '待执行'}'
+                      '${blockCount > 1 ? ' · 共 $blockCount 次排期' : ''}',
                       style: context.texts.bodySmall,
                     ),
                   ],
@@ -491,6 +495,13 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 icon: Icons.update_rounded,
                 dense: true,
                 onPressed: () => _pickSchedule(item),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              AppGhostButton(
+                label: '再排一次',
+                icon: Icons.event_repeat_outlined,
+                dense: true,
+                onPressed: () => _pickSchedule(item, append: true),
               ),
               const SizedBox(width: AppSpacing.xs),
               AppGhostButton(
@@ -586,12 +597,21 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     _toast('已清除截止日');
   }
 
-  Future<void> _pickSchedule(ActionItem item) async {
+  Future<void> _pickSchedule(
+    ActionItem item, {
+    bool append = false,
+  }) async {
     final DateTime? start = await pickScheduleStart(context);
     if (start == null || !mounted) return;
-    await context.read<ScheduleService>().scheduleAction(item, start);
+    await context
+        .read<ScheduleService>()
+        .scheduleAction(item, start, append: append);
     if (!mounted) return;
-    _toast('已排入 ${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}');
+    _toast(
+      append
+          ? '已追加一次排期：${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}'
+          : '已排入 ${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}',
+    );
   }
 
   Future<void> _confirmDelete(ActionItem item) async {

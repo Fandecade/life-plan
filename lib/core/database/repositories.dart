@@ -290,11 +290,22 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
     return result;
   }
 
+  /// 一个任务的全部时间块（按开始时间升序），支持同一任务多次推进。
+  List<TimeBlock> blocksForActionItem(String actionItemId) {
+    final List<TimeBlock> result = all
+        .where((TimeBlock block) => block.actionItemId == actionItemId)
+        .toList()
+      ..sort((TimeBlock a, TimeBlock b) => a.startAt.compareTo(b.startAt));
+    return result;
+  }
+
+  /// 任务「当前」时间块：优先未完成且最晚开始的块，否则取最后一个。
   TimeBlock? forActionItem(String actionItemId) {
-    for (final TimeBlock block in all) {
-      if (block.actionItemId == actionItemId) return block;
-    }
-    return null;
+    final List<TimeBlock> blocks = blocksForActionItem(actionItemId);
+    if (blocks.isEmpty) return null;
+    final List<TimeBlock> unfinished =
+        blocks.where((TimeBlock block) => !block.isCompleted).toList();
+    return unfinished.isEmpty ? blocks.last : unfinished.last;
   }
 
   TimeBlock? forReview(String reviewId) {
