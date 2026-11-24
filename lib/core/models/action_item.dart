@@ -65,6 +65,7 @@ class ActionItem extends SyncEntity {
     required this.title,
     this.capabilityId,
     this.parentId,
+    this.projectId,
     this.note = '',
     this.executionMode = ExecutionMode.standard,
     this.estimatedMinutes,
@@ -82,6 +83,9 @@ class ActionItem extends SyncEntity {
 
   final String? capabilityId;
   final String? parentId;
+
+  /// 可选：任务所属项目（综合实践载体）。
+  final String? projectId;
   final String title;
   final String note;
   final ExecutionMode executionMode;
@@ -112,6 +116,7 @@ class ActionItem extends SyncEntity {
     required String title,
     String? capabilityId,
     String? parentId,
+    String? projectId,
     String note = '',
     ExecutionMode executionMode = ExecutionMode.standard,
     int? estimatedMinutes,
@@ -128,6 +133,7 @@ class ActionItem extends SyncEntity {
       title: title,
       capabilityId: capabilityId,
       parentId: parentId,
+      projectId: projectId,
       note: note,
       executionMode: executionMode,
       estimatedMinutes: estimatedMinutes,
@@ -143,6 +149,8 @@ class ActionItem extends SyncEntity {
     bool clearCapability = false,
     String? parentId,
     bool clearParent = false,
+    String? projectId,
+    bool clearProject = false,
     String? title,
     String? note,
     ExecutionMode? executionMode,
@@ -170,6 +178,7 @@ class ActionItem extends SyncEntity {
       title: title ?? this.title,
       capabilityId: clearCapability ? null : (capabilityId ?? this.capabilityId),
       parentId: clearParent ? null : (parentId ?? this.parentId),
+      projectId: clearProject ? null : (projectId ?? this.projectId),
       note: note ?? this.note,
       executionMode: executionMode ?? this.executionMode,
       estimatedMinutes:
@@ -192,6 +201,7 @@ class ActionItem extends SyncEntity {
         ...baseToJson(),
         'capabilityId': capabilityId,
         'parentId': parentId,
+        'projectId': projectId,
         'title': title,
         'note': note,
         'executionMode': executionMode.name,
@@ -214,6 +224,7 @@ class ActionItem extends SyncEntity {
       title: json['title'] as String? ?? '',
       capabilityId: json['capabilityId'] as String?,
       parentId: json['parentId'] as String?,
+      projectId: json['projectId'] as String?,
       note: json['note'] as String? ?? '',
       executionMode: ExecutionMode.fromName(json['executionMode']),
       estimatedMinutes: (json['estimatedMinutes'] as num?)?.toInt(),

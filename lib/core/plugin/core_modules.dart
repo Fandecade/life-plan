@@ -5,6 +5,7 @@ import '../../modules/fogg_habit/fogg_habit_page.dart';
 import '../../modules/fogg_habit/habit_detail_slot.dart';
 import '../../modules/output_learning/learning_detail_slot.dart';
 import '../../modules/output_learning/output_learning_page.dart';
+import '../../modules/project/project_page.dart';
 import '../../modules/review/review_page.dart';
 import '../../modules/settings/settings_page.dart';
 import '../../modules/time_box/time_box_page.dart';
@@ -23,6 +24,15 @@ List<AppModuleDescriptor> buildModuleDescriptors() => <AppModuleDescriptor>[
         pageBuilder: (BuildContext context) => const VisionMapPage(),
         description: '愿景 → 能力 → 任务的三级成长图谱',
         milestone: 'Milestone 2',
+      ),
+      AppModuleDescriptor(
+        id: 'projects',
+        title: '项目',
+        icon: Icons.workspace_premium_outlined,
+        routeName: AppRoutes.projects,
+        pageBuilder: (BuildContext context) => const ProjectPage(),
+        description: '综合实践：能力 → 阶段 → 验收与产物',
+        milestone: 'Milestone 6',
       ),
       AppModuleDescriptor(
         id: 'time_box',

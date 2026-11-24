@@ -3,6 +3,7 @@ class AppRoutes {
   const AppRoutes._();
 
   static const String visionMap = '/vision-map';
+  static const String projects = '/projects';
   static const String timeBox = '/time-box';
   static const String outputLearning = '/output-learning';
   static const String foggHabit = '/fogg-habit';
@@ -11,6 +12,7 @@ class AppRoutes {
 
   static const List<String> all = <String>[
     visionMap,
+    projects,
     timeBox,
     outputLearning,
     foggHabit,

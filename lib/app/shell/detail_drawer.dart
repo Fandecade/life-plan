@@ -107,6 +107,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     }
 
     final List<Capability> capabilities = context.watch<CapabilityRepository>().all;
+    final List<Project> projects = context.watch<ProjectRepository>().all;
     final TimeBlock? block =
         context.watch<TimeBlockRepository>().forActionItem(item.id);
     final List<AppModuleDescriptor> slots =
@@ -211,6 +212,33 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 context,
                 '归属能力',
                 _capabilityPicker(context, item, capabilities),
+              ),
+              _section(
+                context,
+                '所属项目',
+                Wrap(
+                  spacing: AppSpacing.xs + 2,
+                  runSpacing: AppSpacing.xs + 2,
+                  children: <Widget>[
+                    AppChip(
+                      label: '不关联',
+                      dense: true,
+                      filled: item.projectId == null,
+                      color: palette.textSecondary,
+                      onTap: () => repo.save(item.copyWith(clearProject: true)),
+                    ),
+                    for (final Project project in projects)
+                      AppChip(
+                        label: project.title,
+                        dense: true,
+                        filled: item.projectId == project.id,
+                        color: palette.accent,
+                        onTap: () => repo.save(
+                          item.copyWith(projectId: project.id),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               _section(
                 context,

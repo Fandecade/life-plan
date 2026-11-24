@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -162,6 +163,47 @@ void main() {
       bootstrap.timeBlocks.forActionItem(single.id)!.startAt.hour,
       15,
     );
+  });
+
+  test('项目可创建、关联能力并推进阶段', () async {
+    final Capability capability = bootstrap.capabilities.all.first;
+    final Project project = await bootstrap.projects.create(
+      title: '项目仓储测试',
+      goal: '验证项目阶段推进',
+      capabilityIds: <String>[capability.id],
+      stages: const <ProjectStage>[
+        ProjectStage(id: 'p-1', title: '准备'),
+        ProjectStage(id: 'p-2', title: '实现'),
+      ],
+      acceptance: '通过正确性测试',
+      artifactUrl: 'https://example.com/demo',
+    );
+
+    final Project loaded = bootstrap.projects.byId(project.id)!;
+    expect(loaded.capabilityIds, contains(capability.id));
+    expect(loaded.stages.length, 2);
+    expect(loaded.doneStages, 0);
+    expect(
+      bootstrap.projects
+          .forCapability(capability.id)
+          .any((Project item) => item.id == project.id),
+      isTrue,
+    );
+
+    await bootstrap.projects.save(
+      loaded.copyWith(
+        stagesJson: jsonEncode(<Map<String, dynamic>>[
+          loaded.stages.first.copyWith(done: true).toJson(),
+          loaded.stages.last.toJson(),
+        ]),
+      ),
+    );
+    final Project advanced = bootstrap.projects.byId(project.id)!;
+    expect(advanced.doneStages, 1);
+    expect(advanced.stageProgress, 0.5);
+
+    await bootstrap.projects.softDelete(project.id);
+    expect(bootstrap.projects.byId(project.id), isNull);
   });
 
   test('认知负荷结构按任务负荷统计分钟', () async {

@@ -223,6 +223,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
     required String title,
     String? capabilityId,
     String? parentId,
+    String? projectId,
     String note = '',
     ExecutionMode executionMode = ExecutionMode.standard,
     int? estimatedMinutes,
@@ -235,6 +236,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
       title: title.trim(),
       capabilityId: capabilityId,
       parentId: parentId,
+      projectId: projectId,
       note: note,
       executionMode: executionMode,
       estimatedMinutes: estimatedMinutes,
@@ -557,6 +559,45 @@ class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> 
     }
   }
 }
+class ProjectRepository extends JsonEntityRepository<Project> {
+  ProjectRepository(Box<String> box) : super(box, Project.fromJson);
+
+  List<Project> byStatus(ProjectStatus status) => all
+      .where((Project item) => item.status == status)
+      .toList(growable: false);
+
+  List<Project> forCapability(String capabilityId) => all
+      .where((Project item) => item.capabilityIds.contains(capabilityId))
+      .toList(growable: false);
+
+  Future<Project> create({
+    required String title,
+    String goal = '',
+    ProjectStatus status = ProjectStatus.active,
+    List<String> capabilityIds = const <String>[],
+    List<ProjectStage> stages = const <ProjectStage>[],
+    String acceptance = '',
+    String artifactUrl = '',
+    String note = '',
+  }) async {
+    final Project project = Project.create(
+      title: title,
+      goal: goal,
+      status: status,
+      capabilityIds: capabilityIds,
+      stages: stages,
+      acceptance: acceptance,
+      artifactUrl: artifactUrl,
+      note: note,
+    );
+    await put(project);
+    return project;
+  }
+
+  Future<void> save(Project project) =>
+      put(project.copyWith(syncStatus: SyncStatus.pendingUpdate));
+}
+
 class ArtifactRepository extends JsonEntityRepository<Artifact> {
   ArtifactRepository(Box<String> box) : super(box, Artifact.fromJson);
 
