@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import '../database/repositories.dart';
@@ -221,19 +222,26 @@ class ReviewItem {
   final LearningBlindSpot? blindSpot;
 }
 
-/// 学习卡壳盲区片段：来自会话的卡点速记与输出文本关键词。
+/// 盲区来源：主动记录的卡点为主；关键词命中只作为待确认建议。
+enum BlindSpotSource { marked, suggested }
+
+/// 学习卡壳盲区片段：来自会话的卡点速记（marked）或输出文本关键词（suggested）。
 class LearningBlindSpot {
   const LearningBlindSpot({
     required this.sessionId,
     required this.actionItemId,
     required this.title,
     required this.text,
+    this.source = BlindSpotSource.marked,
   });
 
   final String sessionId;
   final String actionItemId;
   final String title;
   final String text;
+  final BlindSpotSource source;
+
+  bool get isSuggested => source == BlindSpotSource.suggested;
 }
 
 /// 某个配方版本在生效期内的执行表现（v1 → v2 对比用）。
@@ -501,13 +509,13 @@ class ReviewService {
     }
 
     for (final FoggHabit habit in snapshot.lowHabits) {
-      final int percent = ((snapshot.habitRates[habit.id] ?? 0) * 100).round();
+      final int days = ((snapshot.habitRates[habit.id] ?? 0) * window.days).round();
       items.add(
         ReviewItem(
           id: 'habit:${habit.id}',
           kind: ReviewItemKind.lowHabit,
           title: habit.tinyBehavior,
-          subtitle: '本期节律偏低 · 完成率 $percent%',
+          subtitle: '本期完成 $days 天 · 节奏偏缓，可按当前节奏继续',
           habit: habit,
         ),
       );
@@ -531,8 +539,12 @@ class ReviewService {
         ReviewItem(
           id: 'blind:${spot.sessionId}:$blindIndex',
           kind: ReviewItemKind.learningBlindSpot,
-          title: '补盲：${spot.title}',
-          subtitle: spot.text,
+          title: spot.isSuggested
+              ? '疑似卡点：${spot.title}'
+              : '补盲：${spot.title}',
+          subtitle: spot.isSuggested
+              ? '关键词建议：${spot.text}（确认后再生成任务）'
+              : spot.text,
           blindSpot: spot,
         ),
       );
@@ -546,16 +558,71 @@ class ReviewService {
   ReviewWindow previousWindow(ReviewWindow window) =>
       ReviewWindow.of(window.type, window.shifted(-1));
 
-  /// 复习积压分散到未来三天（每天不超过 2 条），降低单日负载。
-  Future<int> spreadReviewLoad(List<LearningReview> reviews) async {
+  /// 把时间块安排到指定时刻（默认保持原时长），与时间盒共用同一数据。
+  Future<void> moveBlockTo(
+    TimeBlock block,
+    DateTime start, {
+    int? minutes,
+  }) async {
+    final int length = minutes ?? block.plannedMinutes;
+    await blocks.save(
+      block.copyWith(
+        startAt: start,
+        endAt: start.add(Duration(minutes: length)),
+      ),
+    );
+  }
+
+  /// 把逾期复习安排到指定时刻：更新到期时间并生成可点开的时间盒块。
+  ///
+  /// 复习与时间块的写入不阻塞界面；两者都只在本地落盘。
+  Future<TimeBlock> scheduleReviewAt(
+    LearningReview review,
+    DateTime start, {
+    int minutes = 15,
+  }) async {
+    final ActionItem? task = actions.byId(review.actionItemId);
+    final TimeBlock block = TimeBlock.create(
+      title: '间隔复习：${task?.title ?? '学习任务'}',
+      startAt: start,
+      endAt: start.add(Duration(minutes: minutes)),
+      learningReviewId: review.id,
+    );
+    unawaited(blocks.put(block));
+    unawaited(learningReviews.save(review.copyWith(dueDate: start)));
+    return block;
+  }
+
+  /// 撤销某一项「已处理」标记（动作本身由页面按需回滚）。
+  Future<void> unmarkHandled(ReviewWindow window, String itemId) async {
+    final ReviewLog? log = logs.forPeriod(window.type, window.periodKey);
+    if (log == null) return;
+    final Set<String> handled = log.handledItems.toSet()..remove(itemId);
+    await logs.save(
+      log.copyWith(handledItemsJson: jsonEncode(handled.toList())),
+    );
+  }
+
+  /// 复习积压分散到未来若干天（天数、每日上限与时间都可调）。
+  Future<int> spreadReviewLoad(
+    List<LearningReview> reviews, {
+    int days = 3,
+    int perDay = 2,
+    int hour = 20,
+  }) async {
     final DateTime today = AppDate.startOfDay(DateTime.now());
+    final int span = days < 1 ? 1 : days;
+    final int cap = perDay < 1 ? 1 : perDay;
     int index = 0;
     for (final LearningReview review in reviews) {
       if (review.isDone) continue;
-      final DateTime day = today.add(Duration(days: (index ~/ 2) % 3 + 1));
-      await learningReviews.save(
-        review.copyWith(
-          dueDate: DateTime(day.year, day.month, day.day, 20),
+      final DateTime day =
+          today.add(Duration(days: (index ~/ cap) % span + 1));
+      unawaited(
+        learningReviews.save(
+          review.copyWith(
+            dueDate: DateTime(day.year, day.month, day.day, hour),
+          ),
         ),
       );
       index++;
@@ -639,24 +706,37 @@ class ReviewService {
       final LearningDraft draft =
           LearningDraft.decode(session.stepsDataJson, session.learningType);
 
-      final List<String> pieces = <String>[];
-      if (draft.blocker.trim().length >= 2) {
-        pieces.add(draft.blocker.trim());
-      }
+      final List<String> marked = <String>[];
+      final List<String> suggested = <String>[];
+      final String blocker = draft.blocker.trim();
+      if (blocker.length >= 2) marked.add(blocker);
       for (final LearningStepDraft step in draft.fullSteps) {
         for (final String sentence in _sentences(step.text)) {
-          if (_hasBlindKeyword(sentence) && !pieces.contains(sentence)) {
-            pieces.add(sentence);
-          }
+          if (!_hasBlindKeyword(sentence)) continue;
+          if (blocker.contains(sentence) || marked.contains(sentence)) continue;
+          if (!suggested.contains(sentence)) suggested.add(sentence);
         }
       }
-      for (final String piece in pieces.take(2)) {
+
+      for (final String piece in marked.take(1)) {
         result.add(
           LearningBlindSpot(
             sessionId: session.id,
             actionItemId: session.actionItemId,
             title: task?.title ?? '学习内容',
             text: piece,
+            source: BlindSpotSource.marked,
+          ),
+        );
+      }
+      for (final String piece in suggested.take(2)) {
+        result.add(
+          LearningBlindSpot(
+            sessionId: session.id,
+            actionItemId: session.actionItemId,
+            title: task?.title ?? '学习内容',
+            text: piece,
+            source: BlindSpotSource.suggested,
           ),
         );
       }
@@ -906,10 +986,12 @@ class ReviewService {
   Future<void> postponeReview(LearningReview review, {DateTime? day}) async {
     final DateTime target =
         AppDate.startOfDay(day ?? DateTime.now().add(const Duration(days: 1)));
-    await learningReviews.save(
-      review.copyWith(
-        dueDate: DateTime(target.year, target.month, target.day, 20),
-        intervalDays: review.intervalDays,
+    unawaited(
+      learningReviews.save(
+        review.copyWith(
+          dueDate: DateTime(target.year, target.month, target.day, 20),
+          intervalDays: review.intervalDays,
+        ),
       ),
     );
   }

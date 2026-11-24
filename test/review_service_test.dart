@@ -225,10 +225,11 @@ void main() {
 
     final List<LearningBlindSpot> spots =
         bootstrap.reviewService.blindSpots(window);
-    expect(
-      spots.any((LearningBlindSpot spot) => spot.text.contains('写不出')),
-      isTrue,
+    final LearningBlindSpot marked = spots.firstWhere(
+      (LearningBlindSpot spot) => spot.text.contains('写不出'),
     );
+    expect(marked.source, BlindSpotSource.marked);
+    expect(marked.isSuggested, isFalse);
 
     final int before = bootstrap.actions.all.length;
     final ActionItem created =
@@ -376,14 +377,19 @@ void main() {
     );
     await bootstrap.learningReviews.put(review);
 
-    final int count = await service.spreadReviewLoad(<LearningReview>[review]);
+    final int count = await service.spreadReviewLoad(
+      <LearningReview>[review],
+      days: 5,
+      perDay: 1,
+      hour: 21,
+    );
     expect(count, 1);
     final LearningReview spread = bootstrap.learningReviews.byId(review.id)!;
     final int days = AppDate.startOfDay(spread.dueDate)
         .difference(AppDate.startOfDay(DateTime.now()))
         .inDays;
-    expect(days, inInclusiveRange(1, 3));
-    expect(spread.dueDate.hour, 20);
+    expect(days, inInclusiveRange(1, 5));
+    expect(spread.dueDate.hour, 21);
 
     final TimeBlock fragment = await service.scheduleReviewFragment(spread);
     expect(fragment.plannedMinutes, 10);

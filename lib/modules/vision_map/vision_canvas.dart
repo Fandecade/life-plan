@@ -36,6 +36,7 @@ class VisionCanvas extends StatefulWidget {
     required this.onCapabilityAction,
     required this.onRequestVisionSwitch,
     this.focusNodeId,
+    this.focusTaskId,
     this.onFocusHandled,
   });
 
@@ -51,6 +52,7 @@ class VisionCanvas extends StatefulWidget {
 
   /// 一次性聚焦：定位并选中某个能力节点（来自复盘/统计跳转）。
   final String? focusNodeId;
+  final String? focusTaskId;
   final VoidCallback? onFocusHandled;
 
   @override
@@ -470,6 +472,36 @@ class _VisionCanvasState extends State<VisionCanvas> {
       final Offset? base = layout.taskTopLeft[item.id];
       if (base == null) continue;
       taskPositions[item.id] = _withDrag(item.id, base);
+    }
+
+    final String? focusTask = widget.focusTaskId;
+    if (focusTask != null && focusTask != _handledFocusId) {
+      final Offset? topLeft = taskPositions[focusTask];
+      if (topLeft != null) {
+        _handledFocusId = focusTask;
+        final String? capabilityId = _tasksById[focusTask]?.capabilityId;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _selection = MapSelection(
+              MapNodeType.task,
+              focusTask,
+              capabilityId: capabilityId,
+            );
+          });
+          final Size? viewport = context.size;
+          if (viewport != null) {
+            widget.transformController.value = Matrix4.identity()
+              ..translate(
+                viewport.width / 2 -
+                    (topLeft.dx + MapMetrics.taskWidth / 2),
+                viewport.height / 2 -
+                    (topLeft.dy + MapMetrics.taskHeight / 2),
+              );
+          }
+          widget.onFocusHandled?.call();
+        });
+      }
     }
 
     // 巩固中的任务显示下一条复习节点（如「巩固·D3」）。

@@ -20,6 +20,7 @@ import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
 import '../fogg_habit/habit_action_line_dialog.dart';
 import '../fogg_habit/habit_recipe_dialog.dart';
+import 'review_schedule_dialog.dart';
 import '../time_box/routine_schedule_view.dart';
 
 /// 及时复盘：日 / 周 / 月 / 年四级。
@@ -48,38 +49,14 @@ class _ReviewPageState extends State<ReviewPage> {
   /// 本次会话内已处理的事项快照：动作后数据可能移出窗口，
   /// 但仍以「已划掉」的形式留在列表里，便于确认处理结果。
   final Map<String, ReviewItem> _handledItems = <String, ReviewItem>{};
+
+  /// 本次会话内的撤销动作（点错了可回滚）。
+  final Map<String, Future<void> Function()> _undo =
+      <String, Future<void> Function()>{};
   Timer? _saveTimer;
   bool _initialized = false;
 
   ReviewWindow get _window => ReviewWindow.of(_type, _anchor);
-
-  /// 周期越长，未完成事项顺延的粒度越粗（下周 / 下月 / 明年）。
-  String get _pushLabel {
-    switch (_type) {
-      case ReviewPeriodType.daily:
-        return '排入明日';
-      case ReviewPeriodType.weekly:
-        return '排入下周';
-      case ReviewPeriodType.monthly:
-        return '排入下月';
-      case ReviewPeriodType.yearly:
-        return '排入明年';
-    }
-  }
-
-  DateTime get _pushTarget {
-    final DateTime now = DateTime.now();
-    switch (_type) {
-      case ReviewPeriodType.daily:
-        return now.add(const Duration(days: 1));
-      case ReviewPeriodType.weekly:
-        return AppDate.startOfWeek(now).add(const Duration(days: 7));
-      case ReviewPeriodType.monthly:
-        return DateTime(now.year, now.month + 1, 1);
-      case ReviewPeriodType.yearly:
-        return DateTime(now.year + 1, 1, 1);
-    }
-  }
 
   @override
   void didChangeDependencies() {
@@ -113,6 +90,7 @@ class _ReviewPageState extends State<ReviewPage> {
       ..clear()
       ..addAll(log?.handledItems ?? const <String>[]);
     _handledItems.clear();
+    _undo.clear();
   }
 
   void _selectType(ReviewPeriodType type) {
@@ -124,6 +102,39 @@ class _ReviewPageState extends State<ReviewPage> {
   void _shift(int direction) {
     setState(() => _anchor = _window.shifted(direction));
     _syncFromStore();
+  }
+
+  Future<void> _confirmReopen() async {
+    final AppPalette palette = context.palette;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: palette.border),
+        ),
+        title: Text('撤销完成标记？', style: dialogContext.texts.titleLarge),
+        content: Text(
+          '撤销后这份复盘会回到「未复盘」，文本与已处理事项都会保留。',
+          style: dialogContext.texts.bodyMedium,
+        ),
+        actions: <Widget>[
+          AppGhostButton(
+            label: '保留完成',
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppPrimaryButton(
+            label: '撤销完成',
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _persist(isCompleted: false);
+    if (!mounted) return;
+    _toast('已撤销完成标记，可继续补充');
   }
 
   Future<void> _openHistory() async {
@@ -477,7 +488,7 @@ class _ReviewPageState extends State<ReviewPage> {
                 label: log?.isCompleted == true ? '已完成' : '标记完成',
                 dense: true,
                 onPressed: log?.isCompleted == true
-                    ? null
+                    ? _confirmReopen
                     : () => _persist(isCompleted: true),
               ),
             ],
@@ -526,7 +537,7 @@ class _ReviewPageState extends State<ReviewPage> {
           if (openItems > 0) ...<Widget>[
             const SizedBox(height: 6),
             Text(
-              '本期还有 $openItems 项待校准，处理完后复盘才算真正结束。',
+              '本期有 $openItems 项可顺便校准；逐项处理或选择「暂不调整」后，随时可以完成复盘。',
               style: context.texts.labelSmall?.copyWith(color: palette.warning),
             ),
           ],
@@ -580,7 +591,7 @@ class _ReviewPageState extends State<ReviewPage> {
         label: '微习惯节律',
         value: '${snapshot.habitPercent}%',
         detail: '完成 ${snapshot.habitChecks}/${snapshot.habitTarget} 次 · '
-            '${snapshot.lowHabits.length} 项需调配方',
+            '${snapshot.lowHabits.length} 项节奏偏缓',
         delta: '较上期 ${habitDelta >= 0 ? '+' : ''}$habitDelta 个百分点',
         deltaPositive: habitDelta >= 0,
         progress: snapshot.habitRate,
@@ -1406,7 +1417,7 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
           const SizedBox(height: AppSpacing.sm),
           if (items.isEmpty)
-            Text('本期没有需要处理的事项。', style: context.texts.bodySmall)
+            Text('本期没有需要特别调整的事项。', style: context.texts.bodySmall)
           else
             for (final ReviewItem item in items) ...<Widget>[
               _pendingRow(context, palette, item, handledIds),
@@ -1455,7 +1466,20 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
         ),
         if (handled)
-          Text('已处理', style: context.texts.labelSmall)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text('已处理', style: context.texts.labelSmall),
+              if (_undo.containsKey(item.id)) ...<Widget>[
+                const SizedBox(width: 2),
+                AppGhostButton(
+                  label: '撤销',
+                  dense: true,
+                  onPressed: () => _undoItem(item),
+                ),
+              ],
+            ],
+          )
         else
           _itemActions(context, palette, item),
       ],
@@ -1473,9 +1497,9 @@ class _ReviewPageState extends State<ReviewPage> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             AppGhostButton(
-              label: _pushLabel,
+              label: '安排日期',
               dense: true,
-              onPressed: () => _runItem(item, 'push'),
+              onPressed: () => _runItem(item, 'scheduleBlock'),
             ),
             Builder(
               builder: (BuildContext anchorContext) => AppIconButton(
@@ -1498,9 +1522,9 @@ class _ReviewPageState extends State<ReviewPage> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             AppGhostButton(
-              label: '排入明日',
+              label: '安排时间',
               dense: true,
-              onPressed: () => _runItem(item, 'postpone'),
+              onPressed: () => _runItem(item, 'scheduleReview'),
             ),
             Builder(
               builder: (BuildContext anchorContext) => AppIconButton(
@@ -1519,24 +1543,103 @@ class _ReviewPageState extends State<ReviewPage> {
           ],
         );
       case ReviewItemKind.lowHabit:
-        return AppGhostButton(
-          label: '调配方',
-          dense: true,
-          onPressed: () => _runItem(item, 'habit'),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppGhostButton(
+              label: '调配方',
+              dense: true,
+              onPressed: () => _runItem(item, 'habit'),
+            ),
+            _skipButton(context, palette, item),
+          ],
         );
       case ReviewItemKind.staleTask:
-        return AppGhostButton(
-          label: '归档',
-          dense: true,
-          onPressed: () => _runItem(item, 'archive'),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppGhostButton(
+              label: '归档',
+              dense: true,
+              onPressed: () => _runItem(item, 'archive'),
+            ),
+            _skipButton(context, palette, item),
+          ],
         );
       case ReviewItemKind.learningBlindSpot:
-        return AppGhostButton(
-          label: '生成补盲任务',
-          dense: true,
-          onPressed: () => _runItem(item, 'blind'),
+        final bool suggested = item.blindSpot?.isSuggested ?? false;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppGhostButton(
+              label: suggested ? '确认补盲' : '生成补盲任务',
+              dense: true,
+              onPressed: () => _runItem(item, 'blind'),
+            ),
+            _skipButton(
+              context,
+              palette,
+              item,
+              label: suggested ? '忽略这条建议' : '暂不调整（维持现状）',
+            ),
+          ],
         );
     }
+  }
+
+  Widget _skipButton(
+    BuildContext context,
+    AppPalette palette,
+    ReviewItem item, {
+    String label = '暂不调整（维持现状）',
+  }) {
+    return Builder(
+      builder: (BuildContext anchorContext) => AppIconButton(
+        icon: Icons.more_horiz_rounded,
+        iconSize: 15,
+        size: 26,
+        tooltip: label,
+        onPressed: () async {
+          final String? action =
+              await _showSkipMenu(anchorContext, palette, label: label);
+          if (action == null) return;
+          await _runItem(item, action);
+        },
+      ),
+    );
+  }
+
+  Future<String?> _showSkipMenu(
+    BuildContext anchorContext,
+    AppPalette palette, {
+    String label = '暂不调整（维持现状）',
+  }) async {
+    final RenderBox box = anchorContext.findRenderObject()! as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(anchorContext).context.findRenderObject()! as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    return showMenu<String>(
+      context: anchorContext,
+      position: position,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'skip',
+          height: 38,
+          child: Text(label, style: context.texts.bodyMedium),
+        ),
+      ],
+    );
   }
 
   Future<String?> _showReviewMenu(
@@ -1563,14 +1666,15 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
-          value: 'fragment',
-          height: 38,
-          child: Text('排进明日碎片时间', style: context.texts.bodyMedium),
-        ),
-        PopupMenuItem<String>(
           value: 'spread',
           height: 38,
-          child: Text('降低负载（分散 3 天）', style: context.texts.bodyMedium),
+          child: Text('分散复习负载…', style: context.texts.bodyMedium),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'skip',
+          height: 38,
+          child: Text('暂不调整（维持现状）', style: context.texts.bodyMedium),
         ),
       ],
     );
@@ -1600,9 +1704,9 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
-          value: 'shrink',
+          value: 'decompose',
           height: 38,
-          child: Text('拆小任务', style: context.texts.bodyMedium),
+          child: Text('拆解任务（去图谱）', style: context.texts.bodyMedium),
         ),
         PopupMenuItem<String>(
           value: 'inbox',
@@ -1617,12 +1721,23 @@ class _ReviewPageState extends State<ReviewPage> {
             style: context.texts.bodyMedium?.copyWith(color: palette.danger),
           ),
         ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'skip',
+          height: 38,
+          child: Text('暂不调整（维持现状）', style: context.texts.bodyMedium),
+        ),
       ],
     );
   }
 
   Future<void> _runItem(ReviewItem item, String action) async {
     final ReviewService service = context.read<ReviewService>();
+    final TimeBlockRepository blockRepo = context.read<TimeBlockRepository>();
+    final ActionItemRepository actionRepo = context.read<ActionItemRepository>();
+    final LearningReviewRepository reviewRepo =
+        context.read<LearningReviewRepository>();
+    final UiController ui = context.read<UiController>();
 
     if (action == 'habit') {
       final FoggHabit? habit = item.habit;
@@ -1645,39 +1760,113 @@ class _ReviewPageState extends State<ReviewPage> {
     final TimeBlock? block = item.block;
     final ActionItem? task = item.task;
     final LearningReview? review = item.review;
+    Future<void> Function()? restore;
 
     switch (action) {
-      case 'push':
-        if (block != null) await service.pushBlockToDay(block, day: _pushTarget);
-      case 'shrink':
-        if (task != null) {
-          await service.shrinkTask(task);
-        } else if (block != null) {
-          await service.pushBlockToDay(block);
-        }
+      case 'skip':
+        restore = () async {};
+      case 'scheduleBlock':
+        if (block == null) return;
+        final ReviewScheduleResult? picked = await showReviewScheduleDialog(
+          context,
+          initial: block.startAt,
+          initialMinutes: block.plannedMinutes,
+          title: '安排时间块',
+          hint: '确认后同步到时间盒，日期、时间与时长都可随时再改',
+        );
+        if (picked == null) return;
+        final DateTime original = block.startAt;
+        final int originalMinutes = block.plannedMinutes;
+        await service.moveBlockTo(
+          block,
+          picked.start,
+          minutes: picked.minutes,
+        );
+        restore = () async {
+          final TimeBlock? current = blockRepo.byId(block.id);
+          if (current != null) {
+            await service.moveBlockTo(
+              current,
+              original,
+              minutes: originalMinutes,
+            );
+          }
+        };
+      case 'scheduleReview':
+        if (review == null) return;
+        final DateTime originalDue = review.dueDate;
+        final DateTime defaultStart = originalDue.isAfter(DateTime.now())
+            ? originalDue
+            : AppDate.startOfDay(
+                DateTime.now().add(const Duration(days: 1)),
+              ).add(const Duration(hours: 20));
+        final ReviewScheduleResult? picked = await showReviewScheduleDialog(
+          context,
+          initial: defaultStart,
+          initialMinutes: 15,
+          title: '安排复习',
+          hint: '会同步生成时间盒块，点开直接进入主动回忆；时长可随手改',
+        );
+        if (picked == null) return;
+        final TimeBlock created = await service.scheduleReviewAt(
+          review,
+          picked.start,
+          minutes: picked.minutes,
+        );
+        restore = () async {
+          await reviewRepo.save(review.copyWith(dueDate: originalDue));
+          await blockRepo.softDelete(created.id);
+        };
+      case 'decompose':
+        if (task == null) return;
+        ui.openTaskLocation(task.id);
       case 'inbox':
+        if (block == null && task == null) return;
+        final ActionItemStatus? status = task?.status;
         if (block != null) {
           await service.returnBlockToInbox(block);
         } else if (task != null) {
           await service.returnToInbox(task);
         }
+        restore = () async {
+          if (block != null) await blockRepo.put(block);
+          if (task != null && status != null) {
+            await actionRepo.setStatus(task.id, status);
+          }
+        };
       case 'cancel':
-        if (block != null) await service.cancelBlock(block);
+        if (block == null) return;
+        final ActionItemStatus? status = task?.status;
+        await service.cancelBlock(block);
+        restore = () async {
+          await blockRepo.put(block);
+          if (task != null && status != null) {
+            await actionRepo.setStatus(task.id, status);
+          }
+        };
       case 'archive':
-        if (task != null) await service.archiveTask(task);
-      case 'postpone':
-        if (review != null) await service.postponeReview(review);
+        if (task == null) return;
+        final ActionItemStatus archived = task.status;
+        await service.archiveTask(task);
+        restore = () => actionRepo.setStatus(task.id, archived);
+      case 'spread':
+        if (review == null) return;
+        final DateTime originalDue = review.dueDate;
+        final ({int days, int perDay, int hour})? plan =
+            await _openSpreadDialog();
+        if (plan == null) return;
+        await service.spreadReviewLoad(
+          <LearningReview>[review],
+          days: plan.days,
+          perDay: plan.perDay,
+          hour: plan.hour,
+        );
+        restore = () => reviewRepo.save(review.copyWith(dueDate: originalDue));
       case 'blind':
         final LearningBlindSpot? spot = item.blindSpot;
-        if (spot != null) await service.createBlindSpotTask(spot);
-      case 'spread':
-        if (review != null) {
-          await service.spreadReviewLoad(<LearningReview>[review]);
-        }
-      case 'fragment':
-        if (review != null) {
-          await service.scheduleReviewFragment(review);
-        }
+        if (spot == null) return;
+        final ActionItem created = await service.createBlindSpotTask(spot);
+        restore = () => actionRepo.hardDelete(created.id);
     }
 
     await service.markHandled(_window, item.id);
@@ -1685,8 +1874,118 @@ class _ReviewPageState extends State<ReviewPage> {
     setState(() {
       _handled.add(item.id);
       _handledItems[item.id] = item;
+      _undo[item.id] = restore ?? () async {};
     });
     _toast(_actionToast(action));
+  }
+
+  Future<({int days, int perDay, int hour})?> _openSpreadDialog() {
+    final AppPalette palette = context.palette;
+    int days = 3;
+    int perDay = 2;
+    int hour = 20;
+
+    return showDialog<({int days, int perDay, int hour})>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setLocal) {
+          return AlertDialog(
+            backgroundColor: palette.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              side: BorderSide(color: palette.border),
+            ),
+            title: Text('分散复习负载', style: context.texts.titleLarge),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('分散天数', style: context.texts.labelSmall),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: <Widget>[
+                      for (final int value in <int>[2, 3, 5, 7])
+                        AppChip(
+                          label: '$value 天',
+                          dense: true,
+                          filled: value == days,
+                          color: palette.accent,
+                          onTap: () => setLocal(() => days = value),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text('每天最多', style: context.texts.labelSmall),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: <Widget>[
+                      for (final int value in <int>[1, 2, 3])
+                        AppChip(
+                          label: '$value 条',
+                          dense: true,
+                          filled: value == perDay,
+                          color: palette.accent,
+                          onTap: () => setLocal(() => perDay = value),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text('安排在', style: context.texts.labelSmall),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: <Widget>[
+                      for (final int value in <int>[19, 20, 21, 22])
+                        AppChip(
+                          label: '${AppDate.two(value)}:00',
+                          dense: true,
+                          filled: value == hour,
+                          color: palette.accent,
+                          onTap: () => setLocal(() => hour = value),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    '这些只是默认值，之后仍可在时间盒里逐条调整。',
+                    style: context.texts.labelSmall,
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              AppGhostButton(
+                label: '取消',
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
+              AppPrimaryButton(
+                label: '确认分散',
+                onPressed: () => Navigator.of(dialogContext).pop(
+                  (days: days, perDay: perDay, hour: hour),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _undoItem(ReviewItem item) async {
+    final ReviewService service = context.read<ReviewService>();
+    final Future<void> Function()? restore = _undo.remove(item.id);
+    if (restore != null) await restore();
+    await service.unmarkHandled(_window, item.id);
+    if (!mounted) return;
+    setState(() {
+      _handled.remove(item.id);
+      _handledItems.remove(item.id);
+    });
+    _toast('已撤销该项处理');
   }
 
   Color _kindTone(AppPalette palette, ReviewItemKind kind) {
@@ -1696,7 +1995,7 @@ class _ReviewPageState extends State<ReviewPage> {
       case ReviewItemKind.overdueReview:
         return palette.accent;
       case ReviewItemKind.lowHabit:
-        return palette.warning;
+        return palette.accent;
       case ReviewItemKind.staleTask:
         return palette.textTertiary;
       case ReviewItemKind.learningBlindSpot:
@@ -1706,24 +2005,24 @@ class _ReviewPageState extends State<ReviewPage> {
 
   String _actionToast(String action) {
     switch (action) {
-      case 'push':
-        return '已排入明日时间盒';
-      case 'shrink':
-        return '已拆小并生成启动版任务';
+      case 'scheduleBlock':
+        return '已安排到所选日期与时间';
+      case 'scheduleReview':
+        return '已安排复习，并同步到时间盒';
+      case 'decompose':
+        return '已跳到图谱对应任务，去那里拆解';
+      case 'skip':
+        return '已记录：暂不调整（维持现状）';
       case 'inbox':
         return '已暂存回任务池';
       case 'cancel':
         return '已取消该时间块';
       case 'archive':
         return '已归档，腾出时间盒空间';
-      case 'postpone':
-        return '已顺延到明日 20:00';
       case 'blind':
         return '已生成回炉补盲任务，已放入任务池';
       case 'spread':
-        return '已把这条复习分散到未来三天';
-      case 'fragment':
-        return '已排进明日 12:30 的碎片时间盒';
+        return '已按你的设置分散复习';
       default:
         return '已处理';
     }

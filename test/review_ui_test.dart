@@ -13,6 +13,7 @@ void main() {
   late AppBootstrap bootstrap;
   late Directory tempDir;
   late TimeBlock block;
+  late LearningReview overdueReview;
 
   Future<void> settle(WidgetTester tester) async {
     for (int i = 0; i < 25; i++) {
@@ -45,6 +46,22 @@ void main() {
         isFinished: true,
         completedAt: DateTime.now(),
         stepsDataJson: draft.encode(),
+      ),
+    );
+
+    final ActionItem spotTask = await bootstrap.actions.create(
+      title: '学习卡点任务',
+    );
+    final LearningDraft spotBase = LearningDraft.initial(LearningType.declarative);
+    final List<LearningStepDraft> spotSteps =
+        List<LearningStepDraft>.from(spotBase.fullSteps);
+    spotSteps[1] =
+        spotSteps[1].copyWith(text: '这里我卡在边界条件上，讲不清递归出口');
+    await bootstrap.learningSessions.put(
+      LearningSession.create(actionItemId: spotTask.id).copyWith(
+        isFinished: true,
+        completedAt: DateTime.now(),
+        stepsDataJson: spotBase.copyWith(fullSteps: spotSteps).encode(),
       ),
     );
 
@@ -81,6 +98,17 @@ void main() {
       recipeHabit.id,
       AppDate.dateKey(today.subtract(const Duration(days: 1))),
     );
+
+    final ActionItem reviewTask = await bootstrap.actions.create(
+      title: '复盘UI逾期复习',
+    );
+    overdueReview = LearningReview.create(
+      sessionId: 'review-ui',
+      actionItemId: reviewTask.id,
+      dueDate: DateTime.now().subtract(const Duration(days: 1)),
+      intervalDays: 3,
+    );
+    await bootstrap.learningReviews.put(overdueReview);
 
     await bootstrap.reviewService.saveEntry(
       ReviewWindow.of(ReviewPeriodType.weekly, DateTime.now()),
@@ -159,27 +187,146 @@ void main() {
     expect(find.text('If–Then 预案'), findsOneWidget);
   });
 
-  testWidgets('未完成时间块可一键排入明日并划掉', (WidgetTester tester) async {
+  testWidgets('未完成时间块可自由安排日期，并能撤销', (WidgetTester tester) async {
     await openReview(tester);
 
     expect(find.text('复盘UI未完成块'), findsWidgets);
-    final Finder push = find.text('排入明日').first;
-    await tester.ensureVisible(push);
+    final Finder arrange = find.text('安排日期').first;
+    await tester.ensureVisible(arrange);
     await tester.pump();
-    await tester.tap(push);
+    await tester.tap(arrange);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('安排时间块'), findsOneWidget);
+    await tester.tap(find.text('明天'));
+    await tester.pump();
+    await tester.tap(find.text('15 分钟'));
+    await tester.pump();
+    await tester.tap(find.text('确认安排'));
     await settle(tester);
 
     final TimeBlock moved = bootstrap.timeBlocks.byId(block.id)!;
-    expect(AppDate.isSameDay(moved.startAt, DateTime.now()), isFalse);
     expect(
       AppDate.isSameDay(
         moved.startAt,
         DateTime.now().add(const Duration(days: 1)),
       ),
       isTrue,
-      reason: '应顺延到明日同一时刻',
     );
+    expect(moved.plannedMinutes, 15, reason: '时长可以随手改');
     expect(find.text('已处理'), findsWidgets);
+
+    final Finder undo = find.text('撤销').first;
+    await tester.ensureVisible(undo);
+    await tester.tap(undo);
+    await settle(tester);
+
+    final TimeBlock restored = bootstrap.timeBlocks.byId(block.id)!;
+    expect(
+      AppDate.isSameDay(restored.startAt, DateTime.now()),
+      isTrue,
+      reason: '撤销应把时间块恢复到原日期',
+    );
+    expect(restored.plannedMinutes, 30, reason: '撤销应恢复原时长');
+    expect(find.text('安排日期'), findsWidgets);
+  });
+
+  testWidgets('疑似卡点只作建议，确认后才生成补盲任务', (WidgetTester tester) async {
+    await openReview(tester);
+
+    expect(find.textContaining('疑似卡点：'), findsWidgets);
+    expect(find.text('确认补盲'), findsWidgets);
+
+    final Finder confirm = find.text('确认补盲').first;
+    await tester.ensureVisible(confirm);
+    await tester.pump();
+    await tester.tap(confirm);
+    await settle(tester);
+
+    expect(
+      bootstrap.actions.all
+          .where((ActionItem item) => item.title.contains('回炉补盲：学习卡点任务'))
+          .toList(),
+      isNotEmpty,
+    );
+  });
+
+  testWidgets('可以逐项选择暂不调整并记录为已处理', (WidgetTester tester) async {
+    await openReview(tester);
+
+    final Finder more = find.byTooltip('更多处理').first;
+    await tester.ensureVisible(more);
+    await tester.pump();
+    await tester.tap(more);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('暂不调整（维持现状）'), findsOneWidget);
+    await tester.tap(find.text('暂不调整（维持现状）'));
+    await settle(tester);
+
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.daily, DateTime.now());
+    final ReviewLog log =
+        bootstrap.reviewLogs.forPeriod(window.type, window.periodKey)!;
+    expect(
+      log.handledItems.any((String id) => id.startsWith('block:')),
+      isTrue,
+      reason: '暂不调整也应写入已处理，允许随时完成复盘',
+    );
+  });
+
+  testWidgets('逾期复习可自由安排时间并同步到时间盒', (WidgetTester tester) async {
+    await openReview(tester);
+
+    // 逾期复习到期在昨天，用周复盘窗口才能看到。
+    await tester.tap(find.text('周复盘'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final Finder schedule = find.text('安排时间').first;
+    await tester.ensureVisible(schedule);
+    await tester.tap(schedule);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('安排复习'), findsOneWidget);
+    await tester.tap(find.text('明天'));
+    await tester.pump();
+    await tester.tap(find.text('确认安排'));
+    await settle(tester);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 800)),
+    );
+    await tester.pump();
+
+    final LearningReview updated =
+        bootstrap.learningReviews.byId(overdueReview.id)!;
+    expect(
+      AppDate.isSameDay(
+        updated.dueDate,
+        DateTime.now().add(const Duration(days: 1)),
+      ),
+      isTrue,
+    );
+    expect(
+      bootstrap.timeBlocks.all
+          .where((TimeBlock item) => item.learningReviewId == overdueReview.id)
+          .toList(),
+      isNotEmpty,
+      reason: '应同步生成时间盒块',
+    );
+
+    final ReviewWindow weeklyWindow =
+        ReviewWindow.of(ReviewPeriodType.weekly, DateTime.now());
+    final ReviewLog? weeklyLog = bootstrap.reviewLogs
+        .forPeriod(weeklyWindow.type, weeklyWindow.periodKey);
+    expect(
+      weeklyLog?.handledItems.contains('review:${overdueReview.id}'),
+      isTrue,
+      reason: '处理完应记录到当期复盘',
+    );
   });
 
   testWidgets('月复盘展示学习摘要、能力推进、热力与配方对比', (
@@ -345,5 +492,22 @@ void main() {
       isTrue,
     );
     expect(find.text('已完成'), findsWidgets);
+
+    await tester.tap(find.text('已完成').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('撤销完成标记？'), findsOneWidget);
+
+    await tester.tap(find.text('撤销完成'));
+    await settle(tester);
+
+    expect(
+      bootstrap.reviewLogs
+          .forPeriod(window.type, window.periodKey)!
+          .isCompleted,
+      isFalse,
+      reason: '二次点击并确认后应撤销完成标记',
+    );
+    expect(find.text('标记完成'), findsOneWidget);
   });
 }

@@ -43,6 +43,22 @@ class _VisionMapPageState extends State<VisionMapPage> {
     final UiController ui = context.watch<UiController>();
     final Vision? vision = _currentVision(visions);
     final String? focusCapabilityId = ui.focusCapabilityId;
+    final String? focusTaskId = ui.focusTaskId;
+    if (focusTaskId != null && vision != null) {
+      final ActionItem? target = context.read<ActionItemRepository>().byId(focusTaskId);
+      final String? targetVisionId = target?.capabilityId == null
+          ? null
+          : context
+              .read<CapabilityRepository>()
+              .byId(target!.capabilityId!)
+              ?.visionId;
+      if (targetVisionId != null && targetVisionId != vision.id) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _activeVisionId = targetVisionId);
+        });
+      }
+    }
     if (focusCapabilityId != null && vision != null) {
       final Capability? target =
           context.read<CapabilityRepository>().byId(focusCapabilityId);
@@ -114,8 +130,12 @@ class _VisionMapPageState extends State<VisionMapPage> {
                 _transform.value = Matrix4.identity();
               },
               focusNodeId: focusCapabilityId,
-              onFocusHandled: () =>
-                  context.read<UiController>().consumeCapabilityFocus(),
+              focusTaskId: focusTaskId,
+              onFocusHandled: () {
+                final UiController controller = context.read<UiController>();
+                controller.consumeCapabilityFocus();
+                controller.consumeTaskFocus();
+              },
             ),
           ),
         ),

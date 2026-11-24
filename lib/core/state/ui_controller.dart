@@ -18,6 +18,7 @@ class UiController extends ChangeNotifier {
   String? _learningTaskId;
   String? _learningReviewId;
   String? _focusCapabilityId;
+  String? _focusTaskId;
 
   String get currentRoute => _currentRoute;
 
@@ -45,6 +46,9 @@ class UiController extends ChangeNotifier {
   /// 「图谱」的一次性聚焦请求：要定位的能力节点。
   String? get focusCapabilityId => _focusCapabilityId;
 
+  /// 「图谱」的一次性聚焦请求：要定位的任务节点（复盘拆解用）。
+  String? get focusTaskId => _focusTaskId;
+
   bool get hasOverlay => detailOpen || inboxOpen || _scheduleOpen;
 
   void setRoute(String route) {
@@ -58,6 +62,7 @@ class UiController extends ChangeNotifier {
     _learningTaskId = null;
     _learningReviewId = null;
     _focusCapabilityId = null;
+    _focusTaskId = null;
     notifyListeners();
   }
 
@@ -181,6 +186,27 @@ class UiController extends ChangeNotifier {
   void consumeCapabilityFocus() {
     if (_focusCapabilityId == null) return;
     _focusCapabilityId = null;
+    notifyListeners();
+  }
+
+  /// 从复盘「拆解任务」跳到图谱并定位该任务节点。
+  void openTaskLocation(String taskId) {
+    _focusTaskId = taskId;
+    _focusCapabilityId = null;
+    _currentRoute = '/vision-map';
+    _detailItemId = null;
+    _inboxOpen = false;
+    _scheduleOpen = false;
+    _focusDate = null;
+    _focusBlockId = null;
+    _learningTaskId = null;
+    _learningReviewId = null;
+    notifyListeners();
+  }
+
+  void consumeTaskFocus() {
+    if (_focusTaskId == null) return;
+    _focusTaskId = null;
     notifyListeners();
   }
 
