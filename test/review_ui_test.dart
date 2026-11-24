@@ -407,6 +407,14 @@ void main() {
     expect(find.text('学习系统摘要'), findsOneWidget);
     expect(find.text('能力推进'), findsOneWidget);
     expect(find.text('本月负荷热力'), findsOneWidget);
+
+    final Finder loadCard = find.text('认知负荷结构');
+    await tester.scrollUntilVisible(
+      loadCard,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(loadCard, findsOneWidget);
     expect(find.text('配方版本执行率'), findsOneWidget);
     expect(find.textContaining('v1 → v2'), findsWidgets);
 

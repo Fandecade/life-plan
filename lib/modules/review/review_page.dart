@@ -812,6 +812,11 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
     ];
 
+    if (snapshot.capacityMinutes > 0) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_loadCard(context, palette, snapshot));
+    }
+
     if (heat.isNotEmpty) {
       blocks.add(const SizedBox(height: AppSpacing.md));
       blocks.add(_heatCard(context, palette, heat));
@@ -951,6 +956,75 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                 ),
               ),
+        ],
+      ),
+    );
+  }
+
+  Widget _loadCard(
+    BuildContext context,
+    AppPalette palette,
+    ReviewSnapshot snapshot,
+  ) {
+    final int total = snapshot.capacityMinutes;
+    final Map<CognitiveLoad, int> minutes = snapshot.loadMinutes;
+    final Map<CognitiveLoad, Color> tones = <CognitiveLoad, Color>{
+      CognitiveLoad.high: palette.warning,
+      CognitiveLoad.medium: palette.accent,
+      CognitiveLoad.low: palette.textTertiary,
+    };
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '认知负荷结构',
+            subtitle: '同等时长，不同脑力消耗；不是所有 2 小时都等价',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final CognitiveLoad load in <CognitiveLoad>[
+            CognitiveLoad.high,
+            CognitiveLoad.medium,
+            CognitiveLoad.low,
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: <Widget>[
+                  SizedBox(
+                    width: 52,
+                    child: Text(load.label, style: context.texts.labelSmall),
+                  ),
+                  Expanded(
+                    child: ProgressHairline(
+                      value: total == 0
+                          ? 0
+                          : (minutes[load] ?? 0) / total,
+                      color: tones[load]!,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      '${((minutes[load] ?? 0) / 60).toStringAsFixed(1)}h',
+                      style: context.texts.labelSmall,
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (snapshot.highLoadRate > 0.6) ...<Widget>[
+            const SizedBox(height: 2),
+            Text(
+              '高负荷占比 ${(snapshot.highLoadRate * 100).round()}% 偏高：'
+              '建议在时间盒里保留 10–15% 缓冲与恢复时间。',
+              style: context.texts.labelSmall?.copyWith(color: palette.warning),
+            ),
+          ],
         ],
       ),
     );

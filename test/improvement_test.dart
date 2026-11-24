@@ -164,6 +164,31 @@ void main() {
     );
   });
 
+  test('认知负荷结构按任务负荷统计分钟', () async {
+    final Capability capability = bootstrap.capabilities.all.first;
+    final ActionItem task = await bootstrap.actions.create(
+      title: '高负荷统计任务',
+      capabilityId: capability.id,
+      cognitiveLoad: CognitiveLoad.high,
+    );
+    await bootstrap.timeBlocks.schedule(
+      title: task.title,
+      startAt: DateTime.now(),
+      durationMinutes: 45,
+      actionItemId: task.id,
+    );
+
+    final ReviewSnapshot snapshot = bootstrap.reviewService.snapshot(
+      ReviewWindow.of(ReviewPeriodType.daily, DateTime.now()),
+    );
+    expect(
+      snapshot.loadMinutes[CognitiveLoad.high] ?? 0,
+      greaterThanOrEqualTo(45),
+    );
+    expect(snapshot.capacityMinutes, greaterThanOrEqualTo(45));
+    expect(snapshot.highLoadRate, greaterThan(0));
+  });
+
   test('能力证据 Artifact 可创建并按能力 / 任务查询', () async {
     final Capability capability = bootstrap.capabilities.all.first;
     final ActionItem task = await bootstrap.actions.create(

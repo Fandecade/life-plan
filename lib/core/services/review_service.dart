@@ -148,6 +148,7 @@ class ReviewSnapshot {
     required this.habitChecks,
     required this.habitTarget,
     required this.habitRates,
+    required this.loadMinutes,
     required this.capabilitySlices,
     required this.unfinishedBlocks,
     required this.overdueReviews,
@@ -169,6 +170,9 @@ class ReviewSnapshot {
   final int habitChecks;
   final int habitTarget;
   final Map<String, double> habitRates;
+
+  /// 本期时间块按认知负荷的分钟分布（独立块按中负荷计）。
+  final Map<CognitiveLoad, int> loadMinutes;
   final List<CapabilitySlice> capabilitySlices;
   final List<TimeBlock> unfinishedBlocks;
   final List<LearningReview> overdueReviews;
@@ -186,6 +190,11 @@ class ReviewSnapshot {
 
   int get capacityMinutes =>
       capabilitySlices.fold(0, (int sum, CapabilitySlice item) => sum + item.minutes);
+
+  int get highLoadMinutes => loadMinutes[CognitiveLoad.high] ?? 0;
+
+  double get highLoadRate =>
+      capacityMinutes == 0 ? 0 : highLoadMinutes / capacityMinutes;
 }
 
 /// 待校准事项类别。
@@ -416,6 +425,17 @@ class ReviewService {
             .toList(growable: false)
         : const <FoggHabit>[];
 
+    final Map<CognitiveLoad, int> loadMinutes = <CognitiveLoad, int>{
+      for (final CognitiveLoad load in CognitiveLoad.values) load: 0,
+    };
+    for (final TimeBlock block in windowBlocks) {
+      final ActionItem? task = block.actionItemId == null
+          ? null
+          : actions.byId(block.actionItemId!);
+      final CognitiveLoad load = task?.cognitiveLoad ?? CognitiveLoad.medium;
+      loadMinutes[load] = (loadMinutes[load] ?? 0) + block.plannedMinutes;
+    }
+
     final Map<String, (String, int)> byCapability =
         <String, (String, int)>{};
     for (final TimeBlock block in windowBlocks) {
@@ -461,6 +481,7 @@ class ReviewService {
       habitChecks: habitChecks,
       habitTarget: habitTarget,
       habitRates: habitRates,
+      loadMinutes: loadMinutes,
       capabilitySlices: slices,
       unfinishedBlocks: unfinishedBlocks,
       overdueReviews: overdueReviews,
