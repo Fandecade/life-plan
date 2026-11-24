@@ -408,6 +408,14 @@ void main() {
     expect(find.text('能力推进'), findsOneWidget);
     expect(find.text('本月负荷热力'), findsOneWidget);
 
+    final Finder indicator = find.text('指标分层');
+    await tester.scrollUntilVisible(
+      indicator,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(indicator, findsOneWidget);
+
     final Finder loadCard = find.text('认知负荷结构');
     await tester.scrollUntilVisible(
       loadCard,

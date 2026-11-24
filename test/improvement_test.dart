@@ -189,6 +189,22 @@ void main() {
     expect(snapshot.highLoadRate, greaterThan(0));
   });
 
+  test('指标分层：里程碑、证据与对齐度可统计', () async {
+    final Capability capability = bootstrap.capabilities.all.first;
+    final Artifact artifact = await bootstrap.artifacts.create(
+      title: '分层指标证据',
+      type: ArtifactType.explanation,
+      capabilityId: capability.id,
+    );
+    final ReviewSnapshot snapshot = bootstrap.reviewService.snapshot(
+      ReviewWindow.of(ReviewPeriodType.monthly, DateTime.now()),
+    );
+    expect(snapshot.milestonesTotal, greaterThanOrEqualTo(0));
+    expect(snapshot.artifactCount, greaterThanOrEqualTo(1));
+    expect(snapshot.alignmentTopRate, inInclusiveRange(0, 1));
+    await bootstrap.artifacts.softDelete(artifact.id);
+  });
+
   test('能力证据 Artifact 可创建并按能力 / 任务查询', () async {
     final Capability capability = bootstrap.capabilities.all.first;
     final ActionItem task = await bootstrap.actions.create(

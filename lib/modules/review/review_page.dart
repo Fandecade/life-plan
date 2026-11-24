@@ -812,6 +812,11 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
     ];
 
+    if (deep) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_indicatorCard(context, palette, snapshot));
+    }
+
     if (snapshot.capacityMinutes > 0) {
       blocks.add(const SizedBox(height: AppSpacing.md));
       blocks.add(_loadCard(context, palette, snapshot));
@@ -956,6 +961,80 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                 ),
               ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indicatorCard(
+    BuildContext context,
+    AppPalette palette,
+    ReviewSnapshot snapshot,
+  ) {
+    final String recall = snapshot.reviewsDue == 0
+        ? '—'
+        : '${((snapshot.reviewsDone / snapshot.reviewsDue) * 100).clamp(0, 100).round()}%';
+    final List<(String, String, String)> rows = <(String, String, String)>[
+      (
+        '执行',
+        '${(snapshot.blockRate * 100).round()}%',
+        '计划 vs 实际时长',
+      ),
+      (
+        '学习',
+        '${snapshot.outputs} 次输出 · 按时 $recall',
+        '独立输出与按时回忆',
+      ),
+      (
+        '能力',
+        '阶段成果 ${snapshot.milestonesAchieved}/${snapshot.milestonesTotal}'
+            ' · 证据 ${snapshot.artifactCount}',
+        '验收标准与成果证据',
+      ),
+      (
+        '习惯',
+        '${snapshot.habitPercent}%',
+        '节律稳定度',
+      ),
+      (
+        '对齐',
+        '${(snapshot.alignmentTopRate * 100).round()}%',
+        '前两项能力时间占比',
+      ),
+    ];
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '指标分层',
+            subtitle: '五类指标分开看，不合成一个「人生进度」',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final (String, String, String) row in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: <Widget>[
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      row.$1,
+                      style: context.texts.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(row.$2, style: context.texts.bodyMedium),
+                  ),
+                  Text(row.$3, style: context.texts.labelSmall),
+                ],
+              ),
+            ),
         ],
       ),
     );

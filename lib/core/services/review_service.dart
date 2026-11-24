@@ -149,6 +149,10 @@ class ReviewSnapshot {
     required this.habitTarget,
     required this.habitRates,
     required this.loadMinutes,
+    required this.milestonesAchieved,
+    required this.milestonesTotal,
+    required this.artifactCount,
+    required this.alignmentTopRate,
     required this.capabilitySlices,
     required this.unfinishedBlocks,
     required this.overdueReviews,
@@ -173,6 +177,12 @@ class ReviewSnapshot {
 
   /// 本期时间块按认知负荷的分钟分布（独立块按中负荷计）。
   final Map<CognitiveLoad, int> loadMinutes;
+  final int milestonesAchieved;
+  final int milestonesTotal;
+  final int artifactCount;
+
+  /// 前两项能力的时间占比，用于观察精力是否对齐核心方向。
+  final double alignmentTopRate;
   final List<CapabilitySlice> capabilitySlices;
   final List<TimeBlock> unfinishedBlocks;
   final List<LearningReview> overdueReviews;
@@ -328,6 +338,7 @@ class ReviewService {
     required this.habits,
     required this.habitLogs,
     required this.habitVersions,
+    required this.artifacts,
     required this.schedules,
   });
 
@@ -340,6 +351,7 @@ class ReviewService {
   final FoggHabitRepository habits;
   final HabitLogRepository habitLogs;
   final HabitRecipeVersionRepository habitVersions;
+  final ArtifactRepository artifacts;
   final ScheduleService schedules;
 
   /// 汇总当前周期客观数据。
@@ -459,6 +471,22 @@ class ReviewService {
         ),
     ]..sort((CapabilitySlice a, CapabilitySlice b) => b.minutes.compareTo(a.minutes));
 
+    int milestonesAchieved = 0;
+    int milestonesTotal = 0;
+    for (final Capability capability in capabilities.all) {
+      milestonesTotal += capability.milestones.length;
+      milestonesAchieved += capability.achievedMilestones;
+    }
+    final int artifactCount = artifacts.all.length;
+
+    int topMinutes = 0;
+    for (final CapabilitySlice slice in slices.take(2)) {
+      topMinutes += slice.minutes;
+    }
+    final int planMinutes = plannedMinutes;
+    final double alignmentTopRate =
+        planMinutes == 0 ? 0 : topMinutes / planMinutes;
+
     final List<ActionItem> staleTasks = items
         .where((ActionItem item) =>
             item.status == ActionItemStatus.inbox &&
@@ -482,6 +510,10 @@ class ReviewService {
       habitTarget: habitTarget,
       habitRates: habitRates,
       loadMinutes: loadMinutes,
+      milestonesAchieved: milestonesAchieved,
+      milestonesTotal: milestonesTotal,
+      artifactCount: artifactCount,
+      alignmentTopRate: alignmentTopRate,
       capabilitySlices: slices,
       unfinishedBlocks: unfinishedBlocks,
       overdueReviews: overdueReviews,

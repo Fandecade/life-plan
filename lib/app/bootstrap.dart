@@ -107,6 +107,7 @@ class AppBootstrap {
       habits: foggHabits,
       habitLogs: habitLogs,
       habitVersions: habitRecipeVersions,
+      artifacts: artifacts,
       schedules: schedules,
     );
     final ModuleRegistry modules = ModuleRegistry(
