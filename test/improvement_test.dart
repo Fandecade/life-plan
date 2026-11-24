@@ -189,6 +189,45 @@ void main() {
     expect(snapshot.highLoadRate, greaterThan(0));
   });
 
+  test('学习策略有效性：按知识类型与输出档位统计顺畅率', () async {
+    final ActionItem task = await bootstrap.actions.create(
+      title: '策略统计任务',
+    );
+    final LearningSession session = LearningSession.create(
+      actionItemId: task.id,
+    ).copyWith(isFinished: true, completedAt: DateTime.now());
+    await bootstrap.learningSessions.put(session);
+    for (int i = 0; i < 2; i++) {
+      await bootstrap.learningReviews.put(
+        LearningReview.create(
+          sessionId: session.id,
+          actionItemId: task.id,
+          dueDate: DateTime.now(),
+          intervalDays: 3,
+        ).copyWith(
+          isDone: true,
+          outcome: ReviewOutcome.smooth,
+          doneAt: DateTime.now(),
+        ),
+      );
+    }
+
+    final List<StrategyEffect> effects = bootstrap.reviewService
+        .strategyEffects(ReviewWindow.of(ReviewPeriodType.monthly, DateTime.now()));
+    final StrategyEffect effect = effects.firstWhere(
+      (StrategyEffect item) =>
+          item.type == session.learningType && item.mode == session.mode,
+      orElse: () => const StrategyEffect(
+        type: LearningType.custom,
+        mode: LearningMode.full,
+        samples: 0,
+        smooth: 0,
+      ),
+    );
+    expect(effect.samples, 2);
+    expect(effect.smoothRate, 1);
+  });
+
   test('指标分层：里程碑、证据与对齐度可统计', () async {
     final Capability capability = bootstrap.capabilities.all.first;
     final Artifact artifact = await bootstrap.artifacts.create(

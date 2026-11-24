@@ -41,13 +41,28 @@ void main() {
     );
     final LearningDraft draft = LearningDraft.initial(LearningType.declarative)
         .copyWith(blocker: '写不出适用边界，概念盲区');
-    await bootstrap.learningSessions.put(
-      LearningSession.create(actionItemId: learningTask.id).copyWith(
-        isFinished: true,
-        completedAt: DateTime.now(),
-        stepsDataJson: draft.encode(),
-      ),
+    final LearningSession learningSession = LearningSession.create(
+      actionItemId: learningTask.id,
+    ).copyWith(
+      isFinished: true,
+      completedAt: DateTime.now(),
+      stepsDataJson: draft.encode(),
     );
+    await bootstrap.learningSessions.put(learningSession);
+    for (int i = 0; i < 2; i++) {
+      await bootstrap.learningReviews.put(
+        LearningReview.create(
+          sessionId: learningSession.id,
+          actionItemId: learningTask.id,
+          dueDate: DateTime.now(),
+          intervalDays: 3,
+        ).copyWith(
+          isDone: true,
+          outcome: ReviewOutcome.smooth,
+          doneAt: DateTime.now(),
+        ),
+      );
+    }
 
     final ActionItem spotTask = await bootstrap.actions.create(
       title: '学习卡点任务',
@@ -415,6 +430,14 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(indicator, findsOneWidget);
+
+    final Finder strategyCard = find.text('学习策略有效性');
+    await tester.scrollUntilVisible(
+      strategyCard,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(strategyCard, findsOneWidget);
 
     final Finder loadCard = find.text('认知负荷结构');
     await tester.scrollUntilVisible(

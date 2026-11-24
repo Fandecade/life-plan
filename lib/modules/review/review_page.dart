@@ -386,6 +386,9 @@ class _ReviewPageState extends State<ReviewPage> {
     final List<LearningHighlight> highlights = _type == ReviewPeriodType.yearly
         ? service.annualHighlights(_window)
         : const <LearningHighlight>[];
+    final List<StrategyEffect> strategies = deepPeriod
+        ? service.strategyEffects(_window)
+        : const <StrategyEffect>[];
     final List<ReviewItem> live = service.pending(_window, snapshot);
     final Set<String> liveIds =
         live.map((ReviewItem item) => item.id).toSet();
@@ -435,6 +438,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   heat,
                   activeHabits,
                   highlights,
+                  strategies,
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -781,6 +785,7 @@ class _ReviewPageState extends State<ReviewPage> {
     List<HeatCell> heat,
     List<FoggHabit> activeHabits,
     List<LearningHighlight> highlights,
+    List<StrategyEffect> strategies,
   ) {
     final bool deep = _type == ReviewPeriodType.monthly ||
         _type == ReviewPeriodType.yearly;
@@ -815,6 +820,11 @@ class _ReviewPageState extends State<ReviewPage> {
     if (deep) {
       blocks.add(const SizedBox(height: AppSpacing.md));
       blocks.add(_indicatorCard(context, palette, snapshot));
+    }
+
+    if (deep && strategies.isNotEmpty) {
+      blocks.add(const SizedBox(height: AppSpacing.md));
+      blocks.add(_strategyCard(context, palette, strategies));
     }
 
     if (snapshot.capacityMinutes > 0) {
@@ -961,6 +971,50 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                 ),
               ),
+        ],
+      ),
+    );
+  }
+
+  Widget _strategyCard(
+    BuildContext context,
+    AppPalette palette,
+    List<StrategyEffect> strategies,
+  ) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: '学习策略有效性',
+            subtitle: '同样是学习，哪种输出方式对你更有效（样本 ≥ 2）',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final StrategyEffect item in strategies.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '${item.type.tag} · ${item.mode.label}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.texts.bodyMedium,
+                    ),
+                  ),
+                  Text(
+                    '顺畅 ${(item.smoothRate * 100).round()}% · ${item.samples} 次',
+                    style: context.texts.labelSmall?.copyWith(
+                      color: item.smoothRate >= 0.7
+                          ? palette.success
+                          : palette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

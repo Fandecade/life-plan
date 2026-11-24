@@ -318,6 +318,23 @@ class LearningHighlight {
   final String summary;
 }
 
+/// 学习策略效果：同一知识类型 + 输出档位的复习顺畅率。
+class StrategyEffect {
+  const StrategyEffect({
+    required this.type,
+    required this.mode,
+    required this.samples,
+    required this.smooth,
+  });
+
+  final LearningType type;
+  final LearningMode mode;
+  final int samples;
+  final int smooth;
+
+  double get smoothRate => samples == 0 ? 0 : smooth / samples;
+}
+
 /// 热力格：月份内每天 / 全年第个月的活跃度。
 class HeatCell {
   const HeatCell({required this.label, required this.value});
@@ -698,6 +715,46 @@ class ReviewService {
       durationMinutes: 10,
       learningReviewId: review.id,
     );
+  }
+
+  /// 学习策略有效性：按知识类型 + 输出档位汇总复习顺畅率（样本 ≥ 2）。
+  List<StrategyEffect> strategyEffects(ReviewWindow window) {
+    final Map<String, LearningSession> sessionsById = <String, LearningSession>{
+      for (final LearningSession session in sessions.all) session.id: session,
+    };
+    final Map<String, (LearningType, LearningMode, int, int)> grouped =
+        <String, (LearningType, LearningMode, int, int)>{};
+    for (final LearningReview review in learningReviews.all) {
+      if (!review.isDone) continue;
+      final DateTime? doneAt = review.doneAt;
+      if (doneAt == null || !window.contains(doneAt)) continue;
+      final LearningSession? session = sessionsById[review.sessionId];
+      if (session == null) continue;
+      final String key =
+          '${session.learningType.name}-${session.mode.name}';
+      final (LearningType, LearningMode, int, int) current =
+          grouped[key] ??
+              (session.learningType, session.mode, 0, 0);
+      grouped[key] = (
+        current.$1,
+        current.$2,
+        current.$3 + 1,
+        current.$4 + (review.outcome == ReviewOutcome.smooth ? 1 : 0),
+      );
+    }
+    final List<StrategyEffect> result = <StrategyEffect>[
+      for (final (LearningType, LearningMode, int, int) value
+          in grouped.values)
+        if (value.$3 >= 2)
+          StrategyEffect(
+            type: value.$1,
+            mode: value.$2,
+            samples: value.$3,
+            smooth: value.$4,
+          ),
+    ]..sort((StrategyEffect a, StrategyEffect b) =>
+        b.smoothRate.compareTo(a.smoothRate));
+    return result;
   }
 
   /// 年度成果精选：窗口内完成的输出式学习任务 + 输出摘要。
