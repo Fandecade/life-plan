@@ -42,12 +42,20 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
   late final TextEditingController _blocker;
   late final TextEditingController _link;
   Timer? _debounce;
-  bool _focusing = false;
+  Timer? _ticker;
+  bool _timing = false;
+  int _elapsed = 0;
+  int _live = 0;
+  late LearningSessionRepository _sessions;
   bool _busy = false;
+
+  int get _totalSeconds => _elapsed + _live;
 
   @override
   void initState() {
     super.initState();
+    _sessions = context.read<LearningSessionRepository>();
+    _elapsed = widget.session.elapsedSeconds;
     _draft = LearningDraft.decode(
       widget.session.stepsDataJson,
       widget.session.learningType,
@@ -59,6 +67,10 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
+    if (_live > 0) {
+      unawaited(_persistElapsed(_live));
+    }
     _debounce?.cancel();
     for (final TextEditingController controller in _pointControllers) {
       controller.dispose();
@@ -80,8 +92,10 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
     if (!mounted) return;
     final LearningSessionRepository repo =
         context.read<LearningSessionRepository>();
+    final LearningSession current =
+        repo.byId(widget.session.id) ?? widget.session;
     await repo.put(
-      widget.session.copyWith(
+      current.copyWith(
         stepsDataJson: _draft.encode(),
         currentStepIndex: _draft.activeIndex,
         mode: _draft.mode,
@@ -182,11 +196,77 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
   }
 
   void _close() {
+    _pauseTiming();
     _saveNow();
     widget.onClose();
   }
 
+  String _clockLabel(int seconds) {
+    final int hours = seconds ~/ 3600;
+    final int minutes = (seconds % 3600) ~/ 60;
+    final int remain = seconds % 60;
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:'
+          '${remain.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${remain.toString().padLeft(2, '0')}';
+  }
+
+  void _toggleTiming() {
+    if (_timing) {
+      _pauseTiming();
+    } else {
+      _startTiming();
+    }
+  }
+
+  void _startTiming() {
+    if (_timing) return;
+    setState(() => _timing = true);
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _live++);
+      if (_live % 30 == 0) {
+        final int delta = _takeLiveSeconds();
+        unawaited(_persistElapsed(delta));
+      }
+    });
+  }
+
+  /// 取走未结算的秒数并立即反映到本地显示（不阻塞 UI）。
+  int _takeLiveSeconds() {
+    final int delta = _live;
+    _live = 0;
+    _elapsed += delta;
+    return delta;
+  }
+
+  void _pauseTiming() {
+    if (!_timing) return;
+    _ticker?.cancel();
+    _ticker = null;
+    final int delta = _takeLiveSeconds();
+    setState(() => _timing = false);
+    unawaited(_persistElapsed(delta));
+  }
+
+  /// 后台把增量写入会话；失败不影响界面（本地数据，下次保存会补齐）。
+  Future<void> _persistElapsed(int delta) async {
+    if (delta <= 0) return;
+    final LearningSession current =
+        _sessions.byId(widget.session.id) ?? widget.session;
+    await _sessions.put(
+      current.copyWith(
+        elapsedSeconds: current.elapsedSeconds + delta,
+        syncStatus: SyncStatus.pendingUpdate,
+      ),
+    );
+  }
+
   Future<void> _openGate() async {
+    _pauseTiming();
     _saveNow();
     if (!mounted) return;
 
@@ -211,7 +291,13 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
 
   Future<void> _archive() async {
     if (_busy) return;
-    setState(() => _busy = true);
+    _ticker?.cancel();
+    _ticker = null;
+    final int tailSeconds = _takeLiveSeconds();
+    setState(() {
+      _timing = false;
+      _busy = true;
+    });
 
     final LearningSessionRepository sessions =
         context.read<LearningSessionRepository>();
@@ -219,11 +305,14 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
         context.read<LearningReviewRepository>();
     final ActionItemRepository actions = context.read<ActionItemRepository>();
 
+    final LearningSession latest =
+        sessions.byId(widget.session.id) ?? widget.session;
     await sessions.finish(
-      widget.session.copyWith(
+      latest.copyWith(
         stepsDataJson: _draft.encode(),
         currentStepIndex: _draft.activeIndex,
         mode: _draft.mode,
+        elapsedSeconds: latest.elapsedSeconds + tailSeconds,
       ),
     );
     final List<LearningReview> createdReviews = await reviews.scheduleFor(
@@ -400,15 +489,17 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
                     Row(
                       children: <Widget>[
                         StatusDot(
-                          color: _focusing ? palette.success : palette.textTertiary,
+                          color: _timing
+                              ? palette.success
+                              : palette.textTertiary,
                           size: 4,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            _focusing
-                                ? '专注中 · 已关闭无关通知，进入深度检索时段'
-                                : '建议开启专注模式：关闭无关消息通知，强调推进过程而非一次完美',
+                            _timing
+                                ? '专注计时中 · 正在记录本次学习时长（暂停不计时）'
+                                : '点「开始计时」记录真实学习时长；专注时关闭无关通知',
                             style: context.texts.labelSmall,
                           ),
                         ),
@@ -454,11 +545,15 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
           AppChip(label: _draft.type.tag, dense: true, filled: true, color: tone),
           const Spacer(),
           AppChip(
-            label: _focusing ? '专注中' : '专注 25m',
+            label: _timing
+                ? _clockLabel(_totalSeconds)
+                : (_totalSeconds > 0
+                    ? '计时 ${_clockLabel(_totalSeconds)}'
+                    : '开始计时'),
             dense: true,
             icon: Icons.timer_outlined,
-            color: _focusing ? context.palette.success : null,
-            onTap: () => setState(() => _focusing = !_focusing),
+            color: _timing ? context.palette.success : null,
+            onTap: _toggleTiming,
           ),
         ],
       ),

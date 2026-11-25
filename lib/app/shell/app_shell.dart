@@ -69,75 +69,86 @@ class _AppShellState extends State<AppShell> {
           },
           child: Focus(
             autofocus: true,
-            child: Scaffold(
-              backgroundColor: palette.background,
-              body: Stack(
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      if (isDesktop)
-                        DesktopSideNav(
-                          modules: modules,
-                          currentRoute: ui.currentRoute,
-                          collapsed: ui.navCollapsed,
-                          onToggle: ui.toggleNav,
-                          onSelect: ui.setRoute,
-                        ),
-                      Expanded(
-                        child: Column(
-                          children: <Widget>[
-                            TopBar(
-                              title: current?.title ?? '人生规划',
-                              isDesktop: isDesktop,
-                            ),
-                            Expanded(
-                              child: KeyedSubtree(
-                                key: ValueKey<String>(ui.currentRoute),
-                                child: page,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SlideOverPanel(
-                    open: ui.detailOpen,
-                    side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                    width: 408,
-                    onClose: ui.closeDetail,
-                    child: detailItemId == null
-                        ? const SizedBox.shrink()
-                        : ActionItemDetailDrawer(
-                            key: ValueKey<String>(detailItemId),
-                            actionItemId: detailItemId,
+            // 安卓返回键：先关闭详情 / 任务池 / 安排记录面板，再退出应用。
+            child: PopScope<Object?>(
+              canPop: !ui.hasOverlay,
+              onPopInvokedWithResult: (bool didPop, Object? result) {
+                if (didPop) return;
+                ui.closeOverlays();
+              },
+              child: Scaffold(
+                backgroundColor: palette.background,
+                body: Stack(
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        if (isDesktop)
+                          DesktopSideNav(
+                            modules: modules,
+                            currentRoute: ui.currentRoute,
+                            collapsed: ui.navCollapsed,
+                            onToggle: ui.toggleNav,
+                            onSelect: ui.setRoute,
                           ),
-                  ),
-                  SlideOverPanel(
-                    open: ui.inboxOpen,
-                    side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                    width: 432,
-                    heightFraction: 0.92,
-                    onClose: ui.closeInbox,
-                    child: const InboxPanel(),
-                  ),
-                  SlideOverPanel(
-                    open: ui.scheduleOpen,
-                    side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                    width: 432,
-                    heightFraction: 0.92,
-                    onClose: ui.closeSchedule,
-                    child: const SchedulePanel(),
-                  ),
-                ],
-              ),
-              bottomNavigationBar: isDesktop
-                  ? null
-                  : MobileBottomNav(
-                      modules: modules,
-                      currentRoute: ui.currentRoute,
-                      onSelect: ui.setRoute,
+                        Expanded(
+                          child: Column(
+                            children: <Widget>[
+                              SafeArea(
+                                bottom: false,
+                                child: TopBar(
+                                  title: current?.title ?? '人生规划',
+                                  isDesktop: isDesktop,
+                                ),
+                              ),
+                              Expanded(
+                                child: KeyedSubtree(
+                                  key: ValueKey<String>(ui.currentRoute),
+                                  child: page,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                    SlideOverPanel(
+                      open: ui.detailOpen,
+                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                      width: 408,
+                      onClose: ui.closeDetail,
+                      child: detailItemId == null
+                          ? const SizedBox.shrink()
+                          : ActionItemDetailDrawer(
+                              key: ValueKey<String>(detailItemId),
+                              actionItemId: detailItemId,
+                            ),
+                    ),
+                    SlideOverPanel(
+                      open: ui.inboxOpen,
+                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                      width: 432,
+                      heightFraction: 0.92,
+                      onClose: ui.closeInbox,
+                      child: const InboxPanel(),
+                    ),
+                    SlideOverPanel(
+                      open: ui.scheduleOpen,
+                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                      width: 432,
+                      heightFraction: 0.92,
+                      onClose: ui.closeSchedule,
+                      child: const SchedulePanel(),
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: isDesktop
+                    ? null
+                    : MobileBottomNav(
+                        modules: modules,
+                        currentRoute: ui.currentRoute,
+                        onSelect: ui.setRoute,
+                      ),
+              ),
             ),
           ),
         );

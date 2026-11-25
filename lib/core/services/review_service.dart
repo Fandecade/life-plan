@@ -141,6 +141,8 @@ class ReviewSnapshot {
     required this.completedTasks,
     required this.consolidatingTasks,
     required this.outputs,
+    required this.learningMinutes,
+    required this.timedSessions,
     required this.reviewsDue,
     required this.reviewsDone,
     required this.reviewsOverdue,
@@ -167,6 +169,12 @@ class ReviewSnapshot {
   final int completedTasks;
   final int consolidatingTasks;
   final int outputs;
+
+  /// 真实学习投入：窗口内学习会话累计计时的分钟数。
+  final int learningMinutes;
+
+  /// 有计时的学习会话数量。
+  final int timedSessions;
   final int reviewsDue;
   final int reviewsDone;
   final int reviewsOverdue;
@@ -192,6 +200,8 @@ class ReviewSnapshot {
   double get plannedHours => plannedMinutes / 60;
 
   double get completedHours => completedMinutes / 60;
+
+  double get learningHours => learningMinutes / 60;
 
   double get blockRate =>
       blockCount == 0 ? 0 : completedBlockCount / blockCount;
@@ -399,12 +409,20 @@ class ReviewService {
     }
 
     int outputs = 0;
+    int learningSeconds = 0;
+    int timedSessions = 0;
     for (final LearningSession session in sessions.all) {
       final DateTime? finishedAt = session.completedAt;
       if (session.isFinished && finishedAt != null && window.contains(finishedAt)) {
         outputs++;
       }
+      if (session.elapsedSeconds <= 0) continue;
+      final DateTime at = session.completedAt ?? session.updatedAt;
+      if (!window.contains(at)) continue;
+      learningSeconds += session.elapsedSeconds;
+      timedSessions++;
     }
+    final int learningMinutes = (learningSeconds / 60).round();
 
     int reviewsDue = 0;
     int reviewsDone = 0;
@@ -519,6 +537,8 @@ class ReviewService {
       completedTasks: completedTasks,
       consolidatingTasks: consolidatingTasks,
       outputs: outputs,
+      learningMinutes: learningMinutes,
+      timedSessions: timedSessions,
       reviewsDue: reviewsDue,
       reviewsDone: reviewsDone,
       reviewsOverdue: overdueReviews.length,

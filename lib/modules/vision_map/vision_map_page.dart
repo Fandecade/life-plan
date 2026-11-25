@@ -127,6 +127,7 @@ class _VisionMapPageState extends State<VisionMapPage> {
                 tasksByCapability[capability.id] ?? const <ActionItem>[],
                 action,
               ),
+              onTaskAction: _handleTaskAction,
               onRequestVisionSwitch: (String visionId) {
                 setState(() => _activeVisionId = visionId);
                 _transform.value = Matrix4.identity();
@@ -560,6 +561,82 @@ class _VisionMapPageState extends State<VisionMapPage> {
       case MapNodeAction.addCapability:
         break;
     }
+  }
+
+  Future<void> _handleTaskAction(
+    ActionItem item,
+    MapNodeAction action,
+  ) async {
+    switch (action) {
+      case MapNodeAction.edit:
+        context.read<UiController>().openDetail(item.id);
+      case MapNodeAction.addTask:
+        await _createSubTask(item);
+      case MapNodeAction.delete:
+        await _deleteTask(item);
+      default:
+        break;
+    }
+  }
+
+  int _taskDepth(ActionItem item) {
+    final ActionItemRepository repo = context.read<ActionItemRepository>();
+    int depth = 1;
+    String? parentId = item.parentId;
+    int guard = 0;
+    while (parentId != null && guard < 12) {
+      final ActionItem? parent = repo.byId(parentId);
+      if (parent == null) break;
+      depth++;
+      parentId = parent.parentId;
+      guard++;
+    }
+    return depth;
+  }
+
+  Future<void> _createSubTask(ActionItem parent) async {
+    if (_taskDepth(parent) >= 3) {
+      _toast('最多 3 级子任务');
+      return;
+    }
+    final TaskDraft? draft = await showTaskDialog(context);
+    if (draft == null || !mounted) return;
+    await context.read<ActionItemRepository>().create(
+          title: draft.title,
+          capabilityId: parent.capabilityId,
+          parentId: parent.id,
+          estimatedMinutes: draft.minutes,
+        );
+  }
+
+  List<ActionItem> _descendantsOf(
+    ActionItemRepository repo,
+    String parentId,
+  ) {
+    final List<ActionItem> result = <ActionItem>[];
+    for (final ActionItem child in repo.childrenOf(parentId)) {
+      result.add(child);
+      result.addAll(_descendantsOf(repo, child.id));
+    }
+    return result;
+  }
+
+  Future<void> _deleteTask(ActionItem item) async {
+    final ActionItemRepository repo = context.read<ActionItemRepository>();
+    final List<ActionItem> descendants = _descendantsOf(repo, item.id);
+    final bool ok = await _confirm(
+      title: '删除这个任务？',
+      message: descendants.isEmpty
+          ? '任务采用软删除，数据仍保留在本地以便二期同步。'
+          : '其下 ${descendants.length} 个子任务也会一并软删除。',
+    );
+    if (!ok || !mounted) return;
+    for (final ActionItem child in descendants) {
+      await repo.softDelete(child.id);
+    }
+    await repo.softDelete(item.id);
+    if (!mounted) return;
+    _toast('任务已删除');
   }
 
   Future<void> _editCapability(Capability capability) async {

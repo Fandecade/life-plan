@@ -32,9 +32,12 @@ class SlideOverPanel extends StatelessWidget {
     final AppPalette palette = context.palette;
     final Size size = MediaQuery.sizeOf(context);
     final bool horizontal = side == PanelSide.right;
-    final double panelWidth = horizontal ? math.min(width, size.width) : size.width;
-    final double panelHeight =
-        horizontal ? size.height : size.height * heightFraction;
+    final double panelWidth = horizontal
+        ? math.min(width, size.width)
+        : size.width;
+    final double panelHeight = horizontal
+        ? size.height
+        : size.height * heightFraction;
     final BorderRadius radius = horizontal
         ? BorderRadius.zero
         : const BorderRadius.vertical(top: Radius.circular(18));
@@ -48,11 +51,16 @@ class SlideOverPanel extends StatelessWidget {
             opacity: open ? 1 : 0,
             child: GestureDetector(
               onTap: onClose,
-              child: ColoredBox(color: palette.scrim, child: const SizedBox.expand()),
+              child: ColoredBox(
+                color: palette.scrim,
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
           Align(
-            alignment: horizontal ? Alignment.centerRight : Alignment.bottomCenter,
+            alignment: horizontal
+                ? Alignment.centerRight
+                : Alignment.bottomCenter,
             child: AnimatedSlide(
               offset: open
                   ? Offset.zero
@@ -78,7 +86,13 @@ class SlideOverPanel extends StatelessWidget {
                           ),
                         ],
                       ),
-                child: ClipRRect(borderRadius: radius, child: child),
+                child: ClipRRect(
+                  borderRadius: radius,
+                  // 底部面板在移动端铺满屏宽/接近满屏高，需要避开状态栏与手势条。
+                  child: horizontal
+                      ? child
+                      : SafeArea(top: true, bottom: true, child: child),
+                ),
               ),
             ),
           ),

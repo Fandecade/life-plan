@@ -195,6 +195,7 @@ void main() {
 
     expect(find.text('时间投入'), findsOneWidget);
     expect(find.text('任务与学习'), findsOneWidget);
+    expect(find.text('学习投入'), findsOneWidget);
     expect(find.text('微习惯节律'), findsOneWidget);
     expect(find.text('能力精力分布'), findsOneWidget);
 

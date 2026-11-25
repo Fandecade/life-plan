@@ -231,6 +231,31 @@ void main() {
     expect(snapshot.highLoadRate, greaterThan(0));
   });
 
+  test('学习计时时长进入复盘「学习投入」', () async {
+    final ActionItem task = await bootstrap.actions.create(
+      title: '计时统计任务',
+      executionMode: ExecutionMode.outputLearning,
+    );
+    final LearningSession session = await bootstrap.learningSessions.startFor(
+      task,
+      type: LearningType.declarative,
+    );
+    await bootstrap.learningSessions.put(
+      session.copyWith(
+        isFinished: true,
+        completedAt: DateTime.now(),
+        elapsedSeconds: 3600,
+      ),
+    );
+
+    final ReviewSnapshot snapshot = bootstrap.reviewService.snapshot(
+      ReviewWindow.of(ReviewPeriodType.monthly, DateTime.now()),
+    );
+    expect(snapshot.learningMinutes, greaterThanOrEqualTo(60));
+    expect(snapshot.timedSessions, greaterThanOrEqualTo(1));
+    expect(snapshot.learningHours, greaterThanOrEqualTo(1));
+  });
+
   test('学习策略有效性：按知识类型与输出档位统计顺畅率', () async {
     final ActionItem task = await bootstrap.actions.create(
       title: '策略统计任务',

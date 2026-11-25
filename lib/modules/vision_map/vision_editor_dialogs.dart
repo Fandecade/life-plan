@@ -225,6 +225,7 @@ class _TaskDialogState extends State<_TaskDialog> {
             Text('任务标题', style: context.texts.labelMedium),
             const SizedBox(height: 5),
             AppTextField(
+              key: const ValueKey<String>('vision-task-title'),
               controller: _title,
               hintText: '一件可以直接开始做的事',
               autofocus: true,

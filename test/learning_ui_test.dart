@@ -152,6 +152,50 @@ void main() {
     expect(drafts, isNotEmpty, reason: '暂未完成应保留草稿');
   });
 
+  testWidgets('学习计时可手动开始、暂停并写入会话', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.text('输出式学习').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.textContaining('进行中草稿'));
+    await tester.pump();
+    await tester.tap(find.text(learningTask.title).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('开始计时'), findsOneWidget);
+    await tester.tap(find.text('开始计时'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+
+    // 计时中：点击计时胶囊暂停，并结算到会话。
+    await tester.tap(find.byIcon(Icons.timer_outlined));
+    await tester.pump();
+    for (int i = 0; i < 20; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    final LearningSession session = bootstrap.learningSessions.all.firstWhere(
+      (LearningSession item) =>
+          item.actionItemId == learningTask.id && !item.isFinished,
+    );
+    expect(
+      session.elapsedSeconds,
+      greaterThanOrEqualTo(2),
+      reason: '暂停时应把本次计时结算到会话',
+    );
+  });
+
   testWidgets('进行中的草稿可右键取消，任务回到待学', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;

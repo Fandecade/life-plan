@@ -409,6 +409,8 @@ class TaskNodeCard extends StatelessWidget {
     required this.onToggleCollapse,
     required this.onCommitTitle,
     required this.onCancelEdit,
+    required this.onAction,
+    this.canAddChild = true,
   });
 
   final ActionItem item;
@@ -425,6 +427,8 @@ class TaskNodeCard extends StatelessWidget {
   final VoidCallback onToggleCollapse;
   final ValueChanged<String> onCommitTitle;
   final VoidCallback onCancelEdit;
+  final ValueChanged<MapNodeAction> onAction;
+  final bool canAddChild;
 
   @override
   Widget build(BuildContext context) {
@@ -546,6 +550,16 @@ class TaskNodeCard extends StatelessWidget {
                   tooltip: item.isCollapsed ? '展开子任务' : '折叠子任务',
                   onPressed: onToggleCollapse,
                 ),
+              _NodeMenu(
+                actions: <MapNodeAction>[
+                  MapNodeAction.edit,
+                  if (canAddChild) MapNodeAction.addTask,
+                  MapNodeAction.delete,
+                ],
+                addTaskLabel: '添加子任务',
+                deleteLabel: '删除任务',
+                onAction: onAction,
+              ),
             ],
           ),
         ),
@@ -570,11 +584,13 @@ class _NodeMenu extends StatelessWidget {
     required this.actions,
     required this.onAction,
     this.deleteLabel = '删除',
+    this.addTaskLabel = '添加任务',
   });
 
   final List<MapNodeAction> actions;
   final ValueChanged<MapNodeAction> onAction;
   final String deleteLabel;
+  final String addTaskLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -639,7 +655,7 @@ class _NodeMenu extends StatelessWidget {
       case MapNodeAction.addCapability:
         return '添加能力';
       case MapNodeAction.addTask:
-        return '添加任务';
+        return addTaskLabel;
       case MapNodeAction.milestones:
         return '阶段成果';
       case MapNodeAction.toggleCollapse:

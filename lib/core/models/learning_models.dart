@@ -53,6 +53,7 @@ class LearningSession extends SyncEntity {
     this.mode = LearningMode.full,
     this.stepsDataJson = '{}',
     this.currentStepIndex = 0,
+    this.elapsedSeconds = 0,
     this.isFinished = false,
     this.completedAt,
     super.deletedAt,
@@ -64,6 +65,9 @@ class LearningSession extends SyncEntity {
   final LearningMode mode;
   final String stepsDataJson;
   final int currentStepIndex;
+
+  /// 该会话累计的真实学习秒数（由学习计时器写入，不含暂停时间）。
+  final int elapsedSeconds;
   final bool isFinished;
   final DateTime? completedAt;
 
@@ -88,6 +92,7 @@ class LearningSession extends SyncEntity {
     LearningMode? mode,
     String? stepsDataJson,
     int? currentStepIndex,
+    int? elapsedSeconds,
     bool? isFinished,
     DateTime? completedAt,
     bool clearCompletedAt = false,
@@ -105,6 +110,7 @@ class LearningSession extends SyncEntity {
       mode: mode ?? this.mode,
       stepsDataJson: stepsDataJson ?? this.stepsDataJson,
       currentStepIndex: currentStepIndex ?? this.currentStepIndex,
+      elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
       isFinished: isFinished ?? this.isFinished,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
@@ -120,6 +126,7 @@ class LearningSession extends SyncEntity {
         'mode': mode.name,
         'stepsDataJson': stepsDataJson,
         'currentStepIndex': currentStepIndex,
+        'elapsedSeconds': elapsedSeconds,
         'isFinished': isFinished,
         'completedAt': completedAt?.toIso8601String(),
       };
@@ -134,6 +141,7 @@ class LearningSession extends SyncEntity {
       mode: LearningMode.fromName(json['mode']),
       stepsDataJson: json['stepsDataJson'] as String? ?? '{}',
       currentStepIndex: (json['currentStepIndex'] as num?)?.toInt() ?? 0,
+      elapsedSeconds: (json['elapsedSeconds'] as num?)?.toInt() ?? 0,
       isFinished: json['isFinished'] as bool? ?? false,
       completedAt: parseNullableDate(json['completedAt']),
       deletedAt: parseNullableDate(json['deletedAt']),

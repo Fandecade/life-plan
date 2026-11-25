@@ -31,7 +31,7 @@ flutter build web --release   # Web
 
 ### 界面骨架
 - 左侧导航（窄屏为底部导航）：人生规划 → 项目 → 时间盒 → 输出式学习 → 福格习惯 → 及时复盘 → 设置
-- 顶部：`⌘K / Ctrl+K` 呼出任务池；「安排记录」仅在时间盒显示
+- `⌘K / Ctrl+K` 呼出居中的任务池面板；「安排记录」仅在时间盒显示
 - 点击任务卡片打开右侧详情抽屉；抽屉底部挂载已启用模块的扩展槽位
 
 ---
@@ -47,6 +47,7 @@ flutter build web --release   # Web
 - 自动布局、缩放平移、贝塞尔连线、路径高亮、节点拖拽微调（位置持久化）
 - 四类节点语义色（愿景 / 能力 / 任务 / 子任务）
 - 折叠能力/任务，折叠后其子节点从画布移除
+- 任务卡片也有「⋯」菜单（与愿景/能力一致）：编辑、添加子任务、删除任务（子任务一并软删除；最多 3 级）
 - XMind 式键盘流：`空格` 打开详情、`Enter` 建同级、`Tab` 建子级
 - **愿景管理**：新建默认追加到末尾；切换栏胶囊可**拖动排序**；右键/长按菜单支持前移 / 后移 / 删除愿景（删除连带软删除其能力与任务）
 - **能力阶段成果（Milestone）**：能力菜单 →「阶段成果」，可添加「能力达到什么水平、能独立完成什么」、填证据链接、勾选达成；能力卡片显示 `任务进度 · M 达成/总数`
@@ -131,6 +132,7 @@ flutter build web --release   # Web
 - 5 分钟微输出：只保留核心输出（陈述性 / 自定义支持）
 
 **功能**
+- **学习计时**：进入学习后手动「开始计时」，实时显示本次时长；可暂停/继续，离开或完成时自动结算；累计到该次学习会话（暂停不计时）
 - 列表式逐点输入（回车落点），按步骤断点保存草稿
 - 完成前自检门禁三选
 - 卡点速记 + 外部成果链接
@@ -195,7 +197,8 @@ flutter build web --release   # Web
 - 年：年度代表作 / 愿景对齐 / 下一年布局
 
 **数据看板（自动读取所有模块）**
-- 时间投入：完成 / 计划时长 + 完成率 +「较上期」
+- 时间投入：计划 / 时间盒完成时长 + 完成率 +「较上期」（执行口径）
+- 学习投入：学习计时累计的真实时长（附带计时的会话次数）
 - 任务与学习：完成数、新增巩固、独立输出
 - 微习惯节律：完成率、节奏偏缓数量
 - 能力精力分布条：点击跳图谱并定位能力
@@ -285,7 +288,7 @@ flutter build web --release   # Web
 | `capabilities` | Capability | 能力（含阶段成果 `milestonesJson`） |
 | `action_items` | ActionItem | 任务/子任务（含学习模式、If–Then、认知负荷、所属项目） |
 | `time_blocks` | TimeBlock | 时间块（可多块/任务、可绑复习、可绑固定安排） |
-| `learning_sessions` | LearningSession | 学习会话与草稿 |
+| `learning_sessions` | LearningSession | 学习会话、草稿与计时秒数（`elapsedSeconds`） |
 | `learning_reviews` | LearningReview | 间隔复习 |
 | `weekly_routines` | WeeklyRoutine | 固定安排模板 |
 | `routine_exceptions` | RoutineException | 单周跳过 |
@@ -340,7 +343,7 @@ ReviewLog（periodType + periodKey）独立汇总
 
 ```bash
 flutter analyze   # 0 error / 0 warning
-flutter test      # 119 项，25 个测试文件
+flutter test      # 122 项，26 个测试文件
 flutter build macos --debug
 flutter build web --release
 ```

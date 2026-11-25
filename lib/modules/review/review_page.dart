@@ -617,6 +617,19 @@ class _ReviewPageState extends State<ReviewPage> {
       _metricCard(
         context,
         palette,
+        label: '学习投入',
+        value: '${snapshot.learningHours.toStringAsFixed(1)}h',
+        detail: '学习计时 · ${snapshot.timedSessions} 次会话',
+        delta: '真实计时，不含暂停',
+        deltaPositive: true,
+        progress: snapshot.plannedMinutes == 0
+            ? 0
+            : (snapshot.learningMinutes / snapshot.plannedMinutes).clamp(0, 1),
+        tone: palette.success,
+      ),
+      _metricCard(
+        context,
+        palette,
         label: '微习惯节律',
         value: '${snapshot.habitPercent}%',
         detail: '完成 ${snapshot.habitChecks}/${snapshot.habitTarget} 次 · '

@@ -3,14 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
-import '../../core/state/theme_controller.dart';
 import '../../core/state/ui_controller.dart';
-import '../../core/widgets/app_button.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
-/// 顶栏：左侧模块标题，右侧任务池 / 安排记录（仅时间盒）与主题切换。
+/// 顶栏：左侧模块标题，右侧任务池 / 安排记录（仅时间盒）。
 class TopBar extends StatelessWidget {
   const TopBar({super.key, required this.title, required this.isDesktop});
 
@@ -27,7 +25,6 @@ class TopBar extends StatelessWidget {
         .all
         .where((TimeBlock block) => !block.isCompleted)
         .length;
-    final bool isDark = context.isDarkMode;
 
     return Container(
       height: isDesktop ? 56 : 50,
@@ -61,14 +58,6 @@ class TopBar extends StatelessWidget {
               compact: !isDesktop,
             ),
           ],
-          const SizedBox(width: AppSpacing.xs),
-          AppIconButton(
-            icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-            tooltip: isDark ? '切换到浅色' : '切换到深色',
-            onPressed: () => context.read<ThemeController>().setMode(
-                  isDark ? ThemeMode.light : ThemeMode.dark,
-                ),
-          ),
         ],
       ),
     );

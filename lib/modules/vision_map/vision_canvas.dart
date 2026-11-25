@@ -34,6 +34,7 @@ class VisionCanvas extends StatefulWidget {
     required this.onToggleTask,
     required this.onVisionAction,
     required this.onCapabilityAction,
+    required this.onTaskAction,
     required this.onRequestVisionSwitch,
     this.focusNodeId,
     this.focusTaskId,
@@ -48,6 +49,7 @@ class VisionCanvas extends StatefulWidget {
   final ValueChanged<ActionItem> onToggleTask;
   final void Function(Vision vision, MapNodeAction action) onVisionAction;
   final void Function(Capability capability, MapNodeAction action) onCapabilityAction;
+  final void Function(ActionItem item, MapNodeAction action) onTaskAction;
   final ValueChanged<String> onRequestVisionSwitch;
 
   /// 一次性聚焦：定位并选中某个能力节点（来自复盘/统计跳转）。
@@ -101,6 +103,20 @@ class _VisionCanvasState extends State<VisionCanvas> {
   // ---------------------------------------------------------------------------
   // 选中与高亮
   // ---------------------------------------------------------------------------
+
+  int _taskDepth(ActionItem item) {
+    int depth = 1;
+    String? parentId = item.parentId;
+    int guard = 0;
+    while (parentId != null && guard < 12) {
+      final ActionItem? parent = _tasksById[parentId];
+      if (parent == null) break;
+      depth++;
+      parentId = parent.parentId;
+      guard++;
+    }
+    return depth;
+  }
 
   Offset _withDrag(String id, Offset position) =>
       _dragId == id ? position + _dragDelta : position;
@@ -718,6 +734,9 @@ class _VisionCanvasState extends State<VisionCanvas> {
                                   text,
                                 ),
                                 onCancelEdit: _cancelEditing,
+                                canAddChild: _taskDepth(item) < 3,
+                                onAction: (MapNodeAction action) =>
+                                    widget.onTaskAction(item, action),
                               ),
                             ),
                           ),
