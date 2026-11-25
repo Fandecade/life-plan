@@ -8,10 +8,17 @@ import '../../core/widgets/app_chip.dart';
 
 /// 安排结果：起始时间与时长（都可随手改，不写死）。
 class ReviewScheduleResult {
-  const ReviewScheduleResult({required this.start, required this.minutes});
+  const ReviewScheduleResult({
+    required this.start,
+    required this.minutes,
+    this.dateOnly = false,
+  });
 
   final DateTime start;
   final int minutes;
+
+  /// true = 只安排到某一天，不生成时间块。
+  final bool dateOnly;
 }
 
 /// 自由安排日期、时间与时长：复盘里改期与时间盒共用同一套时间块语义。
@@ -22,6 +29,7 @@ Future<ReviewScheduleResult?> showReviewScheduleDialog(
   String title = '安排时间',
   String hint = '确认后同步到时间盒',
   bool showDuration = true,
+  bool allowDateOnly = false,
 }) {
   return showDialog<ReviewScheduleResult>(
     context: context,
@@ -31,6 +39,7 @@ Future<ReviewScheduleResult?> showReviewScheduleDialog(
       title: title,
       hint: hint,
       showDuration: showDuration,
+      allowDateOnly: allowDateOnly,
     ),
   );
 }
@@ -42,6 +51,7 @@ class _ReviewScheduleDialog extends StatefulWidget {
     required this.title,
     required this.hint,
     required this.showDuration,
+    required this.allowDateOnly,
   });
 
   final DateTime initial;
@@ -49,6 +59,7 @@ class _ReviewScheduleDialog extends StatefulWidget {
   final String title;
   final String hint;
   final bool showDuration;
+  final bool allowDateOnly;
 
   @override
   State<_ReviewScheduleDialog> createState() => _ReviewScheduleDialogState();
@@ -60,6 +71,7 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
   late int _minute;
   late int _minutes;
   late List<int> _durations;
+  bool _dateOnly = false;
 
   @override
   void initState() {
@@ -177,6 +189,17 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
                   ),
               ],
             ),
+            if (widget.allowDateOnly) ...<Widget>[
+              const SizedBox(height: AppSpacing.sm),
+              AppChip(
+                label: _dateOnly ? '只定日期（不选时段）' : '只安排到这一天',
+                dense: true,
+                filled: _dateOnly,
+                color: palette.accent,
+                onTap: () => setState(() => _dateOnly = !_dateOnly),
+              ),
+            ],
+            if (!_dateOnly) ...<Widget>[
             const SizedBox(height: AppSpacing.md),
             Text('时间', style: context.texts.labelSmall),
             const SizedBox(height: 6),
@@ -225,8 +248,12 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
                 ],
               ),
             ],
+            ],
             const SizedBox(height: AppSpacing.sm),
-            Text(widget.hint, style: context.texts.labelSmall),
+            Text(
+              _dateOnly ? '不生成时间块，任务进入当天的「今日待办」。' : widget.hint,
+              style: context.texts.labelSmall,
+            ),
           ],
         ),
       ),
@@ -245,8 +272,15 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
           label: '确认安排',
           onPressed: () => Navigator.of(context).pop(
             ReviewScheduleResult(
-              start: DateTime(_day.year, _day.month, _day.day, _hour, _minute),
-              minutes: _minutes,
+              start: DateTime(
+                _day.year,
+                _day.month,
+                _day.day,
+                _dateOnly ? 0 : _hour,
+                _dateOnly ? 0 : _minute,
+              ),
+              minutes: _dateOnly ? 0 : _minutes,
+              dateOnly: _dateOnly,
             ),
           ),
         ),

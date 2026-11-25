@@ -220,6 +220,7 @@ class ReviewSnapshot {
 /// 待校准事项类别。
 enum ReviewItemKind {
   unfinishedBlock,
+  plannedTodo,
   overdueReview,
   lowHabit,
   staleTask,
@@ -581,6 +582,31 @@ class ReviewService {
       if (items.length >= 6) break;
     }
 
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    int plannedCount = 0;
+    for (final ActionItem item in actions.all) {
+      final DateTime? planned = item.scheduledDate;
+      if (planned == null || item.isCompleted) continue;
+      if (!window.contains(planned)) continue;
+      if (planned.isAfter(today)) continue;
+      final bool hasBlock = blocks.all.any((TimeBlock block) =>
+          block.actionItemId == item.id &&
+          AppDate.isSameDay(block.startAt, planned));
+      if (hasBlock) continue;
+      items.add(
+        ReviewItem(
+          id: 'plan:${item.id}',
+          kind: ReviewItemKind.plannedTodo,
+          title:
+              '${AppDate.isSameDay(planned, today) ? '今日' : '逾期'}待办：${item.title}',
+          subtitle: '计划 ${AppDate.monthDayLabel(planned)} · 未安排时段',
+          task: item,
+        ),
+      );
+      plannedCount++;
+      if (plannedCount >= 4) break;
+    }
+
     for (final LearningReview review in snapshot.overdueReviews) {
       final ActionItem? task = actions.byId(review.actionItemId);
       final int overdueDays =
@@ -647,6 +673,40 @@ class ReviewService {
   /// 上一个同类型周期，用于「较上期」对比。
   ReviewWindow previousWindow(ReviewWindow window) =>
       ReviewWindow.of(window.type, window.shifted(-1));
+
+  /// 把只定日期的待办安排到具体时间块。
+  Future<TimeBlock> schedulePlannedTodo(
+    ActionItem task,
+    DateTime start, {
+    int? minutes,
+  }) async {
+    final int length = minutes ?? task.estimatedMinutes ?? 30;
+    final TimeBlock block = await blocks.schedule(
+      title: task.title,
+      startAt: start,
+      durationMinutes: length,
+      actionItemId: task.id,
+    );
+    await actions.save(
+      task.copyWith(
+        status: ActionItemStatus.scheduled,
+        estimatedMinutes: length,
+        scheduledDate: DateTime(start.year, start.month, start.day),
+      ),
+    );
+    return block;
+  }
+
+  /// 只改计划日期（不排时段）；null 表示清除日期。
+  Future<void> setPlannedDate(ActionItem task, DateTime? day) async {
+    await actions.save(
+      day == null
+          ? task.copyWith(clearScheduledDate: true)
+          : task.copyWith(
+              scheduledDate: DateTime(day.year, day.month, day.day),
+            ),
+    );
+  }
 
   /// 把时间块安排到指定时刻（默认保持原时长），与时间盒共用同一数据。
   Future<void> moveBlockTo(

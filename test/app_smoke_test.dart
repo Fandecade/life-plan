@@ -216,6 +216,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('待排期'), findsOneWidget);
+    await tester.tap(find.text('时间安排'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('08:00'), findsWidgets);
 
     final List<TimeBlock> todayBlocks = bootstrap.timeBlocks.all

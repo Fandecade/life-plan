@@ -9,12 +9,14 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/services/habit_service.dart';
 import '../../core/services/schedule_service.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
-import '../fogg_habit/habit_strip.dart';
+import '../fogg_habit/day_habit_view.dart';
+import 'day_todo_view.dart';
 import 'routine_schedule_view.dart';
 import 'time_box_common.dart';
 
@@ -77,6 +79,8 @@ class _DayViewState extends State<DayView> {
 
   bool get _isToday => AppDate.isSameDay(widget.day, DateTime.now());
 
+  _DayPanel _panel = _DayPanel.todos;
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +138,30 @@ class _DayViewState extends State<DayView> {
     final AppPalette palette = context.palette;
     final Map<String, BlockSlot> slots = layoutOverlaps(widget.blocks);
 
+    final Set<String> blockTaskIds = <String>{
+      for (final TimeBlock block in widget.blocks)
+        if (block.actionItemId != null) block.actionItemId!,
+    };
+    int todoPending = widget.blocks
+        .where((TimeBlock block) => !block.isCompleted)
+        .length;
+    for (final ActionItem item in context.watch<ActionItemRepository>().all) {
+      if (item.isCompleted) continue;
+      if (item.scheduledDate != null &&
+          AppDate.isSameDay(item.scheduledDate!, widget.day) &&
+          !blockTaskIds.contains(item.id)) {
+        todoPending++;
+      }
+    }
+
+    final List<FoggHabit> activeHabits =
+        context.watch<FoggHabitRepository>().active;
+    context.watch<HabitLogRepository>();
+    final HabitService habitService = context.read<HabitService>();
+    final int habitPending = activeHabits
+        .where((FoggHabit habit) => !habitService.isDoneToday(habit))
+        .length;
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool showRail = constraints.maxWidth >= 900;
@@ -156,13 +184,21 @@ class _DayViewState extends State<DayView> {
                 ),
                 child: Column(
                   children: <Widget>[
-                    if (_isToday) const HabitAnchorStrip(),
+                    _panelTabs(context, palette, todoPending, habitPending),
                     Expanded(
-                      child: _timeline(
-                        context,
-                        slots,
-                        constraints.maxWidth - (showRail ? _railWidth : 0),
-                      ),
+                      child: switch (_panel) {
+                        _DayPanel.todos => DayTodoView(
+                            day: widget.day,
+                            onOpen: widget.onOpenAction,
+                          ),
+                        _DayPanel.habits => DayHabitView(day: widget.day),
+                        _DayPanel.timeline => _timeline(
+                            context,
+                            slots,
+                            constraints.maxWidth -
+                                (showRail ? _railWidth : 0),
+                          ),
+                      },
                     ),
                   ],
                 ),
@@ -171,6 +207,55 @@ class _DayViewState extends State<DayView> {
           ],
         );
       },
+    );
+  }
+
+  Widget _panelTabs(
+    BuildContext context,
+    AppPalette palette,
+    int todoPending,
+    int habitPending,
+  ) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm + 2,
+        6,
+        AppSpacing.sm + 2,
+        6,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: palette.hairline)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            AppChip(
+              label: '今日待办 · $todoPending',
+              dense: true,
+              filled: _panel == _DayPanel.todos,
+              color: palette.accent,
+              onTap: () => setState(() => _panel = _DayPanel.todos),
+            ),
+            const SizedBox(width: 6),
+            AppChip(
+              label: '今日微习惯 · $habitPending',
+              dense: true,
+              filled: _panel == _DayPanel.habits,
+              color: palette.accent,
+              onTap: () => setState(() => _panel = _DayPanel.habits),
+            ),
+            const SizedBox(width: 6),
+            AppChip(
+              label: '时间安排',
+              dense: true,
+              filled: _panel == _DayPanel.timeline,
+              color: palette.accent,
+              onTap: () => setState(() => _panel = _DayPanel.timeline),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -972,3 +1057,5 @@ class _InboxRail extends StatelessWidget {
     );
   }
 }
+
+enum _DayPanel { todos, habits, timeline }

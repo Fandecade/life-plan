@@ -1848,6 +1848,31 @@ class _ReviewPageState extends State<ReviewPage> {
             ),
           ],
         );
+      case ReviewItemKind.plannedTodo:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppGhostButton(
+              label: '安排时间',
+              dense: true,
+              onPressed: () => _runItem(item, 'scheduleTodo'),
+            ),
+            Builder(
+              builder: (BuildContext anchorContext) => AppIconButton(
+                icon: Icons.more_horiz_rounded,
+                iconSize: 15,
+                size: 26,
+                tooltip: '更多处理',
+                onPressed: () async {
+                  final String? action =
+                      await _showPlanMenu(anchorContext, palette);
+                  if (action == null) return;
+                  await _runItem(item, action);
+                },
+              ),
+            ),
+          ],
+        );
       case ReviewItemKind.lowHabit:
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -1949,6 +1974,54 @@ class _ReviewPageState extends State<ReviewPage> {
           value: 'skip',
           height: 38,
           child: Text(label, style: context.texts.bodyMedium),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _showPlanMenu(
+    BuildContext anchorContext,
+    AppPalette palette,
+  ) async {
+    final RenderBox box = anchorContext.findRenderObject()! as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(anchorContext).context.findRenderObject()! as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    return showMenu<String>(
+      context: anchorContext,
+      position: position,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: palette.border),
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'postponePlan',
+          height: 38,
+          child: Text('顺延到明天', style: context.texts.bodyMedium),
+        ),
+        PopupMenuItem<String>(
+          value: 'clearPlan',
+          height: 38,
+          child: Text('回任务池', style: context.texts.bodyMedium),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'rootcause',
+          height: 38,
+          child: Text('判断原因并调整…', style: context.texts.bodyMedium),
+        ),
+        PopupMenuItem<String>(
+          value: 'skip',
+          height: 38,
+          child: Text('暂不调整（维持现状）', style: context.texts.bodyMedium),
         ),
       ],
     );
@@ -2119,6 +2192,83 @@ class _ReviewPageState extends State<ReviewPage> {
             );
           }
         };
+      case 'scheduleTodo':
+        if (task == null) return;
+        final DateTime? originalPlanned = task.scheduledDate;
+        final ReviewScheduleResult? picked = await showReviewScheduleDialog(
+          context,
+          initial: (originalPlanned ?? AppDate.startOfDay(DateTime.now()))
+              .add(const Duration(hours: 9)),
+          initialMinutes: task.estimatedMinutes ?? 30,
+          title: '安排待办',
+          hint: '可直接选具体时段生成时间块，也可只定日期继续留在待办里',
+          allowDateOnly: true,
+        );
+        if (picked == null) return;
+        if (picked.dateOnly) {
+          await service.setPlannedDate(task, picked.start);
+          restore = () async {
+            final ActionItem? latest = actionRepo.byId(task.id);
+            if (latest != null) {
+              await actionRepo.save(
+                latest.copyWith(
+                  scheduledDate: originalPlanned,
+                  clearScheduledDate: originalPlanned == null,
+                ),
+              );
+            }
+          };
+        } else {
+          final ActionItemStatus originalStatus = task.status;
+          final TimeBlock created = await service.schedulePlannedTodo(
+            task,
+            picked.start,
+            minutes: picked.minutes,
+          );
+          restore = () async {
+            await blockRepo.softDelete(created.id);
+            final ActionItem? latest = actionRepo.byId(task.id);
+            if (latest != null) {
+              await actionRepo.save(
+                latest.copyWith(
+                  status: originalStatus,
+                  scheduledDate: originalPlanned,
+                  clearScheduledDate: originalPlanned == null,
+                ),
+              );
+            }
+          };
+        }
+      case 'postponePlan':
+        if (task == null) return;
+        final DateTime? originalPlanned = task.scheduledDate;
+        await service.setPlannedDate(
+          task,
+          AppDate.startOfDay(DateTime.now()).add(const Duration(days: 1)),
+        );
+        restore = () async {
+          final ActionItem? latest = actionRepo.byId(task.id);
+          if (latest != null) {
+            await actionRepo.save(
+              latest.copyWith(
+                scheduledDate: originalPlanned,
+                clearScheduledDate: originalPlanned == null,
+              ),
+            );
+          }
+        };
+      case 'clearPlan':
+        if (task == null) return;
+        final DateTime? originalPlanned = task.scheduledDate;
+        await service.setPlannedDate(task, null);
+        restore = () async {
+          final ActionItem? latest = actionRepo.byId(task.id);
+          if (latest != null) {
+            await actionRepo.save(
+              latest.copyWith(scheduledDate: originalPlanned),
+            );
+          }
+        };
       case 'scheduleReview':
         if (review == null) return;
         final DateTime originalDue = review.dueDate;
@@ -2286,6 +2436,7 @@ class _ReviewPageState extends State<ReviewPage> {
         return item.task != null ? 'decompose' : 'skip';
       case '时间不足':
         if (item.block != null) return 'scheduleBlock';
+        if (item.kind == ReviewItemKind.plannedTodo) return 'scheduleTodo';
         if (item.review != null) return 'scheduleReview';
         return 'skip';
       case '行为阻力':
@@ -2294,7 +2445,8 @@ class _ReviewPageState extends State<ReviewPage> {
         if (item.task != null) return 'archive';
         return item.block != null ? 'cancel' : 'skip';
       case '估时不准':
-        return item.block != null ? 'scheduleBlock' : 'skip';
+        if (item.block != null) return 'scheduleBlock';
+        return item.kind == ReviewItemKind.plannedTodo ? 'scheduleTodo' : 'skip';
     }
     return 'skip';
   }
@@ -2430,6 +2582,8 @@ class _ReviewPageState extends State<ReviewPage> {
         return palette.textTertiary;
       case ReviewItemKind.learningBlindSpot:
         return palette.accent;
+      case ReviewItemKind.plannedTodo:
+        return palette.accent;
     }
   }
 
@@ -2439,6 +2593,12 @@ class _ReviewPageState extends State<ReviewPage> {
         return '已安排到所选日期与时间';
       case 'scheduleReview':
         return '已安排复习，并同步到时间盒';
+      case 'scheduleTodo':
+        return '已安排待办到时间盒';
+      case 'postponePlan':
+        return '已顺延到明天';
+      case 'clearPlan':
+        return '已回到任务池';
       case 'decompose':
         return '已跳到图谱对应任务，去那里拆解';
       case 'skip':

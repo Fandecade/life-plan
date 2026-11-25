@@ -74,6 +74,7 @@ class ActionItem extends SyncEntity {
     this.posY = 0,
     this.completedAt,
     this.dueDate,
+    this.scheduledDate,
     this.isCollapsed = false,
     this.ifThenText = '',
     this.cognitiveLoad = CognitiveLoad.medium,
@@ -95,6 +96,9 @@ class ActionItem extends SyncEntity {
   final double posY;
   final DateTime? completedAt;
   final DateTime? dueDate;
+
+  /// 计划日期：打算哪一天做，但不指定时段（类似待办）。
+  final DateTime? scheduledDate;
   final bool isCollapsed;
 
   /// If–Then 预案：如果遇到某个触发情境，就执行某个具体动作。
@@ -122,6 +126,7 @@ class ActionItem extends SyncEntity {
     int? estimatedMinutes,
     ActionItemStatus status = ActionItemStatus.inbox,
     DateTime? dueDate,
+    DateTime? scheduledDate,
     String ifThenText = '',
     CognitiveLoad cognitiveLoad = CognitiveLoad.medium,
   }) {
@@ -139,6 +144,7 @@ class ActionItem extends SyncEntity {
       estimatedMinutes: estimatedMinutes,
       status: status,
       dueDate: dueDate,
+      scheduledDate: scheduledDate,
       ifThenText: ifThenText,
       cognitiveLoad: cognitiveLoad,
     );
@@ -163,6 +169,8 @@ class ActionItem extends SyncEntity {
     bool clearCompletedAt = false,
     DateTime? dueDate,
     bool clearDueDate = false,
+    DateTime? scheduledDate,
+    bool clearScheduledDate = false,
     bool? isCollapsed,
     String? ifThenText,
     CognitiveLoad? cognitiveLoad,
@@ -188,6 +196,9 @@ class ActionItem extends SyncEntity {
       posY: posY ?? this.posY,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
+      scheduledDate: clearScheduledDate
+          ? null
+          : (scheduledDate ?? this.scheduledDate),
       isCollapsed: isCollapsed ?? this.isCollapsed,
       ifThenText: ifThenText ?? this.ifThenText,
       cognitiveLoad: cognitiveLoad ?? this.cognitiveLoad,
@@ -211,6 +222,7 @@ class ActionItem extends SyncEntity {
         'posY': posY,
         'completedAt': completedAt?.toIso8601String(),
         'dueDate': dueDate?.toIso8601String(),
+        'scheduledDate': scheduledDate?.toIso8601String(),
         'isCollapsed': isCollapsed,
         'ifThenText': ifThenText,
         'cognitiveLoad': cognitiveLoad.name,
@@ -233,6 +245,7 @@ class ActionItem extends SyncEntity {
       posY: (json['posY'] as num?)?.toDouble() ?? 0,
       completedAt: parseNullableDate(json['completedAt']),
       dueDate: parseNullableDate(json['dueDate']),
+      scheduledDate: parseNullableDate(json['scheduledDate']),
       isCollapsed: json['isCollapsed'] as bool? ?? false,
       ifThenText: json['ifThenText'] as String? ?? '',
       cognitiveLoad: CognitiveLoad.fromName(json['cognitiveLoad']),

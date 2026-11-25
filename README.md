@@ -96,6 +96,11 @@ flutter build web --release   # Web
 - **长按约 0.5 秒后拖动 = 圈选时间格**，松手弹出「安排任务」
 - 单击空白 = 直接安排
 - 时间块可拖动改开始时间、右下角手柄改时长
+- **日期确定、时段待定**：排期沿用「日历选日期 → 表盘选时间」，日期可任意切换；日历底部可直接「只安排到这一天」，不生成时间块（任务池、任务详情与复盘安排同样支持）
+- 日视图顶部三枚胶囊切换：**今日待办（默认）/ 今日微习惯 / 时间安排**，一次只显示一个视图
+- 今日待办：未定时间（每项「排期」打开日历，可只定日期）与已定时间两组；已完成保留划线
+- 今日微习惯：今日锚点完整习惯卡片（点阵、连续天数、点卡片打卡；更多菜单可调配方/行动线）
+- 时间安排：24 小时时间轴（滚轮/拖动滚动，长按拖动圈选）
 
 **一个任务多次推进**
 - 改期：更新当前时间块（并同步任务）
@@ -218,6 +223,7 @@ flutter build web --release   # Web
 | 节奏偏缓习惯 | 调配方 | 打开行动线诊断与推演 |
 | 停滞任务 | 归档 | 标记为已延后 |
 | 学习卡点 | 生成补盲任务 / 确认补盲 | 主动记录直接生成；关键词命中需确认，可忽略 |
+| 今日待办未完成 | 安排时间 / ⋯ 顺延到明天 / 回任务池 | 生成时间盒块 / 改计划日 / 清空日期（不计时间投入） |
 
 **其他**
 - 上期调整回看：显示上期「调整方案 + 预期效果」，补填「实际效果」写回上期
@@ -286,7 +292,7 @@ flutter build web --release   # Web
 |---|---|---|
 | `visions` | Vision | 愿景（含切换排序 `sortOrder`） |
 | `capabilities` | Capability | 能力（含阶段成果 `milestonesJson`） |
-| `action_items` | ActionItem | 任务/子任务（含学习模式、If–Then、认知负荷、所属项目） |
+| `action_items` | ActionItem | 任务/子任务（含学习模式、If–Then、认知负荷、所属项目、计划日期） |
 | `time_blocks` | TimeBlock | 时间块（可多块/任务、可绑复习、可绑固定安排） |
 | `learning_sessions` | LearningSession | 学习会话、草稿与计时秒数（`elapsedSeconds`） |
 | `learning_reviews` | LearningReview | 间隔复习 |
@@ -343,7 +349,7 @@ ReviewLog（periodType + periodKey）独立汇总
 
 ```bash
 flutter analyze   # 0 error / 0 warning
-flutter test      # 122 项，26 个测试文件
+flutter test      # 129 项，27 个测试文件
 flutter build macos --debug
 flutter build web --release
 ```

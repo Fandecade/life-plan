@@ -51,7 +51,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('今日微习惯'), findsOneWidget);
+    await tester.tap(find.textContaining('今日微习惯'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.textContaining('喝一杯温水'), findsWidgets);
 
     await tester.tap(find.textContaining('喝一杯温水').first);

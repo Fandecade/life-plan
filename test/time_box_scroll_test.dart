@@ -33,6 +33,8 @@ void main() {
     await tester.tap(find.text('时间盒').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('时间安排'));
+    await tester.pump();
 
     final Finder track = find.byKey(const ValueKey<String>('time-track'));
     final ScrollableState scrollable = tester.state<ScrollableState>(
@@ -77,6 +79,8 @@ void main() {
     await tester.tap(find.text('时间盒').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('时间安排'));
+    await tester.pump();
 
     final Finder track = find.byKey(const ValueKey<String>('time-track'));
     expect(track, findsOneWidget);

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/services/schedule_picker.dart';
 import '../../core/services/schedule_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
@@ -46,31 +47,23 @@ class _InboxPanelState extends State<InboxPanel> {
   }
 
   Future<void> _schedule(ActionItem item) async {
-    final DateTime now = DateTime.now();
-    final DateTime? date = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now.subtract(const Duration(days: 180)),
-      lastDate: now.add(const Duration(days: 730)),
-      helpText: '排入时间盒 · 选择日期',
-      cancelText: '取消',
-      confirmText: '下一步',
+    final SchedulePickResult? result = await pickScheduleResult(
+      context,
+      initialDate: DateTime.now(),
     );
-    if (date == null || !mounted) return;
-    final TimeOfDay? time = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 9, minute: 0),
-      helpText: '选择开始时间',
-      cancelText: '取消',
-      confirmText: '排入',
-    );
-    if (time == null || !mounted) return;
-
-    final DateTime start =
-        DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    await context.read<ScheduleService>().scheduleAction(item, start);
+    if (result == null || !mounted) return;
+    final ScheduleService service = context.read<ScheduleService>();
+    if (result.dateOnly) {
+      await service.assignDate(item, result.start);
+      if (!mounted) return;
+      _toast('已安排到 ${AppDate.monthDayLabel(result.start)} 的今日待办');
+      return;
+    }
+    await service.scheduleAction(item, result.start);
     if (!mounted) return;
-    _toast('已排入 ${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}');
+    _toast(
+      '已排入 ${AppDate.friendlyDay(result.start)} ${AppDate.timeLabel(result.start)}',
+    );
   }
 
   void _toast(String message) {

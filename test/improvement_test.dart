@@ -119,6 +119,32 @@ void main() {
     expect(reloaded.adjustmentPlan, contains('颗粒度'));
   });
 
+  test('计划日期可持久化，并进入复盘「今日待办」待校准', () async {
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    final ActionItem task = await bootstrap.actions.create(
+      title: '待办计划任务',
+      scheduledDate: today,
+      estimatedMinutes: 30,
+    );
+    expect(bootstrap.actions.byId(task.id)!.scheduledDate, isNotNull);
+
+    final ReviewWindow window =
+        ReviewWindow.of(ReviewPeriodType.daily, DateTime.now());
+    final List<ReviewItem> pending = bootstrap.reviewService.pending(
+      window,
+      bootstrap.reviewService.snapshot(window),
+    );
+    final ReviewItem planned = pending.firstWhere(
+      (ReviewItem item) =>
+          item.kind == ReviewItemKind.plannedTodo &&
+          item.task?.id == task.id,
+    );
+    expect(planned.title, contains('今日待办'));
+
+    await bootstrap.reviewService.setPlannedDate(task, null);
+    expect(bootstrap.actions.byId(task.id)!.scheduledDate, isNull);
+  });
+
   test('同一任务可追加多个时间块，默认仍只更新一个', () async {
     final DateTime base =
         AppDate.startOfDay(DateTime.now().add(const Duration(days: 1)));

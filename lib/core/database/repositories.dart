@@ -229,6 +229,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
     int? estimatedMinutes,
     ActionItemStatus status = ActionItemStatus.inbox,
     DateTime? dueDate,
+    DateTime? scheduledDate,
     String ifThenText = '',
     CognitiveLoad cognitiveLoad = CognitiveLoad.medium,
   }) async {
@@ -242,6 +243,7 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
       estimatedMinutes: estimatedMinutes,
       status: status,
       dueDate: dueDate,
+      scheduledDate: scheduledDate,
       ifThenText: ifThenText,
       cognitiveLoad: cognitiveLoad,
     );

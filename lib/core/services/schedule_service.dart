@@ -42,7 +42,19 @@ class ScheduleService {
       item.copyWith(
         status: ActionItemStatus.scheduled,
         estimatedMinutes: item.estimatedMinutes ?? minutes,
+        scheduledDate: DateTime(startAt.year, startAt.month, startAt.day),
       ),
+    );
+  }
+
+  /// 只指定计划日期（不排时段）；传 null 表示清除日期。
+  Future<void> assignDate(ActionItem item, DateTime? day) async {
+    await actions.save(
+      day == null
+          ? item.copyWith(clearScheduledDate: true)
+          : item.copyWith(
+              scheduledDate: DateTime(day.year, day.month, day.day),
+            ),
     );
   }
 

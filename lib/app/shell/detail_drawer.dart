@@ -7,7 +7,6 @@ import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
-import '../../core/services/schedule_picker.dart';
 import '../../core/services/schedule_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
@@ -15,6 +14,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/services/schedule_picker.dart';
 import '../../core/widgets/state_views.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -249,6 +249,11 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 context,
                 '截止日',
                 _dueDateCard(context, item),
+              ),
+              _section(
+                context,
+                '计划日期',
+                _plannedDateCard(context, item),
               ),
               _section(
                 context,
@@ -545,6 +550,65 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     );
   }
 
+  Widget _plannedDateCard(BuildContext context, ActionItem item) {
+    final AppPalette palette = context.palette;
+    final ActionItemRepository repo = context.read<ActionItemRepository>();
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    final DateTime? planned = item.scheduledDate;
+    final List<DateTime> quickDays = <DateTime>[
+      today,
+      today.add(const Duration(days: 1)),
+      today.add(const Duration(days: 2)),
+    ];
+    const List<String> quickLabels = <String>['今天', '明天', '后天'];
+    final bool plannedIsQuick =
+        planned != null &&
+        quickDays.any((DateTime day) => AppDate.isSameDay(day, planned));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: AppSpacing.xs + 2,
+          runSpacing: AppSpacing.xs + 2,
+          children: <Widget>[
+            for (int i = 0; i < quickDays.length; i++)
+              AppChip(
+                label: quickLabels[i],
+                dense: true,
+                filled: planned != null && AppDate.isSameDay(planned, quickDays[i]),
+                color: palette.accent,
+                onTap: () => repo.save(
+                  item.copyWith(
+                    scheduledDate: quickDays[i],
+                  ),
+                ),
+              ),
+            if (planned != null && !plannedIsQuick)
+              AppChip(
+                label: AppDate.monthDayLabel(planned),
+                dense: true,
+                filled: true,
+                color: palette.accent,
+                onTap: () {},
+              ),
+            if (planned != null)
+              AppChip(
+                label: '清除',
+                dense: true,
+                onTap: () => repo.save(item.copyWith(clearScheduledDate: true)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '只表示打算哪天做，不占具体时段；排入时间轴后以时间块为准。',
+          style: context.texts.labelSmall,
+        ),
+      ],
+    );
+  }
+
   Widget _dueDateCard(BuildContext context, ActionItem item) {
     final AppPalette palette = context.palette;
     final DateTime? due = item.dueDate;
@@ -629,16 +693,28 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     ActionItem item, {
     bool append = false,
   }) async {
-    final DateTime? start = await pickScheduleStart(context);
-    if (start == null || !mounted) return;
-    await context
-        .read<ScheduleService>()
-        .scheduleAction(item, start, append: append);
+    final SchedulePickResult? result = await pickScheduleResult(
+      context,
+      initialDate: DateTime.now(),
+    );
+    if (result == null || !mounted) return;
+    if (result.dateOnly) {
+      await context.read<ScheduleService>().assignDate(item, result.start);
+      if (!mounted) return;
+      _toast('已安排到 ${AppDate.monthDayLabel(result.start)} 的今日待办');
+      return;
+    }
+    await context.read<ScheduleService>().scheduleAction(
+          item,
+          result.start,
+          durationMinutes: item.estimatedMinutes ?? 30,
+          append: append,
+        );
     if (!mounted) return;
     _toast(
       append
-          ? '已追加一次排期：${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}'
-          : '已排入 ${AppDate.friendlyDay(start)} ${AppDate.timeLabel(start)}',
+          ? '已追加一次排期：${AppDate.friendlyDay(result.start)} ${AppDate.timeLabel(result.start)}'
+          : '已排入 ${AppDate.friendlyDay(result.start)} ${AppDate.timeLabel(result.start)}',
     );
   }
 
