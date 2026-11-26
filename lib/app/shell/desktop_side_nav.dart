@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_style.dart';
 
 /// 桌面/平板左侧可折叠导航栏。
 class DesktopSideNav extends StatelessWidget {
@@ -24,13 +25,18 @@ class DesktopSideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
+    final bool refresh = palette.style == AppUiStyle.refresh;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      width: collapsed ? 68 : 224,
+      width: collapsed ? (refresh ? 76 : 68) : 224,
       decoration: BoxDecoration(
-        color: palette.background,
-        border: Border(right: BorderSide(color: palette.hairline)),
+        color: refresh ? Colors.transparent : palette.background,
+        border: Border(
+          right: BorderSide(
+            color: refresh ? Colors.transparent : palette.hairline,
+          ),
+        ),
       ),
       child: Column(
         children: <Widget>[
@@ -146,15 +152,20 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
+    final bool refresh = palette.style == AppUiStyle.refresh;
     final Widget content = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       height: 36,
       padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 10),
       decoration: BoxDecoration(
-        color: selected ? palette.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        color: selected
+            ? (refresh ? palette.accentSoft : palette.surface)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(
+          refresh ? AppRadius.pill : AppRadius.sm,
+        ),
         border: Border.all(
-          color: selected ? palette.border : Colors.transparent,
+          color: selected && !refresh ? palette.border : Colors.transparent,
         ),
       ),
       child: Row(

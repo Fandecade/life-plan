@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../app/bootstrap.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
+import '../../app/theme/ui_style.dart';
 import '../../core/database/repositories.dart';
 import '../../core/database/seed_data.dart';
 import '../../core/plugin/app_module_descriptor.dart';
@@ -16,6 +17,7 @@ import '../../core/plugin/module_registry.dart';
 import '../../core/services/reminder_settings.dart';
 import '../../core/state/theme_controller.dart';
 import '../../core/state/ui_controller.dart';
+import '../../core/state/ui_style_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
@@ -57,6 +59,16 @@ class SettingsPage extends StatelessWidget {
                   onChanged: (ThemeMode mode) =>
                       context.read<ThemeController>().setMode(mode),
                 ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              const SectionHeader(
+                title: '界面风格',
+                subtitle: '经典版可随时切回；新版支持主题色与玻璃质感。',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const AppCard(
+                padding: EdgeInsets.zero,
+                child: _InterfaceStyleSection(),
               ),
               const SizedBox(height: AppSpacing.xl),
               const SectionHeader(
@@ -150,6 +162,174 @@ class _ReminderEntry extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InterfaceStyleSection extends StatelessWidget {
+  const _InterfaceStyleSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final UiStyleController ui = context.watch<UiStyleController>();
+    final AppPalette palette = context.palette;
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _StyleChoice(
+                      label: '经典',
+                      selected: !ui.isRefresh,
+                      onTap: () => ui.setStyle(AppUiStyle.classic),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _StyleChoice(
+                      label: '新版',
+                      selected: ui.isRefresh,
+                      onTap: () => ui.setStyle(AppUiStyle.refresh),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text('主题色', style: context.texts.labelMedium),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: <Widget>[
+                  for (final AppAccentTheme theme in AppAccentTheme.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.md),
+                      child: Tooltip(
+                        message: theme.label,
+                        child: InkWell(
+                          onTap: () => ui.setAccent(theme),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: theme.accent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: ui.accent == theme
+                                    ? palette.textPrimary
+                                    : palette.glassBorder,
+                                width: ui.accent == theme ? 2 : 1,
+                              ),
+                            ),
+                            child: ui.accent == theme
+                                ? Icon(
+                                    Icons.check_rounded,
+                                    size: 15,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (!ui.isRefresh) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                Text('切换到新版后生效', style: context.texts.labelSmall),
+              ],
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        _StyleSwitchRow(
+          title: '降低透明效果',
+          subtitle: '关闭玻璃模糊，低端机更流畅',
+          value: !ui.glassEnabled,
+          onChanged: (bool value) => ui.setGlassEnabled(!value),
+        ),
+      ],
+    );
+  }
+}
+
+class _StyleChoice extends StatelessWidget {
+  const _StyleChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette palette = context.palette;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? palette.textPrimary : palette.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Text(
+          label,
+          style: context.texts.bodyMedium?.copyWith(
+            color: selected ? palette.background : palette.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StyleSwitchRow extends StatelessWidget {
+  const _StyleSwitchRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: 10,
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: context.texts.titleSmall),
+                const SizedBox(height: 2),
+                Text(subtitle, style: context.texts.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Switch(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

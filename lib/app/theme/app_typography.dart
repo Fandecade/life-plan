@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
-/// 排版层级：字号克制、字重不超过 600、标题带轻微负字距。
+/// 排版层级：经典版克制，新版更大标题与更松行高。
 class AppTypography {
   const AppTypography._();
 
-  static TextTheme build(TextTheme base, AppPalette palette) {
+  static TextTheme build(
+    TextTheme base,
+    AppPalette palette, {
+    bool refresh = false,
+  }) {
     TextStyle style(
       TextStyle? origin,
       double size,
@@ -21,6 +25,31 @@ class AppTypography {
         letterSpacing: letterSpacing,
         height: height,
         color: color ?? palette.textPrimary,
+      );
+    }
+
+    if (refresh) {
+      return base.copyWith(
+        displaySmall: style(base.displaySmall, 32, FontWeight.w600,
+            letterSpacing: -1.0, height: 1.15),
+        headlineMedium: style(base.headlineMedium, 26, FontWeight.w600,
+            letterSpacing: -0.7, height: 1.2),
+        headlineSmall: style(base.headlineSmall, 22, FontWeight.w600,
+            letterSpacing: -0.5, height: 1.25),
+        titleLarge: style(base.titleLarge, 19, FontWeight.w600,
+            letterSpacing: -0.3, height: 1.3),
+        titleMedium: style(base.titleMedium, 16, FontWeight.w500,
+            letterSpacing: -0.1, height: 1.4),
+        titleSmall: style(base.titleSmall, 14, FontWeight.w500, height: 1.4),
+        bodyLarge: style(base.bodyLarge, 15, FontWeight.w400, height: 1.65),
+        bodyMedium: style(base.bodyMedium, 14, FontWeight.w400, height: 1.6),
+        bodySmall: style(base.bodySmall, 12.5, FontWeight.w400,
+            height: 1.55, color: palette.textSecondary),
+        labelLarge: style(base.labelLarge, 13.5, FontWeight.w500, height: 1.3),
+        labelMedium: style(base.labelMedium, 12, FontWeight.w500,
+            letterSpacing: 0.1, height: 1.3, color: palette.textSecondary),
+        labelSmall: style(base.labelSmall, 11, FontWeight.w500,
+            letterSpacing: 0.15, height: 1.3, color: palette.textTertiary),
       );
     }
 

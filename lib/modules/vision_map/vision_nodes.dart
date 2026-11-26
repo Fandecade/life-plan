@@ -169,12 +169,16 @@ class VisionNodeCard extends StatelessWidget {
             AppSpacing.md,
           ),
           decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            color: context.isRefreshStyle ? palette.glass : palette.surface,
+            borderRadius: BorderRadius.circular(
+              context.isRefreshStyle ? 24 : AppRadius.lg,
+            ),
             border: Border.all(
               color: selected || editing
                   ? accent.withValues(alpha: 0.6)
-                  : palette.border,
+                  : (context.isRefreshStyle
+                      ? palette.glassBorder
+                      : palette.border),
               width: selected || editing ? 1.3 : 1,
             ),
           ),
@@ -307,12 +311,16 @@ class CapabilityNodeCard extends StatelessWidget {
             AppSpacing.md,
           ),
           decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md + 2),
+            color: context.isRefreshStyle ? palette.glass : palette.surface,
+            borderRadius: BorderRadius.circular(
+              context.isRefreshStyle ? 20 : AppRadius.md + 2,
+            ),
             border: Border.all(
               color: selected || editing
                   ? palette.accent.withValues(alpha: 0.55)
-                  : palette.border,
+                  : (context.isRefreshStyle
+                      ? palette.glassBorder
+                      : palette.border),
               width: selected || editing ? 1.3 : 1,
             ),
           ),
@@ -449,12 +457,16 @@ class TaskNodeCard extends StatelessWidget {
             vertical: AppSpacing.xs,
           ),
           decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            color: context.isRefreshStyle ? palette.glass : palette.surface,
+            borderRadius: BorderRadius.circular(
+              context.isRefreshStyle ? 18 : AppRadius.md,
+            ),
             border: Border.all(
               color: selected || editing
                   ? palette.accent.withValues(alpha: 0.55)
-                  : palette.border,
+                  : (context.isRefreshStyle
+                      ? palette.glassBorder
+                      : palette.border),
               width: selected || editing ? 1.3 : 1,
             ),
           ),

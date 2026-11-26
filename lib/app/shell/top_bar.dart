@@ -7,6 +7,7 @@ import '../../core/state/ui_controller.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_style.dart';
 
 /// 顶栏：左侧模块标题，最右侧为任务池；时间盒时安排记录紧挨在任务池左侧。
 class TopBar extends StatelessWidget {
@@ -25,6 +26,40 @@ class TopBar extends StatelessWidget {
         .all
         .where((TimeBlock block) => !block.isCompleted)
         .length;
+
+    if (context.isRefreshStyle) {
+      return Container(
+        height: isDesktop ? 72 : 64,
+        padding: EdgeInsets.symmetric(horizontal: isDesktop ? 28 : 18),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                style: context.texts.displaySmall?.copyWith(
+                  fontSize: isDesktop ? 30 : 24,
+                  letterSpacing: -0.9,
+                ),
+              ),
+            ),
+            if (ui.currentRoute == AppRoutes.timeBox) ...<Widget>[
+              _ScheduleTrigger(
+                count: scheduledCount,
+                onTap: ui.openSchedule,
+                compact: !isDesktop,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            _InboxTrigger(
+              count: inboxCount,
+              onTap: ui.openInbox,
+              compact: !isDesktop,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       height: isDesktop ? 56 : 50,
@@ -134,18 +169,27 @@ class _TriggerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
+    final bool refresh = palette.style == AppUiStyle.refresh;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: BorderRadius.circular(
+        refresh ? AppRadius.pill : AppRadius.sm,
+      ),
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 8 : 10,
-          vertical: 6,
+          horizontal: compact ? 9 : 12,
+          vertical: refresh ? 7 : 6,
         ),
         decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: palette.border),
+          color: refresh
+              ? (palette.glassEnabled ? palette.glass : palette.surface)
+              : palette.surface,
+          borderRadius: BorderRadius.circular(
+            refresh ? AppRadius.pill : AppRadius.sm,
+          ),
+          border: Border.all(
+            color: refresh ? palette.glassBorder : palette.border,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -161,14 +205,14 @@ class _TriggerShell extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: palette.accentSoft,
+                  color: refresh ? palette.accent : palette.accentSoft,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
                 child: Text(
                   '$count',
                   textAlign: TextAlign.center,
                   style: context.texts.labelSmall?.copyWith(
-                    color: palette.accent,
+                    color: refresh ? palette.background : palette.accent,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

@@ -228,6 +228,36 @@ class _DayViewState extends State<DayView>
     int todoPending,
     int habitPending,
   ) {
+    if (context.isRefreshStyle) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.sm,
+          AppSpacing.md,
+          AppSpacing.sm,
+        ),
+        child: SegmentBar<_DayPanel>(
+          expand: true,
+          options: <SegmentOption<_DayPanel>>[
+            SegmentOption<_DayPanel>(
+              value: _DayPanel.todos,
+              label: '待办 · $todoPending',
+            ),
+            SegmentOption<_DayPanel>(
+              value: _DayPanel.habits,
+              label: '微习惯 · $habitPending',
+            ),
+            const SegmentOption<_DayPanel>(
+              value: _DayPanel.timeline,
+              label: '时间安排',
+            ),
+          ],
+          value: _panel,
+          onChanged: (_DayPanel value) => setState(() => _panel = value),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.sm + 2,
@@ -527,9 +557,22 @@ class _DayViewState extends State<DayView>
           children: <Widget>[
             Container(
               decoration: BoxDecoration(
-                color: tone.withValues(alpha: context.isDarkMode ? 0.34 : 0.2),
-                borderRadius: BorderRadius.circular(7),
-                border: Border(left: BorderSide(color: tone, width: 3)),
+color: context.isRefreshStyle
+                  ? palette.accentSoft.withValues(
+                      alpha: context.isDarkMode ? 0.9 : 0.85,
+                    )
+                  : tone.withValues(
+                      alpha: context.isDarkMode ? 0.34 : 0.2,
+                    ),
+              borderRadius: BorderRadius.circular(
+                context.isRefreshStyle ? 14 : 7,
+              ),
+              border: Border(
+                left: BorderSide(
+                  color: context.isRefreshStyle ? palette.accent : tone,
+                  width: 3,
+                ),
+              ),
               ),
               padding: const EdgeInsets.fromLTRB(8, 3, 4, 3),
               child: Column(

@@ -192,6 +192,14 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
       ];
     }
     return <Widget>[
+      AppFeatureCard(
+        meta: '学习',
+        title: '今日待学 ${todayTasks.length} 项',
+        subtitle: '从最小的一步开始，完成后自动安排复习节点',
+        actionLabel: '开始第一项',
+        onAction: () => _startOrContinue(todayTasks.first),
+      ),
+      const SizedBox(height: AppSpacing.lg),
       SectionHeader(title: '今日待学 · ${todayTasks.length}'),
       const SizedBox(height: AppSpacing.sm),
       for (final ActionItem task in todayTasks)

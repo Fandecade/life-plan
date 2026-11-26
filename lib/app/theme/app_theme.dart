@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
+import 'ui_style.dart';
 
 /// 圆角与间距规范，避免各模块自行发挥。
 class AppRadius {
@@ -38,7 +39,33 @@ class AppTheme {
 
   static ThemeData dark() => _build(Brightness.dark, AppPalette.dark);
 
-  static ThemeData _build(Brightness brightness, AppPalette palette) {
+  static ThemeData refreshLight(
+    AppAccentTheme accent, {
+    bool glassEnabled = true,
+  }) {
+    return _build(
+      Brightness.light,
+      AppPalette.refreshLight(accent, glassEnabled: glassEnabled),
+      refresh: true,
+    );
+  }
+
+  static ThemeData refreshDark(
+    AppAccentTheme accent, {
+    bool glassEnabled = true,
+  }) {
+    return _build(
+      Brightness.dark,
+      AppPalette.refreshDark(accent, glassEnabled: glassEnabled),
+      refresh: true,
+    );
+  }
+
+  static ThemeData _build(
+    Brightness brightness,
+    AppPalette palette, {
+    bool refresh = false,
+  }) {
     final ThemeData base = ThemeData(brightness: brightness, useMaterial3: true);
     final ColorScheme scheme = ColorScheme.fromSeed(
       seedColor: palette.accent,
@@ -62,13 +89,55 @@ class AppTheme {
       scaffoldBackgroundColor: palette.background,
       canvasColor: palette.background,
       colorScheme: scheme,
-      textTheme: AppTypography.build(base.textTheme, palette),
+      textTheme: AppTypography.build(base.textTheme, palette, refresh: refresh),
       extensions: <ThemeExtension<dynamic>>[palette],
       dividerTheme: DividerThemeData(
         color: palette.hairline,
         thickness: 1,
         space: 1,
       ),
+      dialogTheme: refresh
+          ? DialogThemeData(
+              backgroundColor: palette.glassEnabled
+                  ? palette.glass
+                  : palette.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+                side: BorderSide(color: palette.glassBorder),
+              ),
+            )
+          : null,
+      bottomSheetTheme: refresh
+          ? BottomSheetThemeData(
+              backgroundColor: palette.glassEnabled
+                  ? palette.glass
+                  : palette.surface,
+              modalBackgroundColor: palette.glassEnabled
+                  ? palette.glass
+                  : palette.surface,
+              surfaceTintColor: Colors.transparent,
+              dragHandleColor: palette.textTertiary,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+            )
+          : null,
+      snackBarTheme: refresh
+          ? SnackBarThemeData(
+              backgroundColor: palette.textPrimary,
+              contentTextStyle: TextStyle(
+                color: palette.background,
+                fontSize: 13,
+              ),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            )
+          : null,
       iconTheme: IconThemeData(color: palette.textSecondary, size: 18),
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,

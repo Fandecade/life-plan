@@ -15,6 +15,7 @@ import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import 'desktop_side_nav.dart';
 import 'detail_drawer.dart';
+import 'glass_background.dart';
 import 'inbox_panel.dart';
 import 'mobile_bottom_nav.dart';
 import 'reminder_banner.dart';
@@ -230,7 +231,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               },
               child: Scaffold(
                 backgroundColor: palette.background,
-                body: Stack(
+                body: GlassBackground(
+                  child: Stack(
                   children: <Widget>[
                     Row(
                       children: <Widget>[
@@ -311,6 +313,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         ),
                       ),
                   ],
+                  ),
                 ),
                 bottomNavigationBar: isDesktop
                     ? null

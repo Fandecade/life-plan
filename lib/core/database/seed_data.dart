@@ -62,12 +62,14 @@ class SeedData {
     );
 
     final DateTime now = DateTime.now();
-    await timeBlocks.schedule(
+    final TimeBlock seedBlock = await timeBlocks.schedule(
       title: habitTask.title,
       startAt: DateTime(now.year, now.month, now.day, 21, 30),
       durationMinutes: 10,
       actionItemId: habitTask.id,
     );
+    // 示例块标记为已完成：既展示完成态，也避免夜间打开应用时触发提醒。
+    await timeBlocks.setCompleted(seedBlock.id, true);
   }
 
   /// 重新载入示例数据（设置页使用）。

@@ -14,9 +14,11 @@ import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
 import '../core/state/ui_controller.dart';
+import '../core/state/ui_style_controller.dart';
 import 'bootstrap.dart';
 import 'shell/app_shell.dart';
 import 'theme/app_theme.dart';
+import 'theme/ui_style.dart';
 
 class LifePlannerApp extends StatelessWidget {
   const LifePlannerApp({super.key, required this.bootstrap});
@@ -29,6 +31,9 @@ class LifePlannerApp extends StatelessWidget {
       providers: [
         Provider<AppBootstrap>.value(value: bootstrap),
         ChangeNotifierProvider<ThemeController>.value(value: bootstrap.theme),
+        ChangeNotifierProvider<UiStyleController>.value(
+          value: bootstrap.uiStyle,
+        ),
         ChangeNotifierProvider<ReminderSettings>.value(
           value: bootstrap.reminderSettings,
         ),
@@ -82,13 +87,29 @@ class LifePlannerApp extends StatelessWidget {
         Provider<RoutineService>.value(value: bootstrap.routines),
         ChangeNotifierProvider<UiController>(create: (_) => UiController()),
       ],
-      child: Consumer<ThemeController>(
-        builder: (BuildContext context, ThemeController theme, Widget? child) {
+      child: Consumer2<ThemeController, UiStyleController>(
+        builder: (
+          BuildContext context,
+          ThemeController theme,
+          UiStyleController uiStyle,
+          Widget? child,
+        ) {
+          final bool refresh = uiStyle.style == AppUiStyle.refresh;
           return MaterialApp(
             title: '人生规划',
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
+            theme: refresh
+                ? AppTheme.refreshLight(
+                    uiStyle.accent,
+                    glassEnabled: uiStyle.glassEnabled,
+                  )
+                : AppTheme.light(),
+            darkTheme: refresh
+                ? AppTheme.refreshDark(
+                    uiStyle.accent,
+                    glassEnabled: uiStyle.glassEnabled,
+                  )
+                : AppTheme.dark(),
             themeMode: theme.mode,
             themeAnimationDuration: const Duration(milliseconds: 260),
             themeAnimationCurve: Curves.easeOutCubic,

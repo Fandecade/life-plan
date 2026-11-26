@@ -144,7 +144,18 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
     if (habits.isEmpty) {
       return <Widget>[_emptyState(context)];
     }
-    final List<Widget> widgets = <Widget>[];
+    final HabitService service = context.read<HabitService>();
+    final int done = habits
+        .where((FoggHabit habit) => service.isDoneToday(habit))
+        .length;
+    final List<Widget> widgets = <Widget>[
+      AppFeatureCard(
+        meta: '习惯',
+        title: '今日打卡 $done / ${habits.length}',
+        subtitle: '锚点之后，只做一个 2 分钟内的小动作',
+      ),
+      const SizedBox(height: AppSpacing.lg),
+    ];
     for (final AnchorPeriod period in AnchorPeriod.values) {
       final List<FoggHabit> group = habits
           .where((FoggHabit habit) => habit.anchorPeriod == period)

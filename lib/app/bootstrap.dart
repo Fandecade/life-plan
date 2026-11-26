@@ -11,6 +11,7 @@ import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
 import '../core/state/theme_controller.dart';
+import '../core/state/ui_style_controller.dart';
 
 /// 组合根：一次性装配本地数据库、仓储、插件注册中心与全局服务。
 ///
@@ -40,6 +41,7 @@ class AppBootstrap {
     required this.schedules,
     required this.modules,
     required this.theme,
+    required this.uiStyle,
     required this.reminderSettings,
     required this.reminders,
     required this.notifications,
@@ -67,6 +69,7 @@ class AppBootstrap {
   final ScheduleService schedules;
   final ModuleRegistry modules;
   final ThemeController theme;
+  final UiStyleController uiStyle;
   final ReminderSettings reminderSettings;
   final ReminderService reminders;
   final NotificationService notifications;
@@ -127,6 +130,7 @@ class AppBootstrap {
       settings: db.settings,
     );
     final ThemeController theme = ThemeController(db.settings);
+    final UiStyleController uiStyle = UiStyleController(db.settings);
     final ReminderSettings reminderSettings = ReminderSettings(db.settings);
     final ReminderService reminders = ReminderService(
       settings: reminderSettings,
@@ -176,6 +180,7 @@ class AppBootstrap {
       schedules: schedules,
       modules: modules,
       theme: theme,
+      uiStyle: uiStyle,
       reminderSettings: reminderSettings,
       reminders: reminders,
       notifications: notifications,
@@ -200,6 +205,7 @@ class AppBootstrap {
     projects.dispose();
     modules.dispose();
     theme.dispose();
+    uiStyle.dispose();
     reminderSettings.dispose();
     db.close();
   }
