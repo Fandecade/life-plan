@@ -66,6 +66,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
+    await tester.tap(find.text('主页').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
     final Finder row = find
         .ancestor(of: find.text('热力图'), matching: find.byType(Row))
         .first;
@@ -75,6 +79,10 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(bootstrap.homeSettings.isEnabled(HomeCard.heatmap), isFalse);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(
       find.descendant(

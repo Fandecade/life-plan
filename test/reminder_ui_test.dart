@@ -125,13 +125,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('提醒设置'), findsOneWidget);
-    await tester.ensureVisible(find.text('提醒设置'));
-    await tester.pump();
-    await tester.tap(find.text('提醒设置'));
+    expect(find.text('提醒'), findsWidgets);
+    await tester.ensureVisible(find.text('提醒').last);
+    await tester.tap(find.text('提醒').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
+    expect(find.text('提醒设置'), findsOneWidget);
     expect(find.text('应用内提醒'), findsOneWidget);
     expect(find.text('系统通知'), findsOneWidget);
     expect(find.text('时间盒提前量'), findsOneWidget);
@@ -156,6 +156,6 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.text('应用内提醒'), findsNothing);
-    expect(find.text('提醒设置'), findsWidgets);
+    expect(find.text('提醒'), findsWidgets);
   });
 }

@@ -54,7 +54,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('界面风格'), findsOneWidget);
+    await tester.tap(find.text('界面风格').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
     expect(find.text('经典'), findsOneWidget);
     expect(find.text('新版'), findsOneWidget);
 

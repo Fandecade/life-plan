@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/shell/glass_background.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/services/notification_service.dart';
@@ -153,7 +154,8 @@ class ReminderSettingsPage extends StatelessWidget {
           ),
         ),
       ),
-      body: ListView(
+      body: GlassBackground(
+        child: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
           AppSpacing.xs,
@@ -228,6 +230,7 @@ class ReminderSettingsPage extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

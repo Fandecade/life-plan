@@ -1,31 +1,20 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/bootstrap.dart';
-import '../../app/router/module_routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
-import '../../app/theme/ui_style.dart';
-import '../../core/database/repositories.dart';
-import '../../core/database/seed_data.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/services/reminder_settings.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/state/theme_controller.dart';
-import '../../core/state/ui_controller.dart';
 import '../../core/state/ui_style_controller.dart';
-import '../../core/utils/date_utils.dart';
-import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
-import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
 import 'reminder_settings_page.dart';
+import 'settings_data_pages.dart';
+import 'settings_home_pages.dart';
+import 'settings_style_pages.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -34,97 +23,112 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final ThemeController theme = context.watch<ThemeController>();
+    final UiStyleController ui = context.watch<UiStyleController>();
+    final HomeSettings home = context.watch<HomeSettings>();
+    final ReminderSettings reminder = context.watch<ReminderSettings>();
     final ModuleRegistry modules = context.watch<ModuleRegistry>();
     final double width = MediaQuery.sizeOf(context).width;
     final double horizontal = width < 700 ? AppSpacing.xl : AppSpacing.xxl;
 
+    final List<AppModuleDescriptor> navModules = <AppModuleDescriptor>[
+      for (final String id in home.bottomModules)
+        ...modules.all.where((AppModuleDescriptor module) => module.id == id),
+    ];
+    final String navSummary = <String>[
+      '主页',
+      for (final AppModuleDescriptor module in navModules) module.title,
+      '设置',
+    ].join(' · ');
+
+    final String themeLabel = switch (theme.mode) {
+      ThemeMode.system => '跟随系统',
+      ThemeMode.light => '浅色',
+      ThemeMode.dark => '深色',
+    };
+
+    final List<_SettingsEntryData> entries = <_SettingsEntryData>[
+      _SettingsEntryData(
+        icon: Icons.brightness_6_outlined,
+        title: '外观',
+        summary: themeLabel,
+        builder: () => const AppearanceSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.palette_outlined,
+        title: '界面风格',
+        summary: ui.isRefresh ? '新版 · ${ui.accent.label}' : '经典',
+        builder: () => const InterfaceStyleSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.home_outlined,
+        title: '主页',
+        summary: '${home.cards.length} / ${HomeCard.values.length} 张卡片',
+        builder: () => const HomeCardsSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.view_sidebar_outlined,
+        title: '底部导航',
+        summary: navSummary,
+        builder: () => const BottomNavSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.alarm_outlined,
+        title: '提醒',
+        summary: reminder.summaryLabel,
+        builder: () => const ReminderSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.extension_outlined,
+        title: '模块管理',
+        summary: '已启用 ${modules.enabled.length} / ${modules.all.length}',
+        builder: () => const ModuleSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.storage_outlined,
+        title: '本地数据',
+        summary: '备份、恢复与示例数据',
+        builder: () => const LocalDataSettingsPage(),
+      ),
+    ];
+
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: AppSpacing.xl),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontal,
+        vertical: AppSpacing.lg,
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const SectionHeader(title: '外观'),
-              const SizedBox(height: AppSpacing.sm),
-              AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: SegmentBar<ThemeMode>(
-                  expand: true,
-                  options: const <SegmentOption<ThemeMode>>[
-                    SegmentOption<ThemeMode>(value: ThemeMode.system, label: '跟随系统'),
-                    SegmentOption<ThemeMode>(value: ThemeMode.light, label: '浅色'),
-                    SegmentOption<ThemeMode>(value: ThemeMode.dark, label: '深色'),
-                  ],
-                  value: theme.mode,
-                  onChanged: (ThemeMode mode) =>
-                      context.read<ThemeController>().setMode(mode),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader(
-                title: '界面风格',
-                subtitle: '经典版可随时切回；新版支持主题色与玻璃质感。',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const AppCard(
-                padding: EdgeInsets.zero,
-                child: _InterfaceStyleSection(),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader(
-                title: '主页',
-                subtitle: '选择主页上显示的卡片',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const AppCard(
-                padding: EdgeInsets.zero,
-                child: _HomeCardsSection(),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader(
-                title: '底部导航',
-                subtitle: '主页与设置固定显示，可再添加最多 3 个模块。',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const AppCard(
-                padding: EdgeInsets.zero,
-                child: _BottomNavSection(),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader(
-                title: '提醒',
-                subtitle: '应用内横幅与系统通知，可分别开关。',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const AppCard(
-                padding: EdgeInsets.zero,
-                child: _ReminderEntry(),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              SectionHeader(
-                title: '模块管理',
-                subtitle: '关闭后仅隐藏入口与扩展槽位，历史数据完整保留。',
-              ),
-              const SizedBox(height: AppSpacing.sm),
               AppCard(
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: <Widget>[
-                    for (int index = 0; index < modules.all.length; index++)
-                      _ModuleRow(
-                        module: modules.all[index],
-                        enabled: modules.isEnabled(modules.all[index].id),
-                        showDivider: index != modules.all.length - 1,
+                    for (int index = 0; index < entries.length; index++)
+                      Column(
+                        children: <Widget>[
+                          _SettingsEntry(
+                            data: entries[index],
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => entries[index].builder(),
+                              ),
+                            ),
+                          ),
+                          if (index != entries.length - 1)
+                            Divider(
+                              color: palette.hairline,
+                              height: 1,
+                              indent: AppSpacing.lg,
+                              endIndent: AppSpacing.lg,
+                            ),
+                        ],
                       ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader(title: '本地数据'),
-              const SizedBox(height: AppSpacing.sm),
-              AppCard(child: _LocalDataSection()),
               const SizedBox(height: AppSpacing.xl),
               Row(
                 children: <Widget>[
@@ -135,7 +139,7 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                '当前版本 0.1.0 · Milestone 1 骨架。所有实体已预留 id / updatedAt / deletedAt / syncStatus，可直接接入服务端同步。',
+                '当前版本 0.1.0 · 所有实体已预留 id / updatedAt / deletedAt / syncStatus，可直接接入服务端同步。',
                 style: context.texts.bodySmall,
               ),
             ],
@@ -146,19 +150,31 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-class _ReminderEntry extends StatelessWidget {
-  const _ReminderEntry();
+class _SettingsEntryData {
+  const _SettingsEntryData({
+    required this.icon,
+    required this.title,
+    required this.summary,
+    required this.builder,
+  });
+
+  final IconData icon;
+  final String title;
+  final String summary;
+  final Widget Function() builder;
+}
+
+class _SettingsEntry extends StatelessWidget {
+  const _SettingsEntry({required this.data, required this.onTap});
+
+  final _SettingsEntryData data;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final ReminderSettings settings = context.watch<ReminderSettings>();
     return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const ReminderSettingsPage(),
-        ),
-      ),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -166,13 +182,28 @@ class _ReminderEntry extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: palette.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Icon(data.icon, size: 16, color: palette.accent),
+            ),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('提醒设置', style: context.texts.titleSmall),
+                  Text(data.title, style: context.texts.titleSmall),
                   const SizedBox(height: 2),
-                  Text(settings.summaryLabel, style: context.texts.bodySmall),
+                  Text(
+                    data.summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.texts.bodySmall,
+                  ),
                 ],
               ),
             ),
@@ -184,654 +215,6 @@ class _ReminderEntry extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HomeCardsSection extends StatelessWidget {
-  const _HomeCardsSection();
-
-  static const Map<HomeCard, (String, String)> _labels =
-      <HomeCard, (String, String)>{
-    HomeCard.overview: ('今日概览', '完成任务、打卡、学习与完成时间块'),
-    HomeCard.heatmap: ('热力图', '最近 12 周的活跃度'),
-    HomeCard.rhythm: ('节奏指标', '连续记录、本周完成率与学习时长'),
-    HomeCard.todos: ('今日待办', '当天安排的待办事项'),
-    HomeCard.habits: ('今日习惯', '今日打卡情况'),
-    HomeCard.shortcuts: ('快捷入口', '时间盒、学习、项目、复盘'),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final HomeSettings settings = context.watch<HomeSettings>();
-    final List<HomeCard> cards = HomeCard.values;
-    return Column(
-      children: <Widget>[
-        for (int i = 0; i < cards.length; i++) ...<Widget>[
-          _StyleSwitchRow(
-            title: _labels[cards[i]]!.$1,
-            subtitle: _labels[cards[i]]!.$2,
-            value: settings.isEnabled(cards[i]),
-            onChanged: (bool value) =>
-                settings.setCardEnabled(cards[i], value),
-          ),
-          if (i != cards.length - 1) const Divider(height: 1),
-        ],
-      ],
-    );
-  }
-}
-
-class _BottomNavSection extends StatelessWidget {
-  const _BottomNavSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final HomeSettings settings = context.watch<HomeSettings>();
-    final List<AppModuleDescriptor> modules = context
-        .watch<ModuleRegistry>()
-        .enabled
-        .where(
-          (AppModuleDescriptor module) =>
-              module.routeName != AppRoutes.settings,
-        )
-        .toList(growable: false);
-
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text('主页与设置为固定项。', style: context.texts.bodySmall),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: <Widget>[
-              for (final AppModuleDescriptor module in modules)
-                _ModuleChip(
-                  module: module,
-                  selected: settings.bottomModules.contains(module.id),
-                  onTap: () {
-                    final List<String> ids =
-                        List<String>.from(settings.bottomModules);
-                    if (ids.contains(module.id)) {
-                      ids.remove(module.id);
-                    } else {
-                      if (ids.length >= HomeSettings.maxBottomModules) return;
-                      ids.add(module.id);
-                    }
-                    settings.setBottomModules(ids);
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '已选 ${settings.bottomModules.length} / ${HomeSettings.maxBottomModules}（不含主页与设置）',
-            style: context.texts.labelSmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModuleChip extends StatelessWidget {
-  const _ModuleChip({
-    required this.module,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final AppModuleDescriptor module;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return Material(
-      color: selected ? palette.accentSoft : palette.surfaceMuted,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(
-                module.icon,
-                size: 14,
-                color: selected ? palette.accent : palette.textSecondary,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                module.title,
-                style: context.texts.labelSmall?.copyWith(
-                  color: selected ? palette.accent : palette.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InterfaceStyleSection extends StatelessWidget {
-  const _InterfaceStyleSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final UiStyleController ui = context.watch<UiStyleController>();
-    final AppPalette palette = context.palette;
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _StyleChoice(
-                      label: '经典',
-                      selected: !ui.isRefresh,
-                      onTap: () => ui.setStyle(AppUiStyle.classic),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _StyleChoice(
-                      label: '新版',
-                      selected: ui.isRefresh,
-                      onTap: () => ui.setStyle(AppUiStyle.refresh),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('主题色', style: context.texts.labelMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: <Widget>[
-                  for (final AppAccentTheme theme in AppAccentTheme.values)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.md),
-                      child: Tooltip(
-                        message: theme.label,
-                        child: InkWell(
-                          onTap: () => ui.setAccent(theme),
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                          child: Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: theme.accent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ui.accent == theme
-                                    ? palette.textPrimary
-                                    : palette.glassBorder,
-                                width: ui.accent == theme ? 2 : 1,
-                              ),
-                            ),
-                            child: ui.accent == theme
-                                ? Icon(
-                                    Icons.check_rounded,
-                                    size: 15,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              if (!ui.isRefresh) ...<Widget>[
-                const SizedBox(height: AppSpacing.sm),
-                Text('切换到新版后生效', style: context.texts.labelSmall),
-              ],
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        _StyleSwitchRow(
-          title: '降低透明效果',
-          subtitle: '关闭玻璃模糊，低端机更流畅',
-          value: !ui.glassEnabled,
-          onChanged: (bool value) => ui.setGlassEnabled(!value),
-        ),
-      ],
-    );
-  }
-}
-
-class _StyleChoice extends StatelessWidget {
-  const _StyleChoice({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? palette.textPrimary : palette.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-        ),
-        child: Text(
-          label,
-          style: context.texts.bodyMedium?.copyWith(
-            color: selected ? palette.background : palette.textSecondary,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StyleSwitchRow extends StatelessWidget {
-  const _StyleSwitchRow({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: 10,
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(title, style: context.texts.titleSmall),
-                const SizedBox(height: 2),
-                Text(subtitle, style: context.texts.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Switch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModuleRow extends StatelessWidget {
-  const _ModuleRow({
-    required this.module,
-    required this.enabled,
-    required this.showDivider,
-  });
-
-  final AppModuleDescriptor module;
-  final bool enabled;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: palette.surfaceMuted,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(
-                  module.icon,
-                  size: 16,
-                  color: enabled ? palette.accent : palette.textTertiary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            module.title,
-                            style: context.texts.titleSmall?.copyWith(
-                              color: enabled ? palette.textPrimary : palette.textTertiary,
-                            ),
-                          ),
-                        ),
-                        if (module.isCore) ...<Widget>[
-                          const SizedBox(width: 6),
-                          const AppChip(label: '核心', dense: true, filled: true),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      module.description,
-                      style: context.texts.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Switch(
-                value: enabled,
-                onChanged: module.isCore
-                    ? null
-                    : (bool value) => context
-                        .read<ModuleRegistry>()
-                        .setEnabled(module.id, value),
-              ),
-            ],
-          ),
-        ),
-        if (showDivider) Divider(color: palette.hairline, height: 1),
-      ],
-    );
-  }
-}
-
-class _LocalDataSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    final int actionCount = context.watch<ActionItemRepository>().count;
-    final int blockCount = context.watch<TimeBlockRepository>().count;
-    final int visionCount = context.watch<VisionRepository>().count;
-    final int capabilityCount = context.watch<CapabilityRepository>().count;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Row(
-          children: <Widget>[
-            _Stat(label: '愿景', value: visionCount),
-            _Stat(label: '能力', value: capabilityCount),
-            _Stat(label: '行动单元', value: actionCount),
-            _Stat(label: '时间块', value: blockCount),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: <Widget>[
-            AppGhostButton(
-              label: '重新载入示例数据',
-              icon: Icons.refresh_rounded,
-              onPressed: () => _reloadSeed(context),
-            ),
-            AppGhostButton(
-              label: '导出备份',
-              icon: Icons.download_rounded,
-              onPressed: () => _exportBackup(context),
-            ),
-            AppGhostButton(
-              label: '从文件恢复',
-              icon: Icons.upload_rounded,
-              onPressed: () => _confirmImportBackup(context),
-            ),
-            AppGhostButton(
-              label: '清空全部数据',
-              icon: Icons.delete_outline_rounded,
-              tone: palette.danger,
-              onPressed: () => _confirmWipe(context),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _reloadSeed(BuildContext context) async {
-    final AppBootstrap bootstrap = context.read<AppBootstrap>();
-    await SeedData.reload(
-      db: bootstrap.db,
-      visions: bootstrap.visions,
-      capabilities: bootstrap.capabilities,
-      actions: bootstrap.actions,
-      timeBlocks: bootstrap.timeBlocks,
-    );
-    if (!context.mounted) return;
-    context.read<UiController>().closeOverlays();
-    _toast(context, '示例数据已载入');
-  }
-
-  Future<void> _exportBackup(BuildContext context) async {
-    final AppBootstrap bootstrap = context.read<AppBootstrap>();
-    final String raw =
-        const JsonEncoder.withIndent('  ').convert(bootstrap.db.exportData());
-    final Uint8List bytes = Uint8List.fromList(utf8.encode(raw));
-    final String fileName =
-        'life-plan-backup-${AppDate.dateKey(DateTime.now())}.json';
-
-    Uri? saved;
-    try {
-      saved = await FilePicker.saveFile(
-        dialogTitle: '保存备份文件',
-        fileName: fileName,
-        bytes: bytes,
-        mimeType: 'application/json',
-      );
-    } catch (_) {
-      if (!context.mounted) return;
-      _toast(context, '导出失败：无法打开保存对话框');
-      return;
-    }
-    if (!context.mounted) return;
-    if (saved == null && !kIsWeb) return;
-
-    final String size = '${(bytes.length / 1024).toStringAsFixed(1)} KB';
-    _toast(
-      context,
-      kIsWeb ? '备份已下载 · $fileName · $size' : '备份已保存 · $fileName · $size',
-    );
-  }
-
-  Future<void> _confirmImportBackup(BuildContext context) async {
-    PlatformFile? file;
-    try {
-      file = await FilePicker.pickFile(
-        dialogTitle: '选择备份文件',
-        type: FileType.custom,
-        allowedExtensions: <String>['json'],
-      );
-    } catch (_) {
-      if (!context.mounted) return;
-      _toast(context, '无法打开文件选择器');
-      return;
-    }
-    if (file == null) return;
-
-    String raw;
-    try {
-      raw = (await file.xFile.readAsString()).trim();
-    } catch (_) {
-      if (!context.mounted) return;
-      _toast(context, '无法读取所选文件');
-      return;
-    }
-    if (!context.mounted) return;
-    if (raw.isEmpty) {
-      _toast(context, '备份文件为空');
-      return;
-    }
-
-    Object? parsed;
-    try {
-      parsed = jsonDecode(raw);
-    } catch (_) {
-      _toast(context, '文件不是有效的备份 JSON');
-      return;
-    }
-    if (parsed is! Map) {
-      _toast(context, '文件不是有效的备份 JSON');
-      return;
-    }
-
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text(
-            '用「${file!.name}」恢复？',
-            style: dialogContext.texts.titleLarge,
-          ),
-          content: Text(
-            '当前全部业务数据会被覆盖，设置项保持不变。恢复后建议重启应用以刷新所有页面。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
-          ),
-          actions: <Widget>[
-            AppGhostButton(
-              label: '取消',
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-            ),
-            AppPrimaryButton(
-              label: '确认恢复',
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      final AppBootstrap bootstrap = context.read<AppBootstrap>();
-      await bootstrap.db.importData(parsed.cast<String, dynamic>());
-      if (!context.mounted) return;
-      _toast(context, '备份已恢复，建议重启应用以刷新所有页面');
-    } catch (_) {
-      if (!context.mounted) return;
-      _toast(context, '恢复失败：备份结构无法识别');
-    }
-  }
-
-  Future<void> _confirmWipe(BuildContext context) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('清空全部本地数据？', style: dialogContext.texts.titleLarge),
-          content: Text(
-            '将删除愿景、能力、行动单元、时间块与复盘记录，且无法撤销。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
-          ),
-          actions: <Widget>[
-            AppGhostButton(
-              label: '取消',
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-            ),
-            AppPrimaryButton(
-              label: '确认清空',
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final AppBootstrap bootstrap = context.read<AppBootstrap>();
-    await bootstrap.db.wipeData();
-    if (!context.mounted) return;
-    context.read<UiController>().closeOverlays();
-    _toast(context, '本地数据已清空');
-  }
-
-  void _toast(BuildContext context, String message) {
-    final AppPalette palette = context.palette;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: context.texts.bodyMedium?.copyWith(color: palette.background)),
-        backgroundColor: palette.textPrimary,
-        behavior: SnackBarBehavior.floating,
-        width: 260,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            '$value',
-            style: context.texts.headlineSmall?.copyWith(color: palette.textPrimary),
-          ),
-          const SizedBox(height: 2),
-          Text(label, style: context.texts.labelSmall),
-        ],
       ),
     );
   }
