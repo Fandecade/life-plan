@@ -11,10 +11,35 @@ import '../theme/ui_style.dart';
 
 /// 顶栏：左侧模块标题，最右侧为任务池；时间盒时安排记录紧挨在任务池左侧。
 class TopBar extends StatelessWidget {
-  const TopBar({super.key, required this.title, required this.isDesktop});
+  const TopBar({
+    super.key,
+    required this.title,
+    required this.isDesktop,
+    this.onTitleTap,
+  });
 
   final String title;
   final bool isDesktop;
+
+  /// 手机端点击标题区域打开左侧抽屉。
+  final VoidCallback? onTitleTap;
+
+  Widget _wrapTitle(BuildContext context, TextStyle? style) {
+    final Widget text = Text(
+      title,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    if (onTitleTap == null) return text;
+    return InkWell(
+      onTap: onTitleTap,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: text,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +59,9 @@ class TopBar extends StatelessWidget {
         child: Row(
           children: <Widget>[
             Expanded(
-              child: Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                style: context.texts.displaySmall?.copyWith(
+              child: _wrapTitle(
+                context,
+                context.texts.displaySmall?.copyWith(
                   fontSize: isDesktop ? 30 : 24,
                   letterSpacing: -0.9,
                 ),
@@ -74,11 +98,7 @@ class TopBar extends StatelessWidget {
         children: <Widget>[
           // 标题撑满剩余空间，让任务池/安排记录始终贴住顶部栏最右侧。
           Expanded(
-            child: Text(
-              title,
-              overflow: TextOverflow.ellipsis,
-              style: context.texts.titleLarge,
-            ),
+            child: _wrapTitle(context, context.texts.titleLarge),
           ),
           if (ui.currentRoute == AppRoutes.timeBox) ...<Widget>[
             _ScheduleTrigger(

@@ -35,10 +35,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(bootstrap.uiStyle.style, AppUiStyle.refresh);
-    expect(find.text('更多'), findsWidgets);
-    expect(find.text('及时复盘'), findsNothing);
-    expect(find.text('人生规划'), findsWidgets);
-    expect(find.text('福格习惯'), findsWidgets);
+    expect(find.text('主页'), findsWidgets);
+    expect(find.text('时间盒'), findsWidgets);
+    expect(find.text('设置'), findsWidgets);
+    expect(find.text('福格习惯'), findsNothing);
   });
 
   testWidgets('经典/新版切换、主题色与降低透明效果', (WidgetTester tester) async {

@@ -3,6 +3,7 @@ import '../core/database/repositories.dart';
 import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
+import '../core/services/dashboard_service.dart';
 import '../core/services/habit_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/reminder_service.dart';
@@ -10,6 +11,7 @@ import '../core/services/reminder_settings.dart';
 import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
+import '../core/state/home_settings.dart';
 import '../core/state/theme_controller.dart';
 import '../core/state/ui_style_controller.dart';
 
@@ -42,6 +44,8 @@ class AppBootstrap {
     required this.modules,
     required this.theme,
     required this.uiStyle,
+    required this.homeSettings,
+    required this.dashboard,
     required this.reminderSettings,
     required this.reminders,
     required this.notifications,
@@ -70,6 +74,8 @@ class AppBootstrap {
   final ModuleRegistry modules;
   final ThemeController theme;
   final UiStyleController uiStyle;
+  final HomeSettings homeSettings;
+  final DashboardService dashboard;
   final ReminderSettings reminderSettings;
   final ReminderService reminders;
   final NotificationService notifications;
@@ -131,6 +137,14 @@ class AppBootstrap {
     );
     final ThemeController theme = ThemeController(db.settings);
     final UiStyleController uiStyle = UiStyleController(db.settings);
+    final HomeSettings homeSettings = HomeSettings(db.settings);
+    final DashboardService dashboard = DashboardService(
+      actions: actions,
+      blocks: timeBlocks,
+      habits: foggHabits,
+      habitLogs: habitLogs,
+      sessions: learningSessions,
+    );
     final ReminderSettings reminderSettings = ReminderSettings(db.settings);
     final ReminderService reminders = ReminderService(
       settings: reminderSettings,
@@ -181,6 +195,8 @@ class AppBootstrap {
       modules: modules,
       theme: theme,
       uiStyle: uiStyle,
+      homeSettings: homeSettings,
+      dashboard: dashboard,
       reminderSettings: reminderSettings,
       reminders: reminders,
       notifications: notifications,
@@ -206,6 +222,7 @@ class AppBootstrap {
     modules.dispose();
     theme.dispose();
     uiStyle.dispose();
+    homeSettings.dispose();
     reminderSettings.dispose();
     db.close();
   }

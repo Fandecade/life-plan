@@ -40,7 +40,7 @@ void main() {
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('人生规划').first);
+    await tester.tap(find.text('人生规划').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

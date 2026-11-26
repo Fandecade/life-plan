@@ -27,12 +27,7 @@ class MobileBottomNav extends StatelessWidget {
       return _buildClassic(context, palette);
     }
 
-    final List<AppModuleDescriptor> primary =
-        modules.take(5).toList(growable: false);
-    final List<AppModuleDescriptor> secondary =
-        modules.skip(5).toList(growable: false);
-    final bool moreSelected =
-        secondary.any((AppModuleDescriptor m) => m.routeName == currentRoute);
+    final List<AppModuleDescriptor> items = modules;
 
     return SafeArea(
       top: false,
@@ -55,19 +50,12 @@ class MobileBottomNav extends StatelessWidget {
               ),
               child: Row(
                 children: <Widget>[
-                  for (final AppModuleDescriptor module in primary)
+                  for (final AppModuleDescriptor module in items)
                     Expanded(
                       child: _RefreshItem(
                         module: module,
                         selected: module.routeName == currentRoute,
                         onTap: () => onSelect(module.routeName),
-                      ),
-                    ),
-                  if (secondary.isNotEmpty)
-                    Expanded(
-                      child: _RefreshMoreItem(
-                        selected: moreSelected,
-                        onTap: () => _openMore(context, secondary),
                       ),
                     ),
                 ],
@@ -109,77 +97,6 @@ class MobileBottomNav extends StatelessWidget {
     );
   }
 
-  Future<void> _openMore(
-    BuildContext context,
-    List<AppModuleDescriptor> secondary,
-  ) async {
-    final String? route = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (BuildContext sheetContext) {
-        final AppPalette palette = sheetContext.palette;
-        Widget sheet = Material(
-          color: palette.glassEnabled ? palette.glass : palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: palette.glassBorder),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                for (final AppModuleDescriptor module in secondary)
-                  ListTile(
-                    dense: true,
-                    leading: Icon(
-                      module.icon,
-                      size: 18,
-                      color: palette.textSecondary,
-                    ),
-                    title: Text(
-                      module.title,
-                      style: sheetContext.texts.bodyMedium,
-                    ),
-                    trailing: module.routeName == currentRoute
-                        ? Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: palette.accent,
-                          )
-                        : null,
-                    onTap: () =>
-                        Navigator.of(sheetContext).pop(module.routeName),
-                  ),
-              ],
-            ),
-          ),
-        );
-        if (palette.glassEnabled && palette.glassBlur > 0) {
-          sheet = ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(
-                sigmaX: palette.glassBlur,
-                sigmaY: palette.glassBlur,
-              ),
-              child: sheet,
-            ),
-          );
-        }
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: sheet,
-          ),
-        );
-      },
-    );
-    if (route != null) onSelect(route);
-  }
 }
 
 class _RefreshItem extends StatelessWidget {
@@ -236,52 +153,6 @@ class _RefreshItem extends StatelessWidget {
   }
 }
 
-class _RefreshMoreItem extends StatelessWidget {
-  const _RefreshMoreItem({required this.selected, required this.onTap});
-
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    final Color active = palette.background;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? palette.textPrimary : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.grid_view_rounded,
-              size: 17,
-              color: selected ? active : palette.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '更多',
-            style: context.texts.labelSmall?.copyWith(
-              fontSize: 9,
-              color: selected ? palette.textPrimary : palette.textTertiary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _MobileItem extends StatelessWidget {
   const _MobileItem({

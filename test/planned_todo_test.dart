@@ -7,6 +7,7 @@ import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
 import 'package:life_planner/core/utils/date_utils.dart';
 import 'package:life_planner/core/widgets/app_card.dart';
+import 'package:life_planner/app/shell/desktop_side_nav.dart';
 import 'package:life_planner/app/shell/inbox_panel.dart';
 import 'package:life_planner/core/widgets/state_views.dart';
 import 'package:life_planner/modules/time_box/day_todo_view.dart';
@@ -81,7 +82,15 @@ void main() {
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text(title).first);
+    final Finder sideNavItem = find.descendant(
+      of: find.byType(DesktopSideNav),
+      matching: find.text(title),
+    );
+    if (sideNavItem.evaluate().isNotEmpty) {
+      await tester.tap(sideNavItem.last);
+    } else {
+      await tester.tap(find.text(title).last);
+    }
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
   }

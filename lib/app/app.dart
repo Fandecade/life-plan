@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/database/repositories.dart';
 import '../core/plugin/module_registry.dart';
+import '../core/services/dashboard_service.dart';
 import '../core/services/habit_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/reminder_service.dart';
@@ -12,6 +13,7 @@ import '../core/services/reminder_settings.dart';
 import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
+import '../core/state/home_settings.dart';
 import '../core/state/theme_controller.dart';
 import '../core/state/ui_controller.dart';
 import '../core/state/ui_style_controller.dart';
@@ -34,6 +36,10 @@ class LifePlannerApp extends StatelessWidget {
         ChangeNotifierProvider<UiStyleController>.value(
           value: bootstrap.uiStyle,
         ),
+        ChangeNotifierProvider<HomeSettings>.value(
+          value: bootstrap.homeSettings,
+        ),
+        Provider<DashboardService>.value(value: bootstrap.dashboard),
         ChangeNotifierProvider<ReminderSettings>.value(
           value: bootstrap.reminderSettings,
         ),

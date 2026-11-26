@@ -10,9 +10,13 @@ import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_service.dart';
+import '../../core/state/home_settings.dart';
 import '../../core/state/ui_controller.dart';
+import '../../modules/home/home_page.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
+import '../theme/ui_style.dart';
+import 'app_drawer.dart';
 import 'desktop_side_nav.dart';
 import 'detail_drawer.dart';
 import 'glass_background.dart';
@@ -37,6 +41,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Timer? _bannerTimer;
   final Queue<ReminderEvent> _pendingReminders = Queue<ReminderEvent>();
   ReminderEvent? _currentReminder;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -183,24 +188,50 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final UiController ui = context.watch<UiController>();
     final ModuleRegistry registry = context.watch<ModuleRegistry>();
     final List<AppModuleDescriptor> modules = registry.enabled;
+    final HomeSettings homeSettings = context.watch<HomeSettings>();
 
-    AppModuleDescriptor? current;
-    for (final AppModuleDescriptor module in modules) {
-      if (module.routeName == ui.currentRoute) {
-        current = module;
-        break;
+    AppModuleDescriptor? current =
+        ui.currentRoute == AppRoutes.home ? homeDescriptor : null;
+    if (current == null) {
+      for (final AppModuleDescriptor module in modules) {
+        if (module.routeName == ui.currentRoute) {
+          current = module;
+          break;
+        }
       }
     }
 
-    // 当前模块被停用（或首次启动）时，自动回到首个可用模块。
-    if (current == null && modules.isNotEmpty) {
+    // 当前模块被停用（或首次启动）时，自动回到主页。
+    if (current == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final String target = modules.first.routeName;
-        if (context.read<UiController>().currentRoute != target) {
-          context.read<UiController>().setRoute(target);
+        if (context.read<UiController>().currentRoute != AppRoutes.home) {
+          context.read<UiController>().setRoute(AppRoutes.home);
         }
       });
+    }
+
+    final List<AppModuleDescriptor> navItems = <AppModuleDescriptor>[
+      homeDescriptor,
+    ];
+    for (final String id in homeSettings.bottomModules) {
+      for (final AppModuleDescriptor module in modules) {
+        if (module.id == id &&
+            module.routeName != AppRoutes.settings &&
+            !navItems.any(
+              (AppModuleDescriptor item) =>
+                  item.routeName == module.routeName,
+            )) {
+          navItems.add(module);
+          break;
+        }
+      }
+    }
+    for (final AppModuleDescriptor module in modules) {
+      if (module.routeName == AppRoutes.settings) {
+        navItems.add(module);
+        break;
+      }
     }
 
     final String? detailItemId = ui.detailItemId;
@@ -230,7 +261,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ui.closeOverlays();
               },
               child: Scaffold(
+                key: _scaffoldKey,
                 backgroundColor: palette.background,
+                drawer: isDesktop
+                    ? null
+                    : AppDrawer(
+                        modules: modules,
+                        currentRoute: ui.currentRoute,
+                        onSelect: ui.setRoute,
+                      ),
+                drawerEdgeDragWidth: 24,
+                drawerEnableOpenDragGesture: !isDesktop,
                 body: GlassBackground(
                   child: Stack(
                   children: <Widget>[
@@ -238,7 +279,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       children: <Widget>[
                         if (isDesktop)
                           DesktopSideNav(
-                            modules: modules,
+                            modules: <AppModuleDescriptor>[
+                              homeDescriptor,
+                              ...modules,
+                            ],
                             currentRoute: ui.currentRoute,
                             collapsed: ui.navCollapsed,
                             onToggle: ui.toggleNav,
@@ -250,8 +294,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                               SafeArea(
                                 bottom: false,
                                 child: TopBar(
-                                  title: current?.title ?? '人生规划',
+                                  title: current?.title ?? '主页',
                                   isDesktop: isDesktop,
+                                  onTitleTap: isDesktop
+                                      ? null
+                                      : () => _scaffoldKey.currentState
+                                          ?.openDrawer(),
                                 ),
                               ),
                               Expanded(
@@ -318,7 +366,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 bottomNavigationBar: isDesktop
                     ? null
                     : MobileBottomNav(
-                        modules: modules,
+                        modules: palette.style == AppUiStyle.refresh
+                            ? navItems
+                            : <AppModuleDescriptor>[
+                                homeDescriptor,
+                                ...modules,
+                              ],
                         currentRoute: ui.currentRoute,
                         onSelect: ui.setRoute,
                       ),

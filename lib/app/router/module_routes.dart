@@ -2,6 +2,7 @@
 class AppRoutes {
   const AppRoutes._();
 
+  static const String home = '/home';
   static const String visionMap = '/vision-map';
   static const String projects = '/projects';
   static const String timeBox = '/time-box';

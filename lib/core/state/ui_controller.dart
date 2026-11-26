@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 ///
 /// 只描述「界面处于什么状态」，不承载业务数据，避免与仓储职责混淆。
 class UiController extends ChangeNotifier {
-  UiController({String initialRoute = '/vision-map'})
+  UiController({String initialRoute = '/home'})
       : _currentRoute = initialRoute;
 
   String _currentRoute;

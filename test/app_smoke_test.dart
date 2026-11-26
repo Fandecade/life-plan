@@ -73,6 +73,11 @@ void main() {
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pumpAndSettle();
 
+    // 默认落在主页，先切到人生规划。
+    await tester.tap(find.text('人生规划').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
     // 愿景 → 能力 → 任务 三级节点同时存在
     expect(find.text('成为能独立交付产品的创造者'), findsWidgets);
     expect(find.text('产品设计与实现'), findsWidgets);
@@ -98,6 +103,10 @@ void main() {
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('人生规划').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
     final int before = bootstrap.actions.all.length;
 
     await tester.tap(find.byType(TaskNodeCard).first);
@@ -122,6 +131,10 @@ void main() {
 
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pumpAndSettle();
+
+    await tester.tap(find.text('人生规划').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // 愿景卡：空格打开节点的编辑详情，而不是就地改名
     await tester.tap(find.byType(VisionNodeCard).first);
@@ -165,6 +178,10 @@ void main() {
 
     await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
     await tester.pumpAndSettle();
+
+    await tester.tap(find.text('人生规划').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     final int before = find.byType(TaskNodeCard).evaluate().length;
     expect(before, greaterThanOrEqualTo(3));
