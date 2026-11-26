@@ -10,6 +10,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
@@ -75,13 +76,7 @@ class DayHabitView extends StatelessWidget {
     return AppCard(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      onTap: () async {
-        if (done) {
-          await service.undoToday(habit);
-        } else {
-          await service.checkIn(habit);
-        }
-      },
+      onTap: () => _toggle(context, service, habit),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -161,19 +156,27 @@ class DayHabitView extends StatelessWidget {
                 checked: done,
                 size: 24,
                 padding: 0,
-                onTap: () async {
-                  if (done) {
-                    await service.undoToday(habit);
-                  } else {
-                    await service.checkIn(habit);
-                  }
-                },
+                onTap: () => _toggle(context, service, habit),
               ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggle(
+    BuildContext context,
+    HabitService service,
+    FoggHabit habit,
+  ) async {
+    if (service.isDoneToday(habit)) {
+      final bool confirmed = await confirmCancelHabitCheckIn(context);
+      if (!confirmed || !context.mounted) return;
+      await service.undoToday(habit);
+      return;
+    }
+    await service.checkIn(habit);
   }
 
   Future<void> _openMenu(BuildContext anchorContext, FoggHabit habit) async {

@@ -184,6 +184,32 @@ void main() {
     );
   });
 
+  testWidgets('排期日历可清除已有计划日期', (WidgetTester tester) async {
+    await openModule(tester, '人生规划');
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.tap(find.text('详情排期任务').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final Finder scheduleButton = find.text('排入时间盒');
+    await tester.ensureVisible(scheduleButton);
+    await tester.pump();
+    await tester.tap(scheduleButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('清除日期'), findsOneWidget);
+    await tester.tap(find.text('清除日期'));
+    await settle(tester);
+
+    expect(
+      bootstrap.actions.byId(detailTask.id)!.scheduledDate,
+      isNull,
+      reason: '清除日期后任务应回到未定日期',
+    );
+  });
+
   testWidgets('任务池的排入时间盒也支持只安排到这一天', (WidgetTester tester) async {
     await openModule(tester, '时间盒');
     await tester.pump(const Duration(milliseconds: 200));

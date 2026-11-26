@@ -7,6 +7,7 @@ import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/services/habit_service.dart';
+import '../../core/widgets/confirm_dialog.dart';
 
 /// 时间盒日视图顶部的轻提示条：今日激活的微习惯，一键打卡。
 ///
@@ -48,13 +49,7 @@ class HabitAnchorStrip extends StatelessWidget {
                     _AnchorPill(
                       habit: habit,
                       done: service.isDoneToday(habit),
-                      onTap: () async {
-                        if (service.isDoneToday(habit)) {
-                          await service.undoToday(habit);
-                        } else {
-                          await service.checkIn(habit);
-                        }
-                      },
+                      onTap: () => _toggle(context, service, habit),
                     ),
                     const SizedBox(width: 6),
                   ],
@@ -65,6 +60,20 @@ class HabitAnchorStrip extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toggle(
+    BuildContext context,
+    HabitService service,
+    FoggHabit habit,
+  ) async {
+    if (service.isDoneToday(habit)) {
+      final bool confirmed = await confirmCancelHabitCheckIn(context);
+      if (!confirmed || !context.mounted) return;
+      await service.undoToday(habit);
+      return;
+    }
+    await service.checkIn(habit);
   }
 }
 

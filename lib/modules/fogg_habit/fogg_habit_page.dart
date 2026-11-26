@@ -10,6 +10,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
@@ -455,6 +456,8 @@ class _FoggHabitPageState extends State<FoggHabitPage> {
   Future<void> _toggle(BuildContext context, FoggHabit habit) async {
     final HabitService service = context.read<HabitService>();
     if (service.isDoneToday(habit)) {
+      final bool confirmed = await confirmCancelHabitCheckIn(context);
+      if (!confirmed || !context.mounted) return;
       await service.undoToday(habit);
       return;
     }

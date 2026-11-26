@@ -8,6 +8,7 @@ import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -278,12 +279,14 @@ class SchedulePanel extends StatelessWidget {
     );
   }
 
-  void _toggle(BuildContext context, TimeBlock block) {
+  Future<void> _toggle(BuildContext context, TimeBlock block) async {
     final ScheduleService service = context.read<ScheduleService>();
     if (block.isCompleted) {
-      service.uncompleteBlock(block);
-    } else {
-      service.completeBlock(block);
+      final bool confirmed = await confirmCancelCompletion(context);
+      if (!confirmed || !context.mounted) return;
+      await service.uncompleteBlock(block);
+      return;
     }
+    await service.completeBlock(block);
   }
 }

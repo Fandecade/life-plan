@@ -36,6 +36,7 @@ class VisionCanvas extends StatefulWidget {
     required this.onCapabilityAction,
     required this.onTaskAction,
     required this.onRequestVisionSwitch,
+    this.vertical = false,
     this.focusNodeId,
     this.focusTaskId,
     this.onFocusHandled,
@@ -51,6 +52,9 @@ class VisionCanvas extends StatefulWidget {
   final void Function(Capability capability, MapNodeAction action) onCapabilityAction;
   final void Function(ActionItem item, MapNodeAction action) onTaskAction;
   final ValueChanged<String> onRequestVisionSwitch;
+
+  /// 纵向布局：愿景在上、能力横向排列、任务向下展开；false 为默认横向布局。
+  final bool vertical;
 
   /// 一次性聚焦：定位并选中某个能力节点（来自复盘/统计跳转）。
   final String? focusNodeId;
@@ -72,6 +76,7 @@ class _VisionCanvasState extends State<VisionCanvas> {
 
   Map<String, ActionItem> _tasksById = <String, ActionItem>{};
   String? _handledFocusId;
+  bool _verticalAligned = false;
 
   @override
   void initState() {
@@ -91,6 +96,9 @@ class _VisionCanvasState extends State<VisionCanvas> {
       _dragDelta = Offset.zero;
       _dragging = false;
       _handledFocusId = null;
+    }
+    if (oldWidget.vertical != widget.vertical) {
+      _verticalAligned = false;
     }
   }
 
@@ -444,12 +452,31 @@ class _VisionCanvasState extends State<VisionCanvas> {
       vision: widget.vision,
       capabilities: widget.capabilities,
       tasksByCapability: widget.tasksByCapability,
+      vertical: widget.vertical,
     );
 
     final Offset visionPosition = _withDrag(
       widget.vision.id,
       layout.visionTopLeft,
     );
+
+    // 纵向画布通常宽于手机视口，进入时把愿景水平居中，避免只露出半张卡片。
+    if (widget.vertical && !_verticalAligned) {
+      _verticalAligned = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final Size? viewport = context.size;
+        if (viewport == null || layout.canvasSize.width <= viewport.width) {
+          return;
+        }
+        widget.transformController.value = Matrix4.identity()
+          ..translate(
+            viewport.width / 2 -
+                (visionPosition.dx + MapMetrics.visionWidth / 2),
+            0,
+          );
+      });
+    }
 
     final Map<String, Offset> capabilityPositions = <String, Offset>{};
     for (final Capability capability in widget.capabilities) {
@@ -539,8 +566,24 @@ class _VisionCanvasState extends State<VisionCanvas> {
     }
 
     final List<MapConnection> connections = <MapConnection>[];
-    final Offset visionRight =
-        visionPosition + const Offset(MapMetrics.visionWidth, MapMetrics.visionHeight / 2);
+    final bool vertical = widget.vertical;
+    final Offset visionAnchor = vertical
+        ? visionPosition +
+            const Offset(MapMetrics.visionWidth / 2, MapMetrics.visionHeight)
+        : visionPosition +
+            const Offset(MapMetrics.visionWidth, MapMetrics.visionHeight / 2);
+    final Offset capabilityInAnchor = vertical
+        ? const Offset(MapMetrics.capabilityWidth / 2, 0)
+        : const Offset(0, MapMetrics.capabilityHeight / 2);
+    final Offset capabilityOutAnchor = vertical
+        ? const Offset(MapMetrics.capabilityWidth / 2, MapMetrics.capabilityHeight)
+        : const Offset(MapMetrics.capabilityWidth, MapMetrics.capabilityHeight / 2);
+    final Offset taskInAnchor = vertical
+        ? const Offset(MapMetrics.taskWidth / 2, 0)
+        : const Offset(0, MapMetrics.taskHeight / 2);
+    final Offset taskOutAnchor = vertical
+        ? const Offset(MapMetrics.taskWidth / 2, MapMetrics.taskHeight)
+        : const Offset(MapMetrics.taskWidth, MapMetrics.taskHeight / 2);
 
     for (final Capability capability in widget.capabilities) {
       final Offset? capPosition = capabilityPositions[capability.id];
@@ -548,8 +591,8 @@ class _VisionCanvasState extends State<VisionCanvas> {
 
       connections.add(
         MapConnection(
-          from: visionRight,
-          to: capPosition + const Offset(0, MapMetrics.capabilityHeight / 2),
+          from: visionAnchor,
+          to: capPosition + capabilityInAnchor,
           highlighted: _selection?.type == MapNodeType.capability &&
               _selection?.id == capability.id,
           dimmed: _capabilityDimmed(capability.id),
@@ -568,9 +611,9 @@ class _VisionCanvasState extends State<VisionCanvas> {
         final Offset? parentPosition =
             parentId == null ? null : taskPositions[parentId];
         if (parentPosition != null) {
-          from = parentPosition + const Offset(MapMetrics.taskWidth, MapMetrics.taskHeight / 2);
+          from = parentPosition + taskOutAnchor;
         } else if (item.parentId == null || !_tasksById.containsKey(item.parentId)) {
-          from = capPosition + const Offset(MapMetrics.capabilityWidth, MapMetrics.capabilityHeight / 2);
+          from = capPosition + capabilityOutAnchor;
         } else {
           continue;
         }
@@ -578,7 +621,7 @@ class _VisionCanvasState extends State<VisionCanvas> {
         connections.add(
           MapConnection(
             from: from,
-            to: taskPosition + const Offset(0, MapMetrics.taskHeight / 2),
+            to: taskPosition + taskInAnchor,
             highlighted: highlighted,
             dimmed: _taskDimmed(item) || _capabilityDimmed(capability.id),
           ),
@@ -617,6 +660,7 @@ class _VisionCanvasState extends State<VisionCanvas> {
                             connections: connections,
                             baseColor: palette.border,
                             accentColor: palette.accent,
+                            vertical: vertical,
                           ),
                         ),
                       ),
@@ -906,19 +950,31 @@ class _MapConnectionsPainter extends CustomPainter {
     required this.connections,
     required this.baseColor,
     required this.accentColor,
+    required this.vertical,
   });
 
   final List<MapConnection> connections;
   final Color baseColor;
   final Color accentColor;
+  final bool vertical;
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final MapConnection connection in connections) {
-      final double dx = connection.to.dx - connection.from.dx;
-      final Path path = Path()
-        ..moveTo(connection.from.dx, connection.from.dy)
-        ..cubicTo(
+      final Path path = Path()..moveTo(connection.from.dx, connection.from.dy);
+      if (vertical) {
+        final double dy = connection.to.dy - connection.from.dy;
+        path.cubicTo(
+          connection.from.dx,
+          connection.from.dy + dy * 0.45,
+          connection.to.dx,
+          connection.to.dy - dy * 0.45,
+          connection.to.dx,
+          connection.to.dy,
+        );
+      } else {
+        final double dx = connection.to.dx - connection.from.dx;
+        path.cubicTo(
           connection.from.dx + dx * 0.45,
           connection.from.dy,
           connection.to.dx - dx * 0.45,
@@ -926,6 +982,7 @@ class _MapConnectionsPainter extends CustomPainter {
           connection.to.dx,
           connection.to.dy,
         );
+      }
 
       final Color color = connection.highlighted
           ? accentColor

@@ -9,10 +9,17 @@ import '../../core/widgets/app_button.dart';
 
 /// 排期结果：只定日期（dateOnly）或具体开始时间。
 class SchedulePickResult {
-  const SchedulePickResult({required this.start, this.dateOnly = false});
+  const SchedulePickResult({
+    required this.start,
+    this.dateOnly = false,
+    this.clearDate = false,
+  });
 
   final DateTime start;
   final bool dateOnly;
+
+  /// true = 清除该任务已有的计划日期（不排期、不建块）。
+  final bool clearDate;
 }
 
 /// 统一的「选择日期 +（可选）开始时间」交互，任务池与详情抽屉共用。
@@ -22,14 +29,23 @@ class SchedulePickResult {
 Future<SchedulePickResult?> pickScheduleResult(
   BuildContext context, {
   DateTime? initialDate,
+  bool allowClearDate = false,
 }) async {
   final DateTime initial = initialDate ?? DateTime.now();
   final _DateChoice? choice = await showDialog<_DateChoice>(
     context: context,
-    builder: (BuildContext dialogContext) =>
-        _ScheduleDateDialog(initial: initial),
+    builder: (BuildContext dialogContext) => _ScheduleDateDialog(
+      initial: initial,
+      allowClearDate: allowClearDate,
+    ),
   );
   if (choice == null || !context.mounted) return null;
+  if (choice.clearDate) {
+    return SchedulePickResult(
+      start: DateTime.now(),
+      clearDate: true,
+    );
+  }
   if (choice.dateOnly) {
     return SchedulePickResult(
       start: DateTime(choice.date.year, choice.date.month, choice.date.day),
@@ -69,16 +85,25 @@ Future<DateTime?> pickScheduleStart(
 }
 
 class _DateChoice {
-  const _DateChoice({required this.date, required this.dateOnly});
+  const _DateChoice({
+    required this.date,
+    required this.dateOnly,
+    this.clearDate = false,
+  });
 
   final DateTime date;
   final bool dateOnly;
+  final bool clearDate;
 }
 
 class _ScheduleDateDialog extends StatefulWidget {
-  const _ScheduleDateDialog({required this.initial});
+  const _ScheduleDateDialog({
+    required this.initial,
+    required this.allowClearDate,
+  });
 
   final DateTime initial;
+  final bool allowClearDate;
 
   @override
   State<_ScheduleDateDialog> createState() => _ScheduleDateDialogState();
@@ -177,6 +202,17 @@ class _ScheduleDateDialogState extends State<_ScheduleDateDialog> {
           label: '取消',
           onPressed: () => Navigator.of(context).pop(),
         ),
+        if (widget.allowClearDate)
+          AppGhostButton(
+            label: '清除日期',
+            onPressed: () => Navigator.of(context).pop(
+              _DateChoice(
+                date: _date,
+                dateOnly: true,
+                clearDate: true,
+              ),
+            ),
+          ),
         AppGhostButton(
           label: '只安排到这一天',
           onPressed: () => Navigator.of(context).pop(

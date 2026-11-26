@@ -11,6 +11,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -50,9 +51,16 @@ class _InboxPanelState extends State<InboxPanel> {
     final SchedulePickResult? result = await pickScheduleResult(
       context,
       initialDate: DateTime.now(),
+      allowClearDate: item.scheduledDate != null,
     );
     if (result == null || !mounted) return;
     final ScheduleService service = context.read<ScheduleService>();
+    if (result.clearDate) {
+      await service.assignDate(item, null);
+      if (!mounted) return;
+      _toast('已清除计划日期');
+      return;
+    }
     if (result.dateOnly) {
       await service.assignDate(item, result.start);
       if (!mounted) return;
@@ -179,9 +187,7 @@ class _InboxPanelState extends State<InboxPanel> {
                         block: blocks.forActionItem(item.id),
                         onOpen: () => ui.openDetail(item.id),
                         onSchedule: () => _schedule(item),
-                        onToggle: () => context
-                            .read<ActionItemRepository>()
-                            .toggleCompleted(item.id),
+                        onToggle: () => _toggleItem(context, item),
                       ),
                     ),
                   ],
@@ -199,9 +205,7 @@ class _InboxPanelState extends State<InboxPanel> {
                             muted: true,
                             onOpen: () => ui.openDetail(item.id),
                             onSchedule: () {},
-                            onToggle: () => context
-                                .read<ActionItemRepository>()
-                                .toggleCompleted(item.id),
+                            onToggle: () => _toggleItem(context, item),
                           ),
                         ),
                   ],
@@ -314,4 +318,12 @@ class _InboxRow extends StatelessWidget {
         return Icons.loop_outlined;
     }
   }
+}
+/// 任务池的完成切换：已完成再次点击需确认，避免误触把进度回退。
+Future<void> _toggleItem(BuildContext context, ActionItem item) async {
+  if (item.isCompleted) {
+    final bool confirmed = await confirmCancelCompletion(context);
+    if (!confirmed || !context.mounted) return;
+  }
+  await context.read<ActionItemRepository>().toggleCompleted(item.id);
 }

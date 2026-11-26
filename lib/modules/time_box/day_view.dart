@@ -14,6 +14,7 @@ import '../../core/services/schedule_service.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import '../fogg_habit/day_habit_view.dart';
 import 'day_todo_view.dart';
@@ -743,13 +744,15 @@ class _DayViewState extends State<DayView> {
     );
   }
 
-  void _toggle(TimeBlock block) {
+  Future<void> _toggle(TimeBlock block) async {
     final ScheduleService service = context.read<ScheduleService>();
     if (block.isCompleted) {
-      service.uncompleteBlock(block);
-    } else {
-      service.completeBlock(block);
+      final bool confirmed = await confirmCancelCompletion(context);
+      if (!confirmed || !mounted) return;
+      await service.uncompleteBlock(block);
+      return;
     }
+    await service.completeBlock(block);
   }
 
   Future<void> _commitMove(TimeBlock block) async {

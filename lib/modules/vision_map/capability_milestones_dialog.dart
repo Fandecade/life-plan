@@ -10,6 +10,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 
 const _uuid = Uuid();
@@ -82,7 +83,11 @@ class _CapabilityMilestonesDialogState
     _persist();
   }
 
-  void _toggle(CapabilityMilestone milestone) {
+  Future<void> _toggle(CapabilityMilestone milestone) async {
+    if (milestone.achieved) {
+      final bool confirmed = await confirmCancelMilestone(context);
+      if (!confirmed || !mounted) return;
+    }
     final int index = _items.indexWhere(
       (CapabilityMilestone item) => item.id == milestone.id,
     );

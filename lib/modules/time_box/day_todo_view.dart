@@ -10,6 +10,7 @@ import '../../core/services/schedule_service.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 
 /// 日视图「今日待办」全屏页：未定时间 + 已定时间两组。
@@ -96,8 +97,7 @@ class DayTodoView extends StatelessWidget {
             checked: done,
             size: 18,
             padding: 0,
-            onTap: () =>
-                context.read<ActionItemRepository>().toggleCompleted(item.id),
+            onTap: () => _toggleTask(context, item),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -198,9 +198,14 @@ class DayTodoView extends StatelessWidget {
     final SchedulePickResult? result = await pickScheduleResult(
       context,
       initialDate: item.scheduledDate ?? DateTime.now(),
+      allowClearDate: item.scheduledDate != null,
     );
     if (result == null || !context.mounted) return;
     final ScheduleService service = context.read<ScheduleService>();
+    if (result.clearDate) {
+      await service.assignDate(item, null);
+      return;
+    }
     if (result.dateOnly) {
       await service.assignDate(item, result.start);
     } else {
@@ -215,9 +220,20 @@ class DayTodoView extends StatelessWidget {
   Future<void> _toggleBlock(BuildContext context, TimeBlock block) async {
     final ScheduleService service = context.read<ScheduleService>();
     if (block.isCompleted) {
+      final bool confirmed = await confirmCancelCompletion(context);
+      if (!confirmed || !context.mounted) return;
       await service.uncompleteBlock(block);
-    } else {
-      await service.completeBlock(block);
+      return;
     }
+    await service.completeBlock(block);
   }
+}
+
+/// 今日待办的完成切换：已完成再次点击需确认。
+Future<void> _toggleTask(BuildContext context, ActionItem item) async {
+  if (item.isCompleted) {
+    final bool confirmed = await confirmCancelCompletion(context);
+    if (!confirmed || !context.mounted) return;
+  }
+  await context.read<ActionItemRepository>().toggleCompleted(item.id);
 }

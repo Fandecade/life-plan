@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/services/habit_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import 'habit_action_line_dialog.dart';
 import 'habit_recipe_dialog.dart';
@@ -154,13 +155,7 @@ class HabitDetailSlot extends StatelessWidget {
                 checked: done,
                 size: 24,
                 padding: 0,
-                onTap: () async {
-                  if (done) {
-                    await service.undoToday(habit);
-                  } else {
-                    await service.checkIn(habit);
-                  }
-                },
+                onTap: () => _toggle(context, service, habit),
               ),
             ],
           ),
@@ -208,6 +203,20 @@ class HabitDetailSlot extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _toggle(
+    BuildContext context,
+    HabitService service,
+    FoggHabit habit,
+  ) async {
+    if (service.isDoneToday(habit)) {
+      final bool confirmed = await confirmCancelHabitCheckIn(context);
+      if (!confirmed || !context.mounted) return;
+      await service.undoToday(habit);
+      return;
+    }
+    await service.checkIn(habit);
   }
 
   Future<void> _openDeleteMenu(

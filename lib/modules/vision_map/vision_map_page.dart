@@ -7,6 +7,7 @@ import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import 'vision_canvas.dart';
 import 'capability_milestones_dialog.dart';
@@ -20,15 +21,60 @@ class VisionMapPage extends StatefulWidget {
   State<VisionMapPage> createState() => _VisionMapPageState();
 }
 
-class _VisionMapPageState extends State<VisionMapPage> {
+class _VisionMapPageState extends State<VisionMapPage>
+    with SingleTickerProviderStateMixin {
   final TransformationController _transform = TransformationController();
   String? _activeVisionId;
   String? _dragOverVisionId;
+  late final AnimationController _wiggle;
+  bool _editingPills = false;
+  bool _toolsExpanded = false;
+
+  /// 手动切换的布局方向；null 表示跟随设备默认（手机纵向、电脑/平板横向）。
+  bool? _verticalOverride;
+
+  /// 手机判定：移动平台且最短边 < 600（平板与桌面一律视为横向默认）。
+  bool _isPhoneLayout(BuildContext context) {
+    final TargetPlatform platform = Theme.of(context).platform;
+    final bool mobile = platform == TargetPlatform.android ||
+        platform == TargetPlatform.iOS;
+    return mobile && MediaQuery.sizeOf(context).shortestSide < 600;
+  }
+
+  bool _resolveVertical(BuildContext context) =>
+      _verticalOverride ?? _isPhoneLayout(context);
+
+  @override
+  void initState() {
+    super.initState();
+    _wiggle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
+  }
 
   @override
   void dispose() {
+    _wiggle.dispose();
     _transform.dispose();
     super.dispose();
+  }
+
+  void _enterPillEdit(Vision vision) {
+    if (_editingPills) return;
+    setState(() {
+      _editingPills = true;
+      _toolsExpanded = false;
+      _activeVisionId = vision.id;
+    });
+    _wiggle.repeat(reverse: true);
+  }
+
+  void _exitPillEdit() {
+    _wiggle.stop();
+    _wiggle.value = 0;
+    if (!mounted) return;
+    setState(() => _editingPills = false);
   }
 
   Vision? _currentVision(List<Vision> visions) {
@@ -114,10 +160,10 @@ class _VisionMapPageState extends State<VisionMapPage> {
               capabilities: capabilities,
               tasksByCapability: tasksByCapability,
               transformController: _transform,
+              vertical: _resolveVertical(context),
               onOpenTask: (ActionItem item) =>
                   context.read<UiController>().openDetail(item.id),
-              onToggleTask: (ActionItem item) =>
-                  context.read<ActionItemRepository>().toggleCompleted(item.id),
+              onToggleTask: _toggleTask,
               onVisionAction: (Vision target, MapNodeAction action) =>
                   _handleVisionAction(vision, capabilities, tasksByCapability, action),
               onCapabilityAction:
@@ -158,20 +204,66 @@ class _VisionMapPageState extends State<VisionMapPage> {
       vision.colorHex,
       fallback: palette.accent,
     );
-    final Widget pill = _VisionPill(
+    Widget pill = _VisionPill(
       vision: vision,
       selected: vision.id == current.id,
       onTap: () {
+        if (_editingPills) {
+          _exitPillEdit();
+          return;
+        }
         setState(() => _activeVisionId = vision.id);
         _transform.value = Matrix4.identity();
       },
       onMenuRequested: (Offset position) =>
           _showVisionMenu(context, vision, position),
+      onLongPress: () => _enterPillEdit(vision),
     );
+
+    if (_editingPills) {
+      pill = AnimatedBuilder(
+        animation: _wiggle,
+        child: pill,
+        builder: (BuildContext context, Widget? child) => Transform.rotate(
+          angle: (_wiggle.value - 0.5) * 0.03,
+          child: child,
+        ),
+      );
+      pill = Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          pill,
+          Positioned(
+            top: -5,
+            right: -5,
+            child: Tooltip(
+              message: '删除这个愿景',
+              child: GestureDetector(
+                onTap: () => _deleteVision(vision),
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 11,
+                    color: palette.danger,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return DragTarget<String>(
       onWillAcceptWithDetails: (DragTargetDetails<String> details) {
-        if (details.data == vision.id) return false;
+        if (!_editingPills || details.data == vision.id) return false;
         setState(() => _dragOverVisionId = vision.id);
         return true;
       },
@@ -189,7 +281,7 @@ class _VisionMapPageState extends State<VisionMapPage> {
         List<String?> candidate,
         List<dynamic> rejected,
       ) {
-        final bool active = candidate.isNotEmpty;
+        final bool active = _editingPills && candidate.isNotEmpty;
         return Padding(
           padding: const EdgeInsets.only(right: AppSpacing.xs + 2),
           child: Row(
@@ -205,12 +297,15 @@ class _VisionMapPageState extends State<VisionMapPage> {
                   borderRadius: BorderRadius.circular(1),
                 ),
               ),
-              Draggable<String>(
-                data: vision.id,
-                feedback: _pillFeedback(context, palette, vision, accent),
-                childWhenDragging: Opacity(opacity: 0.35, child: pill),
-                child: pill,
-              ),
+              if (_editingPills)
+                Draggable<String>(
+                  data: vision.id,
+                  feedback: _pillFeedback(context, palette, vision, accent),
+                  childWhenDragging: Opacity(opacity: 0.35, child: pill),
+                  child: pill,
+                )
+              else
+                pill,
             ],
           ),
         );
@@ -268,59 +363,135 @@ class _VisionMapPageState extends State<VisionMapPage> {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: <Widget>[
-                  for (int i = 0; i < visions.length; i++)
-                    _draggablePill(context, palette, visions, i, current),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool needsCompact =
+              constraints.maxWidth < visions.length * 150 + 230;
+          final bool editing = _editingPills;
+          final bool vertical = _resolveVertical(context);
+
+          final Widget visionList = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                for (int i = 0; i < visions.length; i++)
+                  _draggablePill(context, palette, visions, i, current),
+                if (editing)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: AppGhostButton(
+                      label: '完成',
+                      dense: true,
+                      onPressed: _exitPillEdit,
+                    ),
+                  )
+                else
                   AppIconButton(
                     icon: Icons.add_rounded,
                     tooltip: '新建愿景',
                     onPressed: _createVision,
                   ),
+              ],
+            ),
+          );
+
+          final List<Widget> tools = <Widget>[
+            AppIconButton(
+              icon: Icons.remove_rounded,
+              tooltip: '缩小',
+              onPressed: () => _zoom(0.86),
+            ),
+            AppIconButton(
+              icon: Icons.add_rounded,
+              tooltip: '放大',
+              onPressed: () => _zoom(1.16),
+            ),
+            AppIconButton(
+              icon: Icons.center_focus_strong_outlined,
+              tooltip: '回到根节点',
+              onPressed: () {
+                _transform.value = Matrix4.identity();
+                _toast('已回到愿景节点');
+              },
+            ),
+            AppIconButton(
+              icon: Icons.auto_awesome_motion_outlined,
+              tooltip: '重新自动排版',
+              onPressed: () => _relayout(current, context),
+            ),
+            AppIconButton(
+              icon: vertical
+                  ? Icons.swap_horiz_rounded
+                  : Icons.swap_vert_rounded,
+              tooltip: vertical ? '切换为横向布局' : '切换为纵向布局',
+              onPressed: () => _toggleOrientation(context),
+            ),
+          ];
+
+          if (!needsCompact || editing) {
+            return Row(
+              children: <Widget>[
+                Expanded(child: visionList),
+                if (!editing) ...<Widget>[
+                  const SizedBox(width: AppSpacing.sm),
+                  SizedBox(
+                    height: 18,
+                    child: VerticalDivider(
+                      thickness: 1,
+                      width: AppSpacing.md,
+                      color: palette.hairline,
+                    ),
+                  ),
+                  ...tools,
                 ],
+              ],
+            );
+          }
+
+          if (_toolsExpanded) {
+            return Row(
+              children: <Widget>[
+                Expanded(
+                  child: Row(children: tools),
+                ),
+                AppIconButton(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  tooltip: '收起视图工具',
+                  onPressed: () => setState(() => _toolsExpanded = false),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: <Widget>[
+              Expanded(child: visionList),
+              AppIconButton(
+                icon: Icons.tune_rounded,
+                tooltip: '视图工具',
+                onPressed: () => setState(() => _toolsExpanded = true),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              thickness: 1,
-              width: AppSpacing.md,
-              color: palette.hairline,
-            ),
-          ),
-          AppIconButton(
-            icon: Icons.remove_rounded,
-            tooltip: '缩小',
-            onPressed: () => _zoom(0.86),
-          ),
-          AppIconButton(
-            icon: Icons.add_rounded,
-            tooltip: '放大',
-            onPressed: () => _zoom(1.16),
-          ),
-          AppIconButton(
-            icon: Icons.center_focus_strong_outlined,
-            tooltip: '回到根节点',
-            onPressed: () {
-              _transform.value = Matrix4.identity();
-              _toast('已回到愿景节点');
-            },
-          ),
-          AppIconButton(
-            icon: Icons.auto_awesome_motion_outlined,
-            tooltip: '重新自动排版',
-            onPressed: () => _relayout(current, context),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
+  }
+
+  void _toggleOrientation(BuildContext context) {
+    final bool next = !_resolveVertical(context);
+    setState(() => _verticalOverride = next);
+    // 两种布局的画布尺寸不同，重置视图避免停留在旧坐标导致空白。
+    _transform.value = Matrix4.identity();
+    _toast(next ? '已切换为纵向布局' : '已切换为横向布局');
+  }
+
+  Future<void> _toggleTask(ActionItem item) async {
+    if (item.isCompleted) {
+      final bool confirmed = await confirmCancelCompletion(context);
+      if (!confirmed || !mounted) return;
+    }
+    await context.read<ActionItemRepository>().toggleCompleted(item.id);
   }
 
   void _zoom(double factor) {
@@ -478,6 +649,9 @@ class _VisionMapPageState extends State<VisionMapPage> {
     setState(() {
       if (_activeVisionId == vision.id) _activeVisionId = null;
     });
+    if (context.read<VisionRepository>().all.isEmpty) {
+      _exitPillEdit();
+    }
     _toast('愿景已删除');
   }
 
@@ -505,17 +679,6 @@ class _VisionMapPageState extends State<VisionMapPage> {
       ),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
-          value: 'up',
-          height: 38,
-          child: Text('前移', style: context.texts.bodyMedium),
-        ),
-        PopupMenuItem<String>(
-          value: 'down',
-          height: 38,
-          child: Text('后移', style: context.texts.bodyMedium),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
           value: 'delete',
           height: 38,
           child: Text(
@@ -526,14 +689,8 @@ class _VisionMapPageState extends State<VisionMapPage> {
       ],
     );
     if (action == null || !mounted) return;
-    final VisionRepository repo = context.read<VisionRepository>();
-    switch (action) {
-      case 'up':
-        await repo.move(vision.id, -1);
-      case 'down':
-        await repo.move(vision.id, 1);
-      case 'delete':
-        await _deleteVision(vision);
+    if (action == 'delete') {
+      await _deleteVision(vision);
     }
   }
 
@@ -744,12 +901,14 @@ class _VisionPill extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.onMenuRequested,
+    this.onLongPress,
   });
 
   final Vision vision;
   final bool selected;
   final VoidCallback onTap;
   final ValueChanged<Offset>? onMenuRequested;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -758,8 +917,7 @@ class _VisionPill extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapUp: (TapUpDetails details) =>
           onMenuRequested?.call(details.globalPosition),
-      onLongPressStart: (LongPressStartDetails details) =>
-          onMenuRequested?.call(details.globalPosition),
+      onLongPressStart: (_) => onLongPress?.call(),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

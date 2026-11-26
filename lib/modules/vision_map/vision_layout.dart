@@ -59,7 +59,16 @@ MindMapLayout buildMindMapLayout({
   required Vision vision,
   required List<Capability> capabilities,
   required Map<String, List<ActionItem>> tasksByCapability,
+  bool vertical = false,
 }) {
+  if (vertical) {
+    return _buildVerticalLayout(
+      vision: vision,
+      capabilities: capabilities,
+      tasksByCapability: tasksByCapability,
+    );
+  }
+
   final Map<String, ActionItem> tasksById = <String, ActionItem>{};
   final Map<String, List<ActionItem>> childrenByParent =
       <String, List<ActionItem>>{};
@@ -215,6 +224,169 @@ int _layoutTaskTree(
     cursor += blockHeight + MapMetrics.taskGapY;
   }
 
+  return deepest;
+}
+
+
+/// 纵向布局：愿景在上、能力横向排列、任务按层级向下展开。
+MindMapLayout _buildVerticalLayout({
+  required Vision vision,
+  required List<Capability> capabilities,
+  required Map<String, List<ActionItem>> tasksByCapability,
+}) {
+  final Map<String, ActionItem> tasksById = <String, ActionItem>{};
+  final Map<String, List<ActionItem>> childrenByParent =
+      <String, List<ActionItem>>{};
+  for (final List<ActionItem> list in tasksByCapability.values) {
+    for (final ActionItem task in list) {
+      tasksById[task.id] = task;
+      final String? parentId = task.parentId;
+      if (parentId != null && tasksById.containsKey(parentId)) {
+        childrenByParent.putIfAbsent(parentId, () => <ActionItem>[]).add(task);
+      }
+    }
+  }
+
+  final List<Capability> visibleCapabilities =
+      vision.isCollapsed ? const <Capability>[] : capabilities;
+  final Map<String, List<ActionItem>> rootsByCapability =
+      <String, List<ActionItem>>{};
+  for (final Capability capability in visibleCapabilities) {
+    final List<ActionItem> all =
+        tasksByCapability[capability.id] ?? const <ActionItem>[];
+    rootsByCapability[capability.id] = all
+        .where((ActionItem task) =>
+            task.parentId == null || !tasksById.containsKey(task.parentId))
+        .toList(growable: false);
+  }
+
+  final Map<String, Offset> capabilityPositions = <String, Offset>{};
+  final Map<String, Offset> taskPositions = <String, Offset>{};
+
+  final double abilityRowY =
+      MapMetrics.topPadding + MapMetrics.visionHeight + 56;
+  double cursorX = MapMetrics.edgePadding;
+  int maxDepth = 0;
+
+  for (final Capability capability in visibleCapabilities) {
+    final List<ActionItem> roots = rootsByCapability[capability.id]!;
+    final bool showTasks = !capability.isCollapsed && roots.isNotEmpty;
+    final double tasksWidth =
+        showTasks ? _measureTaskTreeWidth(roots, childrenByParent) : 0;
+    final double blockWidth = math.max(MapMetrics.capabilityWidth, tasksWidth);
+
+    final double capabilityX =
+        cursorX + (blockWidth - MapMetrics.capabilityWidth) / 2;
+    capabilityPositions[capability.id] = Offset(
+      capabilityX + capability.posX,
+      abilityRowY + capability.posY,
+    );
+
+    if (showTasks) {
+      final double startX = cursorX + (blockWidth - tasksWidth) / 2;
+      final double startY =
+          abilityRowY + MapMetrics.capabilityHeight + 36;
+      final int deepest = _layoutVerticalTaskTree(
+        roots,
+        0,
+        startX,
+        startY,
+        taskPositions,
+        childrenByParent,
+      );
+      maxDepth = math.max(maxDepth, deepest);
+    }
+
+    cursorX += blockWidth + 56;
+  }
+
+  double maxTaskBottom = abilityRowY + MapMetrics.capabilityHeight;
+  for (final Offset position in taskPositions.values) {
+    maxTaskBottom = math.max(
+      maxTaskBottom,
+      position.dy + MapMetrics.taskHeight,
+    );
+  }
+  final double contentHeight = maxTaskBottom;
+
+  final double contentWidth = math.max(
+    cursorX - 56 + MapMetrics.edgePadding,
+    MapMetrics.visionWidth + MapMetrics.edgePadding * 2,
+  );
+  final double canvasWidth = math.max(contentWidth, 720);
+  final double canvasHeight = contentHeight + MapMetrics.edgePadding + 80;
+  final double visionX = (canvasWidth - MapMetrics.visionWidth) / 2;
+
+  return MindMapLayout(
+    visionTopLeft: Offset(
+      visionX + vision.posX,
+      MapMetrics.topPadding + vision.posY,
+    ),
+    capabilityTopLeft: capabilityPositions,
+    taskTopLeft: taskPositions,
+    canvasSize: Size(canvasWidth, math.max(canvasHeight, 720)),
+    contentHeight: contentHeight,
+    maxTaskDepth: maxDepth,
+  );
+}
+
+/// 子树横向占用宽度（纵向布局里，同级任务左右排列）。
+double _measureTaskTreeWidth(
+  List<ActionItem> tasks,
+  Map<String, List<ActionItem>> childrenByParent,
+) {
+  double total = 0;
+  for (int index = 0; index < tasks.length; index++) {
+    final ActionItem task = tasks[index];
+    final List<ActionItem> children = task.isCollapsed
+        ? const <ActionItem>[]
+        : (childrenByParent[task.id] ?? const <ActionItem>[]);
+    final double childrenWidth = children.isEmpty
+        ? 0
+        : _measureTaskTreeWidth(children, childrenByParent);
+    total += math.max(MapMetrics.taskWidth, childrenWidth);
+    if (index != tasks.length - 1) total += MapMetrics.taskColumnGap;
+  }
+  return total;
+}
+
+int _layoutVerticalTaskTree(
+  List<ActionItem> tasks,
+  int depth,
+  double startX,
+  double rowY,
+  Map<String, Offset> positions,
+  Map<String, List<ActionItem>> childrenByParent,
+) {
+  double cursorX = startX;
+  int deepest = depth;
+  for (final ActionItem task in tasks) {
+    final List<ActionItem> children = task.isCollapsed
+        ? const <ActionItem>[]
+        : (childrenByParent[task.id] ?? const <ActionItem>[]);
+    final double childrenWidth = children.isEmpty
+        ? 0
+        : _measureTaskTreeWidth(children, childrenByParent);
+    final double blockWidth = math.max(MapMetrics.taskWidth, childrenWidth);
+    final double x = cursorX + (blockWidth - MapMetrics.taskWidth) / 2;
+    positions[task.id] = Offset(x + task.posX, rowY + task.posY);
+
+    if (children.isNotEmpty) {
+      final double childStartX = cursorX + (blockWidth - childrenWidth) / 2;
+      final double childY = rowY + MapMetrics.taskHeight + 36;
+      final int childDeepest = _layoutVerticalTaskTree(
+        children,
+        depth + 1,
+        childStartX,
+        childY,
+        positions,
+        childrenByParent,
+      );
+      deepest = math.max(deepest, childDeepest);
+    }
+
+    cursorX += blockWidth + MapMetrics.taskColumnGap;
+  }
   return deepest;
 }
 

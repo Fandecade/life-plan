@@ -93,6 +93,10 @@ void main() {
     final Finder source = find.text(dragVision.title).first;
     final Finder target = find.text(first.title).first;
 
+    await tester.longPress(source);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('完成'), findsOneWidget, reason: '长按应进入编辑模式');
+
     final Offset from = tester.getCenter(source);
     final Offset to = tester.getCenter(target);
     final TestGesture gesture = await tester.startGesture(from);
@@ -109,9 +113,37 @@ void main() {
       dragVision.id,
       reason: '拖到第一位后应排在最前',
     );
+    await tester.tap(find.text('完成'));
+    await tester.pump();
   });
 
-  testWidgets('愿景胶囊右键可前移或删除', (WidgetTester tester) async {
+  testWidgets('长按愿景进入抖动编辑模式，显示删除叉号并可完成', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(LifePlannerApp(bootstrap: bootstrap));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('人生规划').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.longPress(find.text('CRUD 拖动愿景').first);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('完成'), findsOneWidget);
+    expect(find.byTooltip('删除这个愿景'), findsWidgets);
+
+    await tester.tap(find.text('完成'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('完成'), findsNothing);
+    expect(find.byTooltip('删除这个愿景'), findsNothing);
+  });
+
+  testWidgets('愿景胶囊右键只保留删除', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -130,7 +162,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('删除这个愿景'), findsOneWidget);
-    expect(find.text('前移'), findsOneWidget);
+    expect(find.text('前移'), findsNothing);
 
     await tester.tap(find.text('删除这个愿景'));
     await tester.pump();

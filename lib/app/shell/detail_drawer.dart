@@ -15,6 +15,7 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/services/schedule_picker.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -249,11 +250,6 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 context,
                 '截止日',
                 _dueDateCard(context, item),
-              ),
-              _section(
-                context,
-                '计划日期',
-                _plannedDateCard(context, item),
               ),
               _section(
                 context,
@@ -509,14 +505,7 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
               ),
               AppCheckCircle(
                 checked: block.isCompleted,
-                onTap: () {
-                  final ScheduleService service = context.read<ScheduleService>();
-                  if (block.isCompleted) {
-                    service.uncompleteBlock(block);
-                  } else {
-                    service.completeBlock(block);
-                  }
-                },
+                onTap: () => _toggleBlock(context, block),
               ),
             ],
           ),
@@ -547,65 +536,6 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _plannedDateCard(BuildContext context, ActionItem item) {
-    final AppPalette palette = context.palette;
-    final ActionItemRepository repo = context.read<ActionItemRepository>();
-    final DateTime today = AppDate.startOfDay(DateTime.now());
-    final DateTime? planned = item.scheduledDate;
-    final List<DateTime> quickDays = <DateTime>[
-      today,
-      today.add(const Duration(days: 1)),
-      today.add(const Duration(days: 2)),
-    ];
-    const List<String> quickLabels = <String>['今天', '明天', '后天'];
-    final bool plannedIsQuick =
-        planned != null &&
-        quickDays.any((DateTime day) => AppDate.isSameDay(day, planned));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Wrap(
-          spacing: AppSpacing.xs + 2,
-          runSpacing: AppSpacing.xs + 2,
-          children: <Widget>[
-            for (int i = 0; i < quickDays.length; i++)
-              AppChip(
-                label: quickLabels[i],
-                dense: true,
-                filled: planned != null && AppDate.isSameDay(planned, quickDays[i]),
-                color: palette.accent,
-                onTap: () => repo.save(
-                  item.copyWith(
-                    scheduledDate: quickDays[i],
-                  ),
-                ),
-              ),
-            if (planned != null && !plannedIsQuick)
-              AppChip(
-                label: AppDate.monthDayLabel(planned),
-                dense: true,
-                filled: true,
-                color: palette.accent,
-                onTap: () {},
-              ),
-            if (planned != null)
-              AppChip(
-                label: '清除',
-                dense: true,
-                onTap: () => repo.save(item.copyWith(clearScheduledDate: true)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '只表示打算哪天做，不占具体时段；排入时间轴后以时间块为准。',
-          style: context.texts.labelSmall,
-        ),
-      ],
     );
   }
 
@@ -696,8 +626,15 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     final SchedulePickResult? result = await pickScheduleResult(
       context,
       initialDate: DateTime.now(),
+      allowClearDate: item.scheduledDate != null,
     );
     if (result == null || !mounted) return;
+    if (result.clearDate) {
+      await context.read<ScheduleService>().assignDate(item, null);
+      if (!mounted) return;
+      _toast('已清除计划日期');
+      return;
+    }
     if (result.dateOnly) {
       await context.read<ScheduleService>().assignDate(item, result.start);
       if (!mounted) return;
@@ -716,6 +653,17 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
           ? '已追加一次排期：${AppDate.friendlyDay(result.start)} ${AppDate.timeLabel(result.start)}'
           : '已排入 ${AppDate.friendlyDay(result.start)} ${AppDate.timeLabel(result.start)}',
     );
+  }
+
+  Future<void> _toggleBlock(BuildContext context, TimeBlock block) async {
+    final ScheduleService service = context.read<ScheduleService>();
+    if (block.isCompleted) {
+      final bool confirmed = await confirmCancelCompletion(context);
+      if (!confirmed || !mounted) return;
+      await service.uncompleteBlock(block);
+      return;
+    }
+    await service.completeBlock(block);
   }
 
   Future<void> _confirmDelete(ActionItem item) async {
