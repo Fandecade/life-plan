@@ -4,6 +4,8 @@ import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
 import '../core/services/habit_service.dart';
+import '../core/services/reminder_service.dart';
+import '../core/services/reminder_settings.dart';
 import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
@@ -37,6 +39,8 @@ class AppBootstrap {
     required this.schedules,
     required this.modules,
     required this.theme,
+    required this.reminderSettings,
+    required this.reminders,
   });
 
   final LocalDatabase db;
@@ -61,6 +65,8 @@ class AppBootstrap {
   final ScheduleService schedules;
   final ModuleRegistry modules;
   final ThemeController theme;
+  final ReminderSettings reminderSettings;
+  final ReminderService reminders;
 
   static Future<AppBootstrap> create({String? storagePath}) async {
     final LocalDatabase db = LocalDatabase();
@@ -118,6 +124,19 @@ class AppBootstrap {
       settings: db.settings,
     );
     final ThemeController theme = ThemeController(db.settings);
+    final ReminderSettings reminderSettings = ReminderSettings(db.settings);
+    final ReminderService reminders = ReminderService(
+      settings: reminderSettings,
+      actions: actions,
+      blocks: timeBlocks,
+      routines: weeklyRoutines,
+      exceptions: routineExceptions,
+      habits: foggHabits,
+      habitService: habitService,
+      schedules: schedules,
+      routineService: routines,
+      settingsBox: db.settings,
+    );
 
     await SeedData.seedIfNeeded(
       db: db,
@@ -150,6 +169,8 @@ class AppBootstrap {
       schedules: schedules,
       modules: modules,
       theme: theme,
+      reminderSettings: reminderSettings,
+      reminders: reminders,
     );
   }
 
@@ -171,6 +192,7 @@ class AppBootstrap {
     projects.dispose();
     modules.dispose();
     theme.dispose();
+    reminderSettings.dispose();
     db.close();
   }
 }

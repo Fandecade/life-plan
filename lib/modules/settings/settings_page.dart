@@ -12,6 +12,7 @@ import '../../core/database/repositories.dart';
 import '../../core/database/seed_data.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
+import '../../core/services/reminder_settings.dart';
 import '../../core/state/theme_controller.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/widgets/app_button.dart';
@@ -55,6 +56,16 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
+              const SectionHeader(
+                title: '提醒',
+                subtitle: '应用打开或回到前台时生效；关闭应用后暂不提醒。',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const AppCard(
+                padding: EdgeInsets.zero,
+                child: _ReminderSection(),
+              ),
+              const SizedBox(height: AppSpacing.xl),
               SectionHeader(
                 title: '模块管理',
                 subtitle: '关闭后仅隐藏入口与扩展槽位，历史数据完整保留。',
@@ -93,6 +104,136 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReminderSection extends StatelessWidget {
+  const _ReminderSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final ReminderSettings settings = context.watch<ReminderSettings>();
+    return Column(
+      children: <Widget>[
+        _ReminderRow(
+          title: '开启提醒',
+          subtitle: '时间盒任务、只定日期任务与微习惯汇总',
+          trailing: Switch(
+            value: settings.enabled,
+            onChanged: (bool value) => settings.setEnabled(value),
+          ),
+        ),
+        const Divider(height: 1),
+        _ReminderRow(
+          title: '时间盒提前量',
+          subtitle: '按任务开始时间提前提醒',
+          trailing: DropdownButton<int>(
+            value: settings.leadMinutes,
+            isDense: true,
+            underline: const SizedBox.shrink(),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            items: ReminderSettings.leadOptions
+                .map(
+                  (int value) => DropdownMenuItem<int>(
+                    value: value,
+                    child: Text(
+                      value == 0 ? '到点提醒' : '$value 分钟',
+                      style: context.texts.bodyMedium,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (int? value) {
+              if (value != null) settings.setLeadMinutes(value);
+            },
+          ),
+        ),
+        const Divider(height: 1),
+        _ReminderRow(
+          title: '只定日期任务',
+          subtitle: '当天没有具体时段的待办，提醒一次',
+          trailing: AppGhostButton(
+            label: settings.dateOnlyLabel,
+            icon: Icons.schedule_rounded,
+            dense: true,
+            onPressed: () => _pickTime(
+              context,
+              settings.dateOnlyMinutes,
+              settings.setDateOnlyMinutes,
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        _ReminderRow(
+          title: '微习惯汇总',
+          subtitle: '每天一次，只提醒未完成的微习惯',
+          trailing: AppGhostButton(
+            label: settings.habitDigestLabel,
+            icon: Icons.schedule_rounded,
+            dense: true,
+            onPressed: () => _pickTime(
+              context,
+              settings.habitDigestMinutes,
+              settings.setHabitDigestMinutes,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickTime(
+    BuildContext context,
+    int current,
+    Future<void> Function(int minutes) onPicked,
+  ) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+      helpText: '选择提醒时间',
+      cancelText: '取消',
+      confirmText: '确定',
+    );
+    if (picked == null) return;
+    await onPicked(picked.hour * 60 + picked.minute);
+  }
+}
+
+class _ReminderRow extends StatelessWidget {
+  const _ReminderRow({
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: 10,
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: context.texts.titleSmall),
+                const SizedBox(height: 2),
+                Text(subtitle, style: context.texts.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          trailing,
+        ],
       ),
     );
   }

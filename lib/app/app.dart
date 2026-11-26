@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../core/database/repositories.dart';
 import '../core/plugin/module_registry.dart';
 import '../core/services/habit_service.dart';
+import '../core/services/reminder_service.dart';
+import '../core/services/reminder_settings.dart';
 import '../core/services/review_service.dart';
 import '../core/services/routine_service.dart';
 import '../core/services/schedule_service.dart';
@@ -26,6 +28,10 @@ class LifePlannerApp extends StatelessWidget {
       providers: [
         Provider<AppBootstrap>.value(value: bootstrap),
         ChangeNotifierProvider<ThemeController>.value(value: bootstrap.theme),
+        ChangeNotifierProvider<ReminderSettings>.value(
+          value: bootstrap.reminderSettings,
+        ),
+        Provider<ReminderService>.value(value: bootstrap.reminders),
         ChangeNotifierProvider<ModuleRegistry>.value(value: bootstrap.modules),
         ChangeNotifierProvider<VisionRepository>.value(value: bootstrap.visions),
         ChangeNotifierProvider<CapabilityRepository>.value(

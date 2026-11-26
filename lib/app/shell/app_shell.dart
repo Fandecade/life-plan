@@ -1,15 +1,21 @@
+import 'dart:async';
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
+import '../../core/services/reminder_service.dart';
 import '../../core/state/ui_controller.dart';
+import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import 'desktop_side_nav.dart';
 import 'detail_drawer.dart';
 import 'inbox_panel.dart';
 import 'mobile_bottom_nav.dart';
+import 'reminder_banner.dart';
 import 'schedule_panel.dart';
 import 'slide_over_panel.dart';
 import 'top_bar.dart';
@@ -23,7 +29,97 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+  Timer? _reminderTicker;
+  Timer? _bannerTimer;
+  final Queue<ReminderEvent> _pendingReminders = Queue<ReminderEvent>();
+  ReminderEvent? _currentReminder;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkReminders());
+    _reminderTicker = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _checkReminders(),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _reminderTicker?.cancel();
+    _bannerTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkReminders();
+  }
+
+  void _checkReminders() {
+    if (!mounted) return;
+    final List<ReminderEvent> events = context.read<ReminderService>().tick();
+    if (events.isEmpty) return;
+    _pendingReminders.addAll(events);
+    _showNextReminder();
+  }
+
+  void _showNextReminder() {
+    if (!mounted || _currentReminder != null) return;
+    if (_pendingReminders.isEmpty) return;
+    setState(() => _currentReminder = _pendingReminders.removeFirst());
+    _bannerTimer?.cancel();
+    _bannerTimer = Timer(const Duration(seconds: 20), _dismissReminder);
+  }
+
+  void _dismissReminder() {
+    if (!mounted) return;
+    _bannerTimer?.cancel();
+    setState(() => _currentReminder = null);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNextReminder());
+  }
+
+  Future<void> _completeReminder() async {
+    final ReminderEvent? event = _currentReminder;
+    if (event == null) return;
+    await context.read<ReminderService>().complete(event);
+    if (!mounted) return;
+    _dismissReminder();
+  }
+
+  Future<void> _snoozeReminder() async {
+    final ReminderEvent? event = _currentReminder;
+    if (event == null) return;
+    await context.read<ReminderService>().snooze(event);
+    if (!mounted) return;
+    _dismissReminder();
+  }
+
+  void _openReminder() {
+    final ReminderEvent? event = _currentReminder;
+    if (event == null) return;
+    final UiController ui = context.read<UiController>();
+    switch (event.kind) {
+      case ReminderKind.timeBlock:
+      case ReminderKind.routineBlock:
+        final DateTime startAt = event.startAt ?? DateTime.now();
+        if (event.blockIds.isNotEmpty) {
+          ui.jumpToSchedule(startAt, event.blockIds.first);
+        } else {
+          ui.setRoute(AppRoutes.timeBox);
+        }
+      case ReminderKind.dateOnlyTask:
+        final String? taskId = event.taskId;
+        if (taskId != null) ui.openDetail(taskId);
+      case ReminderKind.habitDigest:
+        ui.setRoute(AppRoutes.foggHabit);
+    }
+    _dismissReminder();
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
@@ -139,6 +235,25 @@ class _AppShellState extends State<AppShell> {
                       onClose: ui.closeSchedule,
                       child: const SchedulePanel(),
                     ),
+                    if (_currentReminder != null)
+                      Positioned(
+                        top: MediaQuery.paddingOf(context).top +
+                            (isDesktop ? 62 : 56),
+                        right: isDesktop ? 24 : 12,
+                        left: isDesktop ? null : 12,
+                        child: SizedBox(
+                          width: isDesktop
+                              ? 340
+                              : MediaQuery.sizeOf(context).width - 24,
+                          child: ReminderBanner(
+                            event: _currentReminder!,
+                            onComplete: _completeReminder,
+                            onSnooze: _snoozeReminder,
+                            onOpen: _openReminder,
+                            onDismiss: _dismissReminder,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 bottomNavigationBar: isDesktop
