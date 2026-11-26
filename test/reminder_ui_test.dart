@@ -112,7 +112,7 @@ void main() {
     expect(find.text('完成'), findsNothing);
   });
 
-  testWidgets('设置页可开关提醒', (WidgetTester tester) async {
+  testWidgets('设置页进入提醒设置并可分别开关', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -125,23 +125,37 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('提醒'), findsWidgets);
-    await tester.ensureVisible(find.text('开启提醒'));
+    expect(find.text('提醒设置'), findsOneWidget);
+    await tester.ensureVisible(find.text('提醒设置'));
     await tester.pump();
+    await tester.tap(find.text('提醒设置'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('应用内提醒'), findsOneWidget);
+    expect(find.text('系统通知'), findsOneWidget);
+    expect(find.text('时间盒提前量'), findsOneWidget);
+    expect(find.text('到点提醒'), findsOneWidget);
 
     final Finder row = find
-        .ancestor(of: find.text('开启提醒'), matching: find.byType(Row))
+        .ancestor(of: find.text('应用内提醒'), matching: find.byType(Row))
         .first;
-    final Finder toggle = find.descendant(of: row, matching: find.byType(Switch));
+    final Finder toggle =
+        find.descendant(of: row, matching: find.byType(Switch));
     expect(toggle, findsOneWidget);
-    expect(bootstrap.reminderSettings.enabled, isTrue);
+    expect(bootstrap.reminderSettings.inAppEnabled, isTrue);
 
     await tester.tap(toggle);
     await tester.pump();
-    expect(bootstrap.reminderSettings.enabled, isFalse);
+    expect(bootstrap.reminderSettings.inAppEnabled, isFalse);
 
     await tester.tap(toggle);
     await tester.pump();
-    expect(bootstrap.reminderSettings.enabled, isTrue);
+    expect(bootstrap.reminderSettings.inAppEnabled, isTrue);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('应用内提醒'), findsNothing);
+    expect(find.text('提醒设置'), findsWidgets);
   });
 }

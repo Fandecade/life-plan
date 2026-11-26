@@ -143,7 +143,7 @@ class ReminderService {
   /// 与应用内 [tick] 不同：这里只返回尚未到点的提醒，供系统通知提前排期；
   /// 微习惯汇总只排今天（未来是否打卡无法预知）。
   List<ReminderEvent> upcoming({DateTime? now, int days = 7}) {
-    if (!settings.enabled) return const <ReminderEvent>[];
+    if (!settings.systemEnabled) return const <ReminderEvent>[];
     final DateTime current = now ?? DateTime.now();
     final DateTime end = current.add(Duration(days: days));
     final int lead = settings.leadMinutes;
@@ -283,7 +283,7 @@ class ReminderService {
   ///
   /// 同步只读 Hive，写盘在后台完成，避免阻塞首帧与测试。
   List<ReminderEvent> tick({DateTime? now}) {
-    if (!settings.enabled) return const <ReminderEvent>[];
+    if (!settings.inAppEnabled) return const <ReminderEvent>[];
     final DateTime current = now ?? DateTime.now();
     final Map<String, String> sent = _sent;
     final Map<String, dynamic> snoozed = _snoozed;

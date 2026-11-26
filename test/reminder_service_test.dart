@@ -35,23 +35,25 @@ void main() {
 
   test('提醒设置默认值正确', () {
     final ReminderSettings settings = bootstrap.reminderSettings;
-    expect(settings.enabled, isTrue);
-    expect(settings.leadMinutes, 10);
+    expect(settings.inAppEnabled, isTrue);
+    expect(settings.systemEnabled, isTrue);
+    expect(settings.leadMinutes, 0);
+    expect(settings.leadLabel, '到点提醒');
     expect(settings.habitDigestMinutes, 20 * 60 + 30);
     expect(settings.dateOnlyMinutes, 9 * 60);
   });
 
-  test('时间盒块按提前量提醒，且同一会话不重复', () async {
+  test('时间盒块到点提醒，且同一会话不重复', () async {
     await bootstrap.timeBlocks.schedule(
       title: '提醒测试块',
-      startAt: at(10, 5),
+      startAt: at(10, 0),
       durationMinutes: 30,
     );
 
     final List<ReminderEvent> first = matching('提醒测试块', at(10, 0));
     expect(first, hasLength(1));
     expect(first.single.kind, ReminderKind.timeBlock);
-    expect(first.single.subtitle, contains('10:05'));
+    expect(first.single.subtitle, contains('10:00'));
     expect(first.single.canComplete, isTrue);
 
     expect(
@@ -64,21 +66,21 @@ void main() {
   test('已完成的时间块与开始前的任务不提醒', () async {
     final TimeBlock done = await bootstrap.timeBlocks.schedule(
       title: '提醒测试已完成',
-      startAt: at(10, 6),
+      startAt: at(10, 1),
       durationMinutes: 20,
     );
     await bootstrap.timeBlocks.setCompleted(done.id, true);
-    expect(matching('提醒测试已完成', at(10, 1)), isEmpty);
+    expect(matching('提醒测试已完成', at(10, 0)), isEmpty);
 
     await bootstrap.timeBlocks.schedule(
       title: '提醒测试未到点',
-      startAt: at(10, 56),
+      startAt: at(10, 30),
       durationMinutes: 20,
     );
     expect(
       matching('提醒测试未到点', at(10, 0)),
       isEmpty,
-      reason: '未进入提前量窗口不应提醒',
+      reason: '时间未到不应提醒',
     );
   });
 
@@ -94,7 +96,7 @@ void main() {
       durationMinutes: 20,
     );
 
-    final List<ReminderEvent> events = matching('合并提醒', at(11, 25));
+    final List<ReminderEvent> events = matching('合并提醒', at(11, 30));
     expect(events, hasLength(1));
     expect(events.single.title, contains('合并提醒甲'));
     expect(events.single.title, contains('合并提醒乙'));
@@ -156,20 +158,20 @@ void main() {
       durationMinutes: 30,
     );
 
-    final ReminderEvent event = matching('稍后提醒测试', at(12, 0)).single;
+    final ReminderEvent event = matching('稍后提醒测试', at(12, 5)).single;
     await bootstrap.reminders.snooze(
       event,
-      now: at(12, 0),
+      now: at(12, 5),
       delay: const Duration(minutes: 10),
     );
 
     expect(
-      matching('稍后提醒测试', at(12, 9)),
+      matching('稍后提醒测试', at(12, 14)),
       isEmpty,
       reason: '延后未到点不应再次提醒',
     );
     expect(
-      matching('稍后提醒测试', at(12, 11)),
+      matching('稍后提醒测试', at(12, 16)),
       hasLength(1),
       reason: '延后到点后应重新提醒',
     );
@@ -212,8 +214,8 @@ void main() {
         plan.firstWhere((ReminderEvent event) => event.title == '明天提醒块');
     expect(
       blockEvent.at,
-      DateTime(today.year, today.month, today.day + 1, 9, 55),
-      reason: '系统通知时刻应为开始时间减提前量',
+      DateTime(today.year, today.month, today.day + 1, 10, 5),
+      reason: '默认到点提醒，系统通知时刻等于开始时间',
     );
 
     for (int i = 1; i < plan.length; i++) {
@@ -225,20 +227,47 @@ void main() {
     }
   });
 
-  test('关闭提醒后不再产生事件，重新开启恢复', () async {
-    await bootstrap.reminderSettings.setEnabled(false);
+  test('自定义提前量生效', () async {
+    await bootstrap.reminderSettings.setLeadMinutes(7);
+    await bootstrap.timeBlocks.schedule(
+      title: '自定义提前量测试',
+      startAt: at(15, 7),
+      durationMinutes: 20,
+    );
+    expect(matching('自定义提前量测试', at(15, 0)), hasLength(1));
+    expect(bootstrap.reminderSettings.leadLabel, '提前 7 分钟');
+    await bootstrap.reminderSettings.setLeadMinutes(0);
+    expect(bootstrap.reminderSettings.leadLabel, '到点提醒');
+  });
+
+  test('应用内提醒可单独关闭，不影响系统通知计划', () async {
+    await bootstrap.reminderSettings.setInAppEnabled(false);
+    expect(
+      bootstrap.reminders.tick(now: at(16, 0)),
+      isEmpty,
+    );
+    expect(
+      bootstrap.reminders.upcoming(now: at(16, 0)),
+      isNotEmpty,
+      reason: '系统通知计划不受应用内开关影响',
+    );
+    await bootstrap.reminderSettings.setInAppEnabled(true);
+  });
+
+  test('关闭应用内提醒后不再产生事件，重新开启恢复', () async {
+    await bootstrap.reminderSettings.setInAppEnabled(false);
     expect(
       bootstrap.reminders.tick(now: at(13, 0)),
       isEmpty,
     );
-    await bootstrap.reminderSettings.setEnabled(true);
+    await bootstrap.reminderSettings.setInAppEnabled(true);
     await bootstrap.timeBlocks.schedule(
       title: '重新开启提醒测试',
-      startAt: at(13, 10),
+      startAt: at(13, 0),
       durationMinutes: 20,
     );
     expect(
-      matching('重新开启提醒测试', at(13, 5)),
+      matching('重新开启提醒测试', at(13, 0)),
       hasLength(1),
     );
   });

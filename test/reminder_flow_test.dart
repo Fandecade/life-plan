@@ -17,7 +17,7 @@ void main() {
     bootstrap = await AppBootstrap.create(storagePath: tempDir.path);
     block = await bootstrap.timeBlocks.schedule(
       title: '启动提醒流程测试',
-      startAt: DateTime.now().add(const Duration(minutes: 5)),
+      startAt: DateTime.now().subtract(const Duration(minutes: 1)),
       durationMinutes: 30,
     );
   });

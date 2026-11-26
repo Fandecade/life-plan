@@ -109,7 +109,7 @@ class NotificationService {
   /// 按当前数据重排未来 7 天的系统通知。
   Future<void> syncUpcoming({DateTime? now}) async {
     if (!_supported) return;
-    if (!settings.enabled) {
+    if (!settings.systemEnabled) {
       if (_lastSignature != 'disabled') {
         _lastSignature = 'disabled';
         await _plugin.cancelAll();
