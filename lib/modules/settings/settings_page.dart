@@ -58,7 +58,7 @@ class SettingsPage extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               const SectionHeader(
                 title: '提醒',
-                subtitle: '应用打开或回到前台时生效；关闭应用后暂不提醒。',
+                subtitle: '应用内横幅 + 系统通知（Android / macOS）；Web 使用应用内提醒。',
               ),
               const SizedBox(height: AppSpacing.sm),
               const AppCard(

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
 import 'package:life_planner/core/services/reminder_service.dart';
+import 'package:life_planner/core/services/reminder_settings.dart';
 import 'package:life_planner/core/utils/date_utils.dart';
 
 void main() {
@@ -31,6 +32,14 @@ void main() {
       .tick(now: now)
       .where((ReminderEvent event) => event.title.contains(title))
       .toList(growable: false);
+
+  test('提醒设置默认值正确', () {
+    final ReminderSettings settings = bootstrap.reminderSettings;
+    expect(settings.enabled, isTrue);
+    expect(settings.leadMinutes, 10);
+    expect(settings.habitDigestMinutes, 20 * 60 + 30);
+    expect(settings.dateOnlyMinutes, 9 * 60);
+  });
 
   test('时间盒块按提前量提醒，且同一会话不重复', () async {
     await bootstrap.timeBlocks.schedule(
@@ -164,6 +173,56 @@ void main() {
       hasLength(1),
       reason: '延后到点后应重新提醒',
     );
+  });
+
+  test('upcoming 生成未来 7 天系统通知计划', () async {
+    final DateTime tomorrow =
+        DateTime(today.year, today.month, today.day + 1, 10, 5);
+    await bootstrap.timeBlocks.schedule(
+      title: '明天提醒块',
+      startAt: tomorrow,
+      durationMinutes: 30,
+    );
+    final TimeBlock done = await bootstrap.timeBlocks.schedule(
+      title: '明天已完成块',
+      startAt: tomorrow.add(const Duration(hours: 1)),
+      durationMinutes: 30,
+    );
+    await bootstrap.timeBlocks.setCompleted(done.id, true);
+    await bootstrap.actions.create(
+      title: '明天只定日期',
+      scheduledDate: DateTime(today.year, today.month, today.day + 1),
+    );
+
+    final List<ReminderEvent> plan =
+        bootstrap.reminders.upcoming(now: at(9, 0));
+    final List<String> titles =
+        plan.map((ReminderEvent event) => event.title).toList();
+
+    expect(titles, contains('明天提醒块'));
+    expect(titles, isNot(contains('明天已完成块')));
+    expect(titles, contains('明天只定日期'));
+    expect(
+      plan.any((ReminderEvent event) => event.kind == ReminderKind.habitDigest),
+      isTrue,
+      reason: '当天未打卡的微习惯应排入系统通知',
+    );
+
+    final ReminderEvent blockEvent =
+        plan.firstWhere((ReminderEvent event) => event.title == '明天提醒块');
+    expect(
+      blockEvent.at,
+      DateTime(today.year, today.month, today.day + 1, 9, 55),
+      reason: '系统通知时刻应为开始时间减提前量',
+    );
+
+    for (int i = 1; i < plan.length; i++) {
+      expect(
+        plan[i].at.isBefore(plan[i - 1].at),
+        isFalse,
+        reason: '系统通知计划应按时间升序',
+      );
+    }
   });
 
   test('关闭提醒后不再产生事件，重新开启恢复', () async {

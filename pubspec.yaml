@@ -25,6 +25,9 @@ dependencies:
 
   # 实体主键 UUID（同时服务二期服务端同步）
   uuid: ^4.5.0
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.0
+  flutter_timezone: ^5.1.1
 
 dev_dependencies:
   flutter_test:

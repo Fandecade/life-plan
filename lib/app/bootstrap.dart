@@ -4,6 +4,7 @@ import '../core/database/seed_data.dart';
 import '../core/plugin/core_modules.dart';
 import '../core/plugin/module_registry.dart';
 import '../core/services/habit_service.dart';
+import '../core/services/notification_service.dart';
 import '../core/services/reminder_service.dart';
 import '../core/services/reminder_settings.dart';
 import '../core/services/review_service.dart';
@@ -41,6 +42,7 @@ class AppBootstrap {
     required this.theme,
     required this.reminderSettings,
     required this.reminders,
+    required this.notifications,
   });
 
   final LocalDatabase db;
@@ -67,6 +69,7 @@ class AppBootstrap {
   final ThemeController theme;
   final ReminderSettings reminderSettings;
   final ReminderService reminders;
+  final NotificationService notifications;
 
   static Future<AppBootstrap> create({String? storagePath}) async {
     final LocalDatabase db = LocalDatabase();
@@ -137,6 +140,10 @@ class AppBootstrap {
       routineService: routines,
       settingsBox: db.settings,
     );
+    final NotificationService notifications = NotificationService(
+      reminders: reminders,
+      settings: reminderSettings,
+    );
 
     await SeedData.seedIfNeeded(
       db: db,
@@ -171,6 +178,7 @@ class AppBootstrap {
       theme: theme,
       reminderSettings: reminderSettings,
       reminders: reminders,
+      notifications: notifications,
     );
   }
 

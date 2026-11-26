@@ -138,6 +138,147 @@ class ReminderService {
   Map<String, dynamic> get _snoozed =>
       _snoozeCache ??= _readJsonMap(_snoozeKey);
 
+  /// 未来 [days] 天内可预排的系统通知计划。
+  ///
+  /// 与应用内 [tick] 不同：这里只返回尚未到点的提醒，供系统通知提前排期；
+  /// 微习惯汇总只排今天（未来是否打卡无法预知）。
+  List<ReminderEvent> upcoming({DateTime? now, int days = 7}) {
+    if (!settings.enabled) return const <ReminderEvent>[];
+    final DateTime current = now ?? DateTime.now();
+    final DateTime end = current.add(Duration(days: days));
+    final int lead = settings.leadMinutes;
+    final List<ReminderEvent> plan = <ReminderEvent>[];
+
+    final List<TimeBlock> blockList = blocks.all;
+    final Map<DateTime, List<TimeBlock>> groups = <DateTime, List<TimeBlock>>{};
+    for (final TimeBlock block in blockList) {
+      if (block.isCompleted) continue;
+      final DateTime remindAt =
+          block.startAt.subtract(Duration(minutes: lead));
+      if (remindAt.isBefore(current) || remindAt.isAfter(end)) continue;
+      groups
+          .putIfAbsent(_minuteOf(block.startAt), () => <TimeBlock>[])
+          .add(block);
+    }
+    for (final MapEntry<DateTime, List<TimeBlock>> group in groups.entries) {
+      final List<TimeBlock> items = group.value
+        ..sort((TimeBlock a, TimeBlock b) => a.title.compareTo(b.title));
+      final DateTime startAt = group.key;
+      final String title =
+          items.map((TimeBlock block) => block.title).join('、');
+      final String subtitle = items.length > 1
+          ? '${AppDate.timeLabel(startAt)} · ${items.length} 项'
+          : '${AppDate.timeLabel(startAt)} · ${AppDate.durationLabel(items.first.plannedMinutes)}';
+      plan.add(
+        ReminderEvent(
+          key: 'tb:${startAt.toIso8601String()}',
+          kind: ReminderKind.timeBlock,
+          at: startAt.subtract(Duration(minutes: lead)),
+          title: title,
+          subtitle: subtitle,
+          startAt: startAt,
+          blockIds: items.map((TimeBlock block) => block.id).toList(),
+        ),
+      );
+    }
+
+    final DateTime firstDay = AppDate.startOfDay(current);
+    for (DateTime day = firstDay;
+        !day.isAfter(end);
+        day = day.add(const Duration(days: 1))) {
+      final String dateKey = AppDate.dateKey(day);
+      for (final WeeklyRoutine routine in routines.active) {
+        if (routine.weekday != day.weekday) continue;
+        if (exceptions.isSkipped(routine.id, dateKey)) continue;
+        final bool generated = blockList.any(
+          (TimeBlock block) =>
+              block.routineId == routine.id &&
+              AppDate.isSameDay(block.startAt, day),
+        );
+        if (generated) continue;
+        final DateTime startAt = DateTime(
+          day.year,
+          day.month,
+          day.day,
+          routine.startHour,
+          routine.startMinute,
+        );
+        final DateTime remindAt = startAt.subtract(Duration(minutes: lead));
+        if (remindAt.isBefore(current) || remindAt.isAfter(end)) continue;
+        plan.add(
+          ReminderEvent(
+            key: 'routine:${routine.id}:$dateKey',
+            kind: ReminderKind.routineBlock,
+            at: remindAt,
+            title: routine.title,
+            subtitle:
+                '${AppDate.timeLabel(startAt)} · ${AppDate.durationLabel(routine.durationMinutes)}',
+            startAt: startAt,
+            routineId: routine.id,
+            taskId: routine.actionItemId,
+          ),
+        );
+      }
+    }
+
+    final int dateOnlyMinutes = settings.dateOnlyMinutes;
+    for (final ActionItem item in actions.all) {
+      if (item.isCompleted || item.scheduledDate == null) continue;
+      if (blocks.blocksForActionItem(item.id).isNotEmpty) continue;
+      final DateTime day = AppDate.startOfDay(item.scheduledDate!);
+      final DateTime at = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        dateOnlyMinutes ~/ 60,
+        dateOnlyMinutes % 60,
+      );
+      if (at.isBefore(current) || at.isAfter(end)) continue;
+      plan.add(
+        ReminderEvent(
+          key: 'dateonly:${item.id}:${AppDate.dateKey(day)}',
+          kind: ReminderKind.dateOnlyTask,
+          at: at,
+          title: item.title,
+          subtitle: '${AppDate.timeLabel(at)} · 今日待办',
+          startAt: at,
+          taskId: item.id,
+        ),
+      );
+    }
+
+    final List<FoggHabit> activeHabits = habits.active;
+    if (activeHabits.isNotEmpty) {
+      final int pending = activeHabits
+          .where((FoggHabit habit) => !habitService.isDoneToday(habit))
+          .length;
+      final int digestMinutes = settings.habitDigestMinutes;
+      final DateTime at = DateTime(
+        firstDay.year,
+        firstDay.month,
+        firstDay.day,
+        digestMinutes ~/ 60,
+        digestMinutes % 60,
+      );
+      if (pending > 0 && !at.isBefore(current) && !at.isAfter(end)) {
+        plan.add(
+          ReminderEvent(
+            key: 'habit:${AppDate.dateKey(firstDay)}',
+            kind: ReminderKind.habitDigest,
+            at: at,
+            title: '今天还有 $pending 个微习惯未完成',
+            subtitle: '${AppDate.timeLabel(at)} · 去打卡',
+            startAt: at,
+            pendingCount: pending,
+          ),
+        );
+      }
+    }
+
+    plan.sort((ReminderEvent a, ReminderEvent b) => a.at.compareTo(b.at));
+    return plan;
+  }
+
   /// 计算当前应展示的提醒并记录为已发送。
   ///
   /// 同步只读 Hive，写盘在后台完成，避免阻塞首帧与测试。

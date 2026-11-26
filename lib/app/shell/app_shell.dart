@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../router/module_routes.dart';
@@ -40,6 +42,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkReminders());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureNotifications());
     _reminderTicker = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _checkReminders(),
@@ -62,9 +65,58 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _checkReminders() {
     if (!mounted) return;
     final List<ReminderEvent> events = context.read<ReminderService>().tick();
+    unawaited(context.read<NotificationService>().syncUpcoming());
     if (events.isEmpty) return;
     _pendingReminders.addAll(events);
     _showNextReminder();
+  }
+
+  Future<void> _ensureNotifications() async {
+    if (!mounted) return;
+    final NotificationService notifications = context.read<NotificationService>();
+    notifications.onIntent = _handleNotificationIntent;
+    await notifications.initialize();
+    if (!mounted) return;
+    await notifications.syncUpcoming();
+  }
+
+  void _handleNotificationIntent(String actionId, String payload) {
+    final ReminderEvent? event = _decodeReminder(payload);
+    if (event == null) return;
+    switch (actionId) {
+      case 'complete':
+        unawaited(
+          _runNotificationAction(
+            () => context.read<ReminderService>().complete(event),
+          ),
+        );
+      case 'snooze':
+        unawaited(
+          _runNotificationAction(
+            () => context.read<ReminderService>().snooze(event),
+          ),
+        );
+      default:
+        _openEvent(event);
+    }
+  }
+
+  Future<void> _runNotificationAction(Future<void> Function() action) async {
+    await action();
+    if (!mounted) return;
+    await context.read<NotificationService>().syncUpcoming();
+  }
+
+  ReminderEvent? _decodeReminder(String payload) {
+    try {
+      final Object? decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        return ReminderEvent.fromJson(decoded.cast<String, dynamic>());
+      }
+    } catch (_) {
+      // 无效 payload 直接忽略。
+    }
+    return null;
   }
 
   void _showNextReminder() {
@@ -101,6 +153,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _openReminder() {
     final ReminderEvent? event = _currentReminder;
     if (event == null) return;
+    _openEvent(event);
+    _dismissReminder();
+  }
+
+  void _openEvent(ReminderEvent event) {
     final UiController ui = context.read<UiController>();
     switch (event.kind) {
       case ReminderKind.timeBlock:
@@ -117,7 +174,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       case ReminderKind.habitDigest:
         ui.setRoute(AppRoutes.foggHabit);
     }
-    _dismissReminder();
   }
 
   @override
