@@ -8,7 +8,7 @@ import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
-/// 顶栏：左侧模块标题，右侧任务池 / 安排记录（仅时间盒）。
+/// 顶栏：左侧模块标题，最右侧为任务池；时间盒时安排记录紧挨在任务池左侧。
 class TopBar extends StatelessWidget {
   const TopBar({super.key, required this.title, required this.isDesktop});
 
@@ -37,27 +37,27 @@ class TopBar extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Flexible(
+          // 标题撑满剩余空间，让任务池/安排记录始终贴住顶部栏最右侧。
+          Expanded(
             child: Text(
               title,
               overflow: TextOverflow.ellipsis,
               style: context.texts.titleLarge,
             ),
           ),
-          const Spacer(),
-          _InboxTrigger(
-            count: inboxCount,
-            onTap: ui.openInbox,
-            compact: !isDesktop,
-          ),
           if (ui.currentRoute == AppRoutes.timeBox) ...<Widget>[
-            const SizedBox(width: AppSpacing.xs),
             _ScheduleTrigger(
               count: scheduledCount,
               onTap: ui.openSchedule,
               compact: !isDesktop,
             ),
+            const SizedBox(width: AppSpacing.xs),
           ],
+          _InboxTrigger(
+            count: inboxCount,
+            onTap: ui.openInbox,
+            compact: !isDesktop,
+          ),
         ],
       ),
     );
