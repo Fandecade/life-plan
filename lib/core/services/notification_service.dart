@@ -193,7 +193,7 @@ class NotificationService {
       categoryIdentifier:
           event.canComplete ? taskCategory : habitCategory,
       presentAlert: false,
-      presentSound: false,
+      presentSound: true,
     );
     final NotificationDetails details =
         NotificationDetails(android: android, macOS: darwin);
