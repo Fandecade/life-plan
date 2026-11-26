@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -59,7 +60,8 @@ class DayView extends StatefulWidget {
   State<DayView> createState() => _DayViewState();
 }
 
-class _DayViewState extends State<DayView> {
+class _DayViewState extends State<DayView>
+    with SingleTickerProviderStateMixin {
   static const double _hourHeight = TimeBoxMetrics.dayHourHeight;
   static const double _labelWidth = 54;
   static const double _minBlockHeight = 26;
@@ -73,6 +75,10 @@ class _DayViewState extends State<DayView> {
   double _moveDeltaY = 0;
   String? _resizeId;
   double _resizeDeltaY = 0;
+  String? _armedId;
+  bool _armedMoved = false;
+  Offset? _armedGlobalPosition;
+  late final AnimationController _wiggle;
   DateTime? _selectAnchor;
   DateTime? _selectCurrent;
   String? _highlightId;
@@ -85,6 +91,10 @@ class _DayViewState extends State<DayView> {
   @override
   void initState() {
     super.initState();
+    _wiggle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _scrollToFocus();
     });
@@ -104,6 +114,7 @@ class _DayViewState extends State<DayView> {
   void dispose() {
     _highlightTimer?.cancel();
     _scroll.dispose();
+    _wiggle.dispose();
     super.dispose();
   }
 
@@ -475,47 +486,54 @@ class _DayViewState extends State<DayView> {
       },
       onSecondaryTapUp: (TapUpDetails details) async {
         if (block.routineId == null) return;
-        final RoutineBlockAction? routineAction = await showRoutineBlockMenu(
-          context,
-          block: block,
-          globalPosition: details.globalPosition,
-        );
-        if (routineAction != null) {
-          widget.onRoutineAction(block, routineAction);
-        }
+        unawaited(_showRoutineMenu(block, details.globalPosition));
       },
-      onLongPressStart: (LongPressStartDetails details) async {
-        if (block.routineId == null) return;
-        final RoutineBlockAction? routineAction = await showRoutineBlockMenu(
-          context,
-          block: block,
-          globalPosition: details.globalPosition,
-        );
-        if (routineAction != null) {
-          widget.onRoutineAction(block, routineAction);
-        }
-      },
-      onPanStart: (_) => setState(() {
-        _moveId = block.id;
-        _moveDeltaY = 0;
-      }),
-      onPanUpdate: (DragUpdateDetails details) =>
-          setState(() => _moveDeltaY += details.delta.dy),
-      onPanEnd: (_) => _commitMove(block),
-      onPanCancel: () => _commitMove(block),
+      onLongPressStart: _touchDragMode
+          ? (LongPressStartDetails details) => _startArmedDrag(block, details)
+          : (LongPressStartDetails details) {
+              if (block.routineId == null) return;
+              unawaited(_showRoutineMenu(block, details.globalPosition));
+            },
+      onLongPressMoveUpdate: _touchDragMode
+          ? (LongPressMoveUpdateDetails details) =>
+              _updateArmedDrag(block, details)
+          : null,
+      onLongPressEnd: _touchDragMode ? (_) => _endArmedDrag(block) : null,
+      onLongPressCancel:
+          _touchDragMode ? () => _cancelArmedDrag(block) : null,
+      onPanStart: _touchDragMode
+          ? null
+          : (_) => setState(() {
+                _moveId = block.id;
+                _moveDeltaY = 0;
+              }),
+      onPanUpdate: _touchDragMode
+          ? null
+          : (DragUpdateDetails details) =>
+              setState(() => _moveDeltaY += details.delta.dy),
+      onPanEnd: _touchDragMode ? null : (_) => _commitMove(block),
+      onPanCancel: _touchDragMode ? null : () => _commitMove(block),
       child: MouseRegion(
         cursor: SystemMouseCursors.grab,
-        child: Stack(
+        child: AnimatedBuilder(
+          animation: _wiggle,
+          builder: (BuildContext context, Widget? child) => Transform.rotate(
+            angle: _armedId == block.id
+                ? (_wiggle.value - 0.5) * 0.024
+                : 0,
+            child: child,
+          ),
+          child: Stack(
           children: <Widget>[
             Container(
               decoration: BoxDecoration(
-                color: tone.withValues(alpha: context.isDarkMode ? 0.22 : 0.12),
+                color: tone.withValues(alpha: context.isDarkMode ? 0.34 : 0.2),
                 borderRadius: BorderRadius.circular(7),
                 border: Border(left: BorderSide(color: tone, width: 3)),
               ),
               padding: const EdgeInsets.fromLTRB(8, 3, 4, 3),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   Row(
                     children: <Widget>[
@@ -532,6 +550,7 @@ class _DayViewState extends State<DayView> {
                       Expanded(
                         child: Text(
                           block.title,
+                          textAlign: TextAlign.center,
                           maxLines: showTime || showMeta ? 1 : 2,
                           overflow: TextOverflow.ellipsis,
                           style: context.texts.bodySmall?.copyWith(
@@ -559,6 +578,7 @@ class _DayViewState extends State<DayView> {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                       style: context.texts.labelSmall?.copyWith(
                         fontSize: 10,
                         color: tone,
@@ -568,13 +588,14 @@ class _DayViewState extends State<DayView> {
                   if (showTime) ...<Widget>[
                     const SizedBox(height: 2),
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
                         Text(
                           AppDate.timeRangeLabel(block.startAt, block.endAt),
                           style: context.texts.labelSmall,
                         ),
                         if (statusTag != null) ...<Widget>[
-                          const Spacer(),
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               statusTag,
@@ -649,6 +670,7 @@ class _DayViewState extends State<DayView> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -753,6 +775,90 @@ class _DayViewState extends State<DayView> {
       return;
     }
     await service.completeBlock(block);
+  }
+
+  /// 手机端（窄屏）用长按承载拖动，桌面保留直接拖拽。
+  bool get _touchDragMode => MediaQuery.sizeOf(context).width < 920;
+
+  void _startArmedDrag(TimeBlock block, LongPressStartDetails details) {
+    if (_resizeId != null) return;
+    setState(() {
+      _armedId = block.id;
+      _armedMoved = false;
+      _armedGlobalPosition = details.globalPosition;
+      _moveId = block.id;
+      _moveDeltaY = 0;
+    });
+    _wiggle.repeat(reverse: true);
+    HapticFeedback.selectionClick();
+  }
+
+  void _updateArmedDrag(
+    TimeBlock block,
+    LongPressMoveUpdateDetails details,
+  ) {
+    if (_armedId != block.id) return;
+    final double dy = details.offsetFromOrigin.dy;
+    setState(() {
+      _moveDeltaY = dy;
+      if (dy.abs() > 4) _armedMoved = true;
+    });
+  }
+
+  void _endArmedDrag(TimeBlock block) {
+    final bool moved = _armedMoved;
+    final Offset? position = _armedGlobalPosition;
+    _stopWiggle();
+    if (!moved) {
+      setState(() {
+        _armedId = null;
+        _armedGlobalPosition = null;
+        _moveId = null;
+        _moveDeltaY = 0;
+      });
+      if (block.routineId != null && position != null) {
+        unawaited(_showRoutineMenu(block, position));
+      }
+      return;
+    }
+    setState(() {
+      _armedId = null;
+      _armedGlobalPosition = null;
+    });
+    unawaited(_commitMove(block));
+  }
+
+  void _cancelArmedDrag(TimeBlock block) {
+    final bool moved = _armedMoved;
+    _stopWiggle();
+    setState(() {
+      _armedId = null;
+      _armedGlobalPosition = null;
+      if (!moved) {
+        _moveId = null;
+        _moveDeltaY = 0;
+      }
+    });
+    if (moved) unawaited(_commitMove(block));
+  }
+
+  void _stopWiggle() {
+    _wiggle.stop();
+    _wiggle.value = 0;
+  }
+
+  Future<void> _showRoutineMenu(
+    TimeBlock block,
+    Offset globalPosition,
+  ) async {
+    final RoutineBlockAction? routineAction = await showRoutineBlockMenu(
+      context,
+      block: block,
+      globalPosition: globalPosition,
+    );
+    if (routineAction != null && mounted) {
+      widget.onRoutineAction(block, routineAction);
+    }
   }
 
   Future<void> _commitMove(TimeBlock block) async {
