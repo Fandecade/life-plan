@@ -9,6 +9,7 @@ import '../../core/plugin/module_registry.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import 'countdown_settings_section.dart';
 import 'settings_style_pages.dart';
 import 'settings_sub_page.dart';
 
@@ -37,6 +38,15 @@ class HomeCardsSettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           const AppCard(child: ShortcutSection()),
+          const SizedBox(height: AppSpacing.xl),
+          Text('倒计时', style: context.texts.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '最多 ${HomeSettings.maxCountdowns} 个；可自定义或绑定任务截止日。',
+            style: context.texts.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const AppCard(child: CountdownSection()),
         ],
       ),
     );
@@ -67,28 +77,17 @@ class HomeCardsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final HomeSettings settings = context.watch<HomeSettings>();
     final List<HomeCard> order = settings.order;
-    return ReorderableListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: false,
-      itemCount: order.length,
-      onReorder: (int oldIndex, int newIndex) {
-        final List<HomeCard> next = <HomeCard>[...order];
-        if (newIndex > oldIndex) newIndex -= 1;
-        final HomeCard moved = next.removeAt(oldIndex);
-        next.insert(newIndex, moved);
-        settings.setOrder(next);
-      },
-      itemBuilder: (BuildContext context, int index) {
-        final HomeCard card = order[index];
-        return _HomeCardRow(
-          key: ValueKey<String>('home-card-${card.name}'),
-          card: card,
-          index: index,
-          size: settings.sizeOf(card),
-          enabled: settings.isEnabled(card),
-        );
-      },
+    return Column(
+      children: <Widget>[
+        for (int index = 0; index < order.length; index++)
+          _HomeCardRow(
+            key: ValueKey<String>('home-card-${order[index].name}'),
+            card: order[index],
+            index: index,
+            size: settings.sizeOf(order[index]),
+            enabled: settings.isEnabled(order[index]),
+          ),
+      ],
     );
   }
 }
@@ -125,15 +124,7 @@ class _HomeCardRow extends StatelessWidget {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  ReorderableDragStartListener(
-                    index: index,
-                    child: Icon(
-                      Icons.drag_indicator_rounded,
-                      size: 18,
-                      color: palette.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +164,7 @@ class _HomeCardRow extends StatelessWidget {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.only(left: 26, top: 6),
+                padding: const EdgeInsets.only(left: 4, top: 6),
                 child: Row(
                   children: <Widget>[
                     for (final HomeCardSize value in HomeCardSize.values)
@@ -185,6 +176,23 @@ class _HomeCardRow extends StatelessWidget {
                           onTap: () => settings.setSize(card, value),
                         ),
                       ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: '上移',
+                      iconSize: 16,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: index == 0 ? null : () => _move(context, -1),
+                      icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                    ),
+                    IconButton(
+                      tooltip: '下移',
+                      iconSize: 16,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: index >= settings.order.length - 1
+                          ? null
+                          : () => _move(context, 1),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
                   ],
                 ),
               ),
@@ -194,6 +202,16 @@ class _HomeCardRow extends StatelessWidget {
         Divider(color: palette.hairline, height: 1),
       ],
     );
+  }
+
+  void _move(BuildContext context, int delta) {
+    final HomeSettings settings = context.read<HomeSettings>();
+    final List<HomeCard> order = <HomeCard>[...settings.order];
+    final int target = index + delta;
+    if (target < 0 || target >= order.length) return;
+    final HomeCard moved = order.removeAt(index);
+    order.insert(target, moved);
+    settings.setOrder(order);
   }
 }
 

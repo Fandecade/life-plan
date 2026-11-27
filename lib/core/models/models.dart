@@ -2,6 +2,7 @@ export 'action_item.dart';
 export 'artifact.dart';
 export 'project.dart';
 export 'capability.dart';
+export 'countdown.dart';
 export 'fogg_models.dart';
 export 'learning_methods.dart';
 export 'learning_models.dart';

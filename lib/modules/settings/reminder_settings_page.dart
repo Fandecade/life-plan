@@ -8,6 +8,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_settings.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/text_input_dialog.dart';
 import '../../core/widgets/app_card.dart';
 
 /// 二级「提醒设置」：应用内/系统通知开关、提前量（含自定义）与两个兜底时刻。
@@ -57,62 +58,27 @@ class ReminderSettingsPage extends StatelessWidget {
       await settings.setLeadMinutes(choice);
       return;
     }
-    final int? minutes = await _promptLeadMinutes(context, settings.leadMinutes);
-    if (minutes != null) await settings.setLeadMinutes(minutes);
-  }
-
-  Future<int?> _promptLeadMinutes(BuildContext context, int initial) async {
-    final TextEditingController controller = TextEditingController(
-      text: '${initial == 0 ? 10 : initial}',
+    final String? raw = await showTextInputDialog(
+      context,
+      title: '自定义提前量',
+      initial: '${settings.leadMinutes == 0 ? 10 : settings.leadMinutes}',
+      hintText: '0 – 1440',
+      suffixText: '分钟',
+      keyboardType: TextInputType.number,
+      digitsOnly: true,
+      validate: (String value) {
+        final int? minutes = int.tryParse(value);
+        if (minutes == null ||
+            minutes < 0 ||
+            minutes > ReminderSettings.maxLeadMinutes) {
+          return '请输入 0–1440 的整数';
+        }
+        return null;
+      },
     );
-    try {
-      return await showDialog<int>(
-        context: context,
-        builder: (BuildContext dialogContext) {
-          final AppPalette palette = dialogContext.palette;
-          return AlertDialog(
-            backgroundColor: palette.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              side: BorderSide(color: palette.border),
-            ),
-            title: Text('自定义提前量', style: dialogContext.texts.titleLarge),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-              ],
-              decoration: const InputDecoration(
-                hintText: '0 – 1440',
-                suffixText: '分钟',
-              ),
-            ),
-            actions: <Widget>[
-              AppGhostButton(
-                label: '取消',
-                onPressed: () => Navigator.of(dialogContext).pop(),
-              ),
-              AppPrimaryButton(
-                label: '确定',
-                onPressed: () {
-                  final int? value = int.tryParse(controller.text);
-                  if (value == null ||
-                      value < 0 ||
-                      value > ReminderSettings.maxLeadMinutes) {
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(value);
-                },
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+    if (raw == null || !context.mounted) return;
+    final int? minutes = int.tryParse(raw);
+    if (minutes != null) await settings.setLeadMinutes(minutes);
   }
 
   Future<void> _pickTime(

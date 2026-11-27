@@ -19,6 +19,7 @@ class NotificationService {
   static const String channelId = 'reminders';
   static const String taskCategory = 'reminder_task';
   static const String habitCategory = 'reminder_habit';
+  static const String countdownCategory = 'reminder_countdown';
 
   final ReminderService reminders;
   final ReminderSettings settings;
@@ -78,6 +79,25 @@ class NotificationService {
               DarwinNotificationAction.plain(
                 'open',
                 '去打卡',
+                options: const <DarwinNotificationActionOption>{
+                  DarwinNotificationActionOption.foreground,
+                },
+              ),
+              DarwinNotificationAction.plain(
+                'snooze',
+                '稍后 10 分钟',
+                options: const <DarwinNotificationActionOption>{
+                  DarwinNotificationActionOption.foreground,
+                },
+              ),
+            ],
+          ),
+          DarwinNotificationCategory(
+            countdownCategory,
+            actions: <DarwinNotificationAction>[
+              DarwinNotificationAction.plain(
+                'open',
+                '知道了',
                 options: const <DarwinNotificationActionOption>{
                   DarwinNotificationActionOption.foreground,
                 },
@@ -163,11 +183,11 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       category: AndroidNotificationCategory.reminder,
-      actions: event.canComplete
+      actions: event.kind == ReminderKind.countdown
           ? const <AndroidNotificationAction>[
               AndroidNotificationAction(
-                'complete',
-                '完成',
+                'open',
+                '知道了',
                 showsUserInterface: true,
               ),
               AndroidNotificationAction(
@@ -176,22 +196,36 @@ class NotificationService {
                 showsUserInterface: true,
               ),
             ]
-          : const <AndroidNotificationAction>[
-              AndroidNotificationAction(
-                'open',
-                '去打卡',
-                showsUserInterface: true,
-              ),
-              AndroidNotificationAction(
-                'snooze',
-                '稍后 10 分钟',
-                showsUserInterface: true,
-              ),
-            ],
+          : event.canComplete
+              ? const <AndroidNotificationAction>[
+                  AndroidNotificationAction(
+                    'complete',
+                    '完成',
+                    showsUserInterface: true,
+                  ),
+                  AndroidNotificationAction(
+                    'snooze',
+                    '稍后 10 分钟',
+                    showsUserInterface: true,
+                  ),
+                ]
+              : const <AndroidNotificationAction>[
+                  AndroidNotificationAction(
+                    'open',
+                    '去打卡',
+                    showsUserInterface: true,
+                  ),
+                  AndroidNotificationAction(
+                    'snooze',
+                    '稍后 10 分钟',
+                    showsUserInterface: true,
+                  ),
+                ],
     );
     final DarwinNotificationDetails darwin = DarwinNotificationDetails(
-      categoryIdentifier:
-          event.canComplete ? taskCategory : habitCategory,
+      categoryIdentifier: event.kind == ReminderKind.countdown
+          ? countdownCategory
+          : (event.canComplete ? taskCategory : habitCategory),
       presentAlert: false,
       presentSound: true,
     );

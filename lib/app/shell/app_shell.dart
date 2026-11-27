@@ -41,7 +41,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Timer? _bannerTimer;
   final Queue<ReminderEvent> _pendingReminders = Queue<ReminderEvent>();
   ReminderEvent? _currentReminder;
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
 
   @override
   void initState() {
@@ -177,6 +177,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       case ReminderKind.dateOnlyTask:
         final String? taskId = event.taskId;
         if (taskId != null) ui.openDetail(taskId);
+      case ReminderKind.dueTask:
+        final String? taskId = event.taskId;
+        if (taskId != null) ui.openDetail(taskId);
+      case ReminderKind.countdown:
+        ui.setRoute(AppRoutes.home);
       case ReminderKind.habitDigest:
         ui.setRoute(AppRoutes.foggHabit);
     }
@@ -261,7 +266,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ui.closeOverlays();
               },
               child: Scaffold(
-                key: _scaffoldKey,
+
                 backgroundColor: palette.background,
                 drawer: isDesktop
                     ? null
@@ -293,13 +298,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             children: <Widget>[
                               SafeArea(
                                 bottom: false,
-                                child: TopBar(
-                                  title: current?.title ?? '主页',
-                                  isDesktop: isDesktop,
-                                  onTitleTap: isDesktop
-                                      ? null
-                                      : () => _scaffoldKey.currentState
-                                          ?.openDrawer(),
+                                child: Builder(
+                                  builder: (BuildContext context) => TopBar(
+                                    title: current?.title ?? '主页',
+                                    isDesktop: isDesktop,
+                                    onTitleTap: isDesktop
+                                        ? null
+                                        : () => Scaffold.of(context)
+                                            .openDrawer(),
+                                  ),
                                 ),
                               ),
                               Expanded(

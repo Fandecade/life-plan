@@ -87,6 +87,9 @@ class LifePlannerApp extends StatelessWidget {
         ChangeNotifierProvider<ProjectRepository>.value(
           value: bootstrap.projects,
         ),
+        ChangeNotifierProvider<CountdownRepository>.value(
+          value: bootstrap.countdowns,
+        ),
         Provider<HabitService>.value(value: bootstrap.habitService),
         Provider<ReviewService>.value(value: bootstrap.reviewService),
         Provider<ScheduleService>.value(value: bootstrap.schedules),

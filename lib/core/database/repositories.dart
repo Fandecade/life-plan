@@ -561,6 +561,58 @@ class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> 
     }
   }
 }
+class CountdownRepository extends JsonEntityRepository<Countdown> {
+  CountdownRepository(Box<String> box) : super(box, Countdown.fromJson);
+
+  List<Countdown> sorted() {
+    final List<Countdown> items = all.toList();
+    items.sort((Countdown a, Countdown b) {
+      final int byOrder = a.sortOrder.compareTo(b.sortOrder);
+      return byOrder != 0 ? byOrder : a.createdAt.compareTo(b.createdAt);
+    });
+    return items;
+  }
+
+  Future<Countdown> create({
+    required String title,
+    DateTime? targetAt,
+    String? sourceTaskId,
+    bool autoHideExpired = false,
+  }) async {
+    int nextOrder = 0;
+    for (final Countdown item in all) {
+      if (item.sortOrder >= nextOrder) nextOrder = item.sortOrder + 1;
+    }
+    final Countdown item = Countdown.create(
+      title: title,
+      targetAt: targetAt,
+      sourceTaskId: sourceTaskId,
+      autoHideExpired: autoHideExpired,
+      sortOrder: nextOrder,
+    );
+    await put(item);
+    return item;
+  }
+
+  Future<void> save(Countdown item) =>
+      put(item.copyWith(syncStatus: SyncStatus.pendingUpdate));
+
+  Future<void> remove(Countdown item) => softDelete(item.id);
+
+  Future<void> reorder(List<Countdown> items) async {
+    for (int i = 0; i < items.length; i++) {
+      final Countdown item = items[i];
+      if (item.sortOrder == i) continue;
+      await put(
+        item.copyWith(
+          sortOrder: i,
+          syncStatus: SyncStatus.pendingUpdate,
+        ),
+      );
+    }
+  }
+}
+
 class ProjectRepository extends JsonEntityRepository<Project> {
   ProjectRepository(Box<String> box) : super(box, Project.fromJson);
 

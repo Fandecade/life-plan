@@ -12,7 +12,14 @@ import 'routine_service.dart';
 import 'schedule_service.dart';
 
 /// 提醒类型：时间盒已排块、固定安排模板、只定日期任务、微习惯每日汇总。
-enum ReminderKind { timeBlock, routineBlock, dateOnlyTask, habitDigest }
+enum ReminderKind {
+  timeBlock,
+  routineBlock,
+  dateOnlyTask,
+  habitDigest,
+  countdown,
+  dueTask,
+}
 
 /// 一条待展示的提醒。只描述「提醒什么、什么时候、能做什么」，
 /// 不绑定具体展示方式，方便第二阶段同样交给系统通知。
@@ -52,9 +59,19 @@ class ReminderEvent {
   /// 微习惯汇总里未完成的数量。
   final int pendingCount;
 
-  bool get canComplete => kind != ReminderKind.habitDigest;
+  bool get canComplete =>
+      kind != ReminderKind.habitDigest && kind != ReminderKind.countdown;
 
-  String get actionLabel => kind == ReminderKind.habitDigest ? '去打卡' : '完成';
+  String get actionLabel {
+    switch (kind) {
+      case ReminderKind.habitDigest:
+        return '去打卡';
+      case ReminderKind.countdown:
+        return '知道了';
+      default:
+        return '完成';
+    }
+  }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'key': key,
@@ -108,6 +125,7 @@ class ReminderService {
     required this.habitService,
     required this.schedules,
     required this.routineService,
+    required this.countdowns,
     required this.settingsBox,
     this.grace = const Duration(minutes: 30),
   });
@@ -124,6 +142,7 @@ class ReminderService {
   final HabitService habitService;
   final ScheduleService schedules;
   final RoutineService routineService;
+  final CountdownRepository countdowns;
   final Box<dynamic> settingsBox;
 
   /// 应用重启或回到前台时，允许补发的最大延迟。
@@ -242,6 +261,51 @@ class ReminderService {
           title: item.title,
           subtitle: '${AppDate.timeLabel(at)} · 今日待办',
           startAt: at,
+          taskId: item.id,
+        ),
+      );
+    }
+
+    // 自定义倒计时（绑定任务由任务截止提醒负责）。
+    for (final Countdown item in countdowns.all) {
+      if (item.isTaskBound) continue;
+      final DateTime? target = item.targetAt;
+      if (target == null) continue;
+      if (target.isBefore(current) || target.isAfter(end)) continue;
+      final String title =
+          item.title.trim().isEmpty ? '倒计时' : item.title.trim();
+      plan.add(
+        ReminderEvent(
+          key: 'countdown:${item.id}',
+          kind: ReminderKind.countdown,
+          at: target,
+          title: title,
+          subtitle: '倒计时 · ${AppDate.timeLabel(target)}',
+          startAt: target,
+        ),
+      );
+    }
+
+    // 任务截止：有具体时刻提前 1 小时，仅日期则当天 09:00。
+    for (final ActionItem item in actions.all) {
+      if (item.isCompleted || item.dueDate == null) continue;
+      final DateTime deadline = item.dueDate!;
+
+      final bool hasTime =
+          deadline.hour != 0 || deadline.minute != 0;
+      final DateTime at = hasTime
+          ? deadline.subtract(const Duration(hours: 1))
+          : DateTime(deadline.year, deadline.month, deadline.day, 9);
+      if (at.isBefore(current) || at.isAfter(end)) continue;
+      plan.add(
+        ReminderEvent(
+          key: 'due:${item.id}:${AppDate.dateKey(deadline)}',
+          kind: ReminderKind.dueTask,
+          at: at,
+          title: item.title,
+          subtitle:
+              hasTime ? '截止 ${AppDate.timeLabel(deadline)}' : '今天截止',
+          startAt: deadline,
           taskId: item.id,
         ),
       );
@@ -435,7 +499,55 @@ class ReminderService {
       }
     }
 
-    // 5. 微习惯：每天一次未打卡汇总。
+    // 5. 倒计时：到点提醒。
+    for (final Countdown item in countdowns.all) {
+      if (item.isTaskBound) continue;
+      final DateTime? target = item.targetAt;
+      if (target == null || !_isDue(target, current)) continue;
+      final String key = 'countdown:${item.id}';
+      if (sent.containsKey(key) || produced.contains(key)) continue;
+      due.add(
+        ReminderEvent(
+          key: key,
+          kind: ReminderKind.countdown,
+          at: current,
+          title: item.title.trim().isEmpty ? '倒计时' : item.title.trim(),
+          subtitle: '倒计时 · ${AppDate.timeLabel(target)}',
+          startAt: target,
+        ),
+      );
+      produced.add(key);
+    }
+
+    // 6. 任务截止：有具体时刻提前 1 小时，仅日期则当天 09:00。
+    for (final ActionItem item in actions.all) {
+      if (item.isCompleted || item.dueDate == null) continue;
+      final DateTime deadline = item.dueDate!;
+      final bool hasTime =
+          deadline.hour != 0 || deadline.minute != 0;
+      final DateTime at = hasTime
+          ? deadline.subtract(const Duration(hours: 1))
+          : DateTime(deadline.year, deadline.month, deadline.day, 9);
+      if (!_isDue(at, current)) continue;
+      final String key =
+          'due:${item.id}:${AppDate.dateKey(deadline)}';
+      if (sent.containsKey(key) || produced.contains(key)) continue;
+      due.add(
+        ReminderEvent(
+          key: key,
+          kind: ReminderKind.dueTask,
+          at: current,
+          title: item.title,
+          subtitle:
+              hasTime ? '截止 ${AppDate.timeLabel(deadline)}' : '今天截止',
+          startAt: deadline,
+          taskId: item.id,
+        ),
+      );
+      produced.add(key);
+    }
+
+    // 7. 微习惯：每天一次未打卡汇总。
     final List<FoggHabit> activeHabits = habits.active;
     if (activeHabits.isNotEmpty) {
       final int pending = activeHabits
@@ -508,6 +620,12 @@ class ReminderService {
         final String? taskId = event.taskId;
         if (taskId == null) return;
         await actions.setStatus(taskId, ActionItemStatus.completed);
+      case ReminderKind.dueTask:
+        final String? taskId = event.taskId;
+        if (taskId == null) return;
+        await actions.setStatus(taskId, ActionItemStatus.completed);
+      case ReminderKind.countdown:
+        return;
       case ReminderKind.habitDigest:
         return;
     }

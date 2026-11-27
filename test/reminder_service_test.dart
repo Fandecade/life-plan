@@ -271,4 +271,71 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('自定义倒计时与任务截止生成提醒计划', () async {
+    final Countdown countdown = await bootstrap.countdowns.create(
+      title: '倒计时提醒测试',
+      targetAt: at(11, 0),
+    );
+    final List<ReminderEvent> plan =
+        bootstrap.reminders.upcoming(now: at(9, 0));
+    expect(
+      plan.any((ReminderEvent e) => e.key == 'countdown:${countdown.id}'),
+      isTrue,
+    );
+
+    final ActionItem dueTask = await bootstrap.actions.create(
+      title: '截止提醒测试',
+      dueDate: at(15, 0),
+    );
+    final List<ReminderEvent> plan2 =
+        bootstrap.reminders.upcoming(now: at(9, 0));
+    final ReminderEvent dueEvent = plan2.firstWhere(
+      (ReminderEvent e) =>
+          e.key == 'due:${dueTask.id}:${AppDate.dateKey(at(15, 0))}',
+    );
+    expect(dueEvent.kind, ReminderKind.dueTask);
+    expect(dueEvent.at, at(14, 0));
+    expect(dueEvent.canComplete, isTrue);
+
+    final List<ReminderEvent> ticked =
+        bootstrap.reminders.tick(now: at(11, 0));
+    expect(
+      ticked.any((ReminderEvent e) => e.kind == ReminderKind.countdown),
+      isTrue,
+    );
+
+    final List<ReminderEvent> tickedDue =
+        bootstrap.reminders.tick(now: at(14, 0));
+    expect(
+      tickedDue.any((ReminderEvent e) => e.kind == ReminderKind.dueTask),
+      isTrue,
+    );
+
+    await bootstrap.reminders.complete(dueEvent);
+    expect(bootstrap.actions.byId(dueTask.id)!.isCompleted, isTrue);
+  });
+
+  test('仅日期的截止任务在当天 09:00 提醒', () async {
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    final ActionItem dateOnlyDue = await bootstrap.actions.create(
+      title: '仅日期截止测试',
+      dueDate: today,
+    );
+    final List<ReminderEvent> plan =
+        bootstrap.reminders.upcoming(now: at(9, 0));
+    expect(
+      plan.any(
+        (ReminderEvent e) =>
+            e.key == 'due:${dateOnlyDue.id}:${AppDate.dateKey(today)}',
+      ),
+      isTrue,
+    );
+    final List<ReminderEvent> ticked =
+        bootstrap.reminders.tick(now: at(9, 0));
+    expect(
+      ticked.any((ReminderEvent e) => e.kind == ReminderKind.dueTask),
+      isTrue,
+    );
+  });
 }

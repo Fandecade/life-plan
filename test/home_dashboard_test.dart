@@ -170,4 +170,54 @@ void main() {
       <String>['time_box'],
     );
   });
+
+  testWidgets('主页倒计时卡显示自定义、任务与过期状态', (
+    WidgetTester tester,
+  ) async {
+    final a = (await tester.runAsync(
+      () => bootstrap.countdowns.create(
+        title: '发布作品集',
+        targetAt: DateTime.now().add(const Duration(hours: 2)),
+      ),
+    ))!;
+    final task = (await tester.runAsync(
+      () => bootstrap.actions.create(
+        title: '交付设计稿',
+        dueDate: DateTime.now().add(const Duration(hours: 3)),
+      ),
+    ))!;
+    final b = (await tester.runAsync(
+      () => bootstrap.countdowns.create(
+        title: '任务截止',
+        sourceTaskId: task.id,
+      ),
+    ))!;
+    final c = (await tester.runAsync(
+      () => bootstrap.countdowns.create(
+        title: '已过期倒计时',
+        targetAt: DateTime.now().subtract(const Duration(hours: 1)),
+      ),
+    ))!;
+
+    await openApp(tester);
+    await tester.pump();
+    await tester.ensureVisible(find.text('发布作品集'));
+
+    expect(
+      find.byKey(ValueKey<String>('countdown-card-${a.id}')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey<String>('countdown-card-${b.id}')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey<String>('countdown-card-${c.id}')),
+      findsOneWidget,
+    );
+    expect(find.text('发布作品集'), findsOneWidget);
+    expect(find.text('任务截止'), findsOneWidget);
+    expect(find.text('已过期倒计时'), findsOneWidget);
+    expect(find.text('已到期'), findsOneWidget);
+  });
 }

@@ -9,6 +9,7 @@ enum HomeCard {
   todos,
   habits,
   shortcuts,
+
   trend,
   weekly,
   capability,
@@ -29,6 +30,7 @@ extension HomeCardMeta on HomeCard {
         return '今日习惯';
       case HomeCard.shortcuts:
         return '快捷入口';
+
       case HomeCard.trend:
         return '近 14 天趋势';
       case HomeCard.weekly:
@@ -52,6 +54,7 @@ extension HomeCardMeta on HomeCard {
         return '今日打卡情况';
       case HomeCard.shortcuts:
         return '可自定义的常用模块入口';
+
       case HomeCard.trend:
         return '任务完成与学习投入的逐日走势';
       case HomeCard.weekly:
@@ -63,7 +66,10 @@ extension HomeCardMeta on HomeCard {
 
   bool get defaultEnabled => index < 6;
 
-  bool get isChart => index >= 6;
+  bool get isChart =>
+      this == HomeCard.trend ||
+      this == HomeCard.weekly ||
+      this == HomeCard.capability;
 }
 
 /// 卡片尺寸：影响内边距与桌面端是否跨两列。
@@ -110,6 +116,7 @@ class HomeSettings extends ChangeNotifier {
   static const String _bottomKey = 'app.home.bottomModules';
   static const int maxBottomModules = 3;
   static const int maxShortcuts = 6;
+  static const int maxCountdowns = 6;
 
   static const List<String> defaultShortcuts = <String>[
     'time_box',

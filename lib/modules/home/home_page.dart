@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +16,7 @@ import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import 'countdown_format.dart';
 import 'home_charts.dart';
 import 'home_heatmap.dart';
 
@@ -50,6 +52,7 @@ class _HomePageState extends State<HomePage> {
     context.watch<FoggHabitRepository>();
     context.watch<HabitLogRepository>();
     context.watch<LearningSessionRepository>();
+    context.watch<CountdownRepository>();
 
     final DashboardSnapshot snapshot = dashboard.snapshot();
     final List<HomeCard> visible = homeSettings.order
@@ -96,6 +99,9 @@ class _HomePageState extends State<HomePage> {
                           children: <Widget>[
                             for (final HomeCard card in visible)
                               SizedBox(
+                                key: ValueKey<String>(
+                                  'home-card-${card.name}',
+                                ),
                                 width: !twoCol ||
                                         homeSettings.sizeOf(card) ==
                                             HomeCardSize.large
@@ -109,6 +115,12 @@ class _HomePageState extends State<HomePage> {
                                   dashboard,
                                 ),
                               ),
+                            ..._countdownCards(
+                              context,
+                              twoCol: twoCol,
+                              width: width,
+                              gap: gap,
+                            ),
                           ],
                         );
                       },
@@ -150,6 +162,7 @@ class _HomePageState extends State<HomePage> {
         return _HabitCard(size: size);
       case HomeCard.shortcuts:
         return _Shortcuts(size: size, ids: settings.shortcutIds);
+
       case HomeCard.trend:
         return _TrendCard(
           points: dashboard.recentDaily(snapshot),
@@ -753,6 +766,168 @@ class _HabitDot extends StatelessWidget {
   }
 }
 
+List<Widget> _countdownCards(
+  BuildContext context, {
+  required bool twoCol,
+  required double width,
+  required double gap,
+}) {
+  final CountdownRepository repo = context.read<CountdownRepository>();
+  final ActionItemRepository actions = context.read<ActionItemRepository>();
+  final DateTime now = DateTime.now();
+  final List<Widget> cards = <Widget>[];
+  for (final Countdown item in repo.sorted()) {
+    if (item.isTaskBound) {
+      final ActionItem? task = actions.byId(item.sourceTaskId);
+      if (task == null || task.isCompleted) continue;
+    }
+    if (item.autoHideExpired) {
+      final DateTime? target = item.isTaskBound
+          ? actions.byId(item.sourceTaskId)?.dueDate
+          : item.targetAt;
+      if (target != null && !target.isAfter(now)) continue;
+    }
+    cards.add(
+      SizedBox(
+        key: ValueKey<String>('countdown-card-${item.id}'),
+        width: !twoCol ? width : (width - gap) / 2,
+        child: _CountdownTileCard(item: item),
+      ),
+    );
+    if (cards.length >= 6) break;
+  }
+  return cards;
+}
+
+class _CountdownTileCard extends StatefulWidget {
+  const _CountdownTileCard({required this.item});
+
+  final Countdown item;
+
+  @override
+  State<_CountdownTileCard> createState() => _CountdownTileCardState();
+}
+
+class _CountdownTileCardState extends State<_CountdownTileCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (BuildContext context, Widget? child) => _buildCard(context),
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
+    final ActionItemRepository actions = context.watch<ActionItemRepository>();
+    final UiController ui = context.read<UiController>();
+    final DateTime now = DateTime.now();
+    final Countdown item = widget.item;
+
+    DateTime? target = item.targetAt;
+    String title = item.title.trim();
+    String? taskId;
+    if (item.isTaskBound) {
+      final ActionItem? task = actions.byId(item.sourceTaskId);
+      if (task == null || task.isCompleted) return const SizedBox.shrink();
+      target = task.dueDate;
+      taskId = task.id;
+      if (title.isEmpty) title = task.title;
+    }
+    final bool expired = target != null && !target.isAfter(now);
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              if (taskId != null) ...<Widget>[
+                Icon(
+                  Icons.task_alt_rounded,
+                  size: 12,
+                  color: context.palette.textTertiary,
+                ),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text(
+                  title.isEmpty ? '倒计时' : title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.titleSmall,
+                ),
+              ),
+              Text('倒计时', style: context.texts.labelSmall),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          InkWell(
+            onTap: () {
+              if (taskId != null) {
+                ui.openDetail(taskId!);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('在「设置 → 主页」中编辑倒计时'),
+                    behavior: SnackBarBehavior.floating,
+                    width: 260,
+                  ),
+                );
+              }
+            },
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  target == null
+                      ? '未设置时间'
+                      : (expired
+                          ? '已到期'
+                          : formatCountdown(target.difference(now))),
+                  style: context.texts.headlineSmall?.copyWith(
+                    color: target == null
+                        ? context.palette.textTertiary
+                        : (expired
+                            ? context.palette.danger
+                            : context.palette.accent),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  target == null
+                      ? '在设置中补上截止时间'
+                      : countdownTargetLabel(target),
+                  style: context.texts.labelSmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _Shortcuts extends StatelessWidget {
   const _Shortcuts({required this.size, required this.ids});
 

@@ -37,6 +37,7 @@ class AppBootstrap {
     required this.habitRecipeVersions,
     required this.artifacts,
     required this.projects,
+    required this.countdowns,
     required this.habitService,
     required this.reviewService,
     required this.routines,
@@ -67,6 +68,7 @@ class AppBootstrap {
   final HabitRecipeVersionRepository habitRecipeVersions;
   final ArtifactRepository artifacts;
   final ProjectRepository projects;
+  final CountdownRepository countdowns;
   final HabitService habitService;
   final ReviewService reviewService;
   final RoutineService routines;
@@ -105,6 +107,7 @@ class AppBootstrap {
         HabitRecipeVersionRepository(db.habitRecipeVersions);
     final ArtifactRepository artifacts = ArtifactRepository(db.artifacts);
     final ProjectRepository projects = ProjectRepository(db.projects);
+    final CountdownRepository countdowns = CountdownRepository(db.countdowns);
     final HabitService habitService = HabitService(
       habits: foggHabits,
       logs: habitLogs,
@@ -157,6 +160,7 @@ class AppBootstrap {
       habitService: habitService,
       schedules: schedules,
       routineService: routines,
+      countdowns: countdowns,
       settingsBox: db.settings,
     );
     final NotificationService notifications = NotificationService(
@@ -189,6 +193,7 @@ class AppBootstrap {
       habitRecipeVersions: habitRecipeVersions,
       artifacts: artifacts,
       projects: projects,
+      countdowns: countdowns,
       habitService: habitService,
       reviewService: reviewService,
       routines: routines,
