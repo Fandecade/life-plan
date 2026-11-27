@@ -92,7 +92,39 @@ class DashboardSnapshot {
   }
 }
 
-/// 主页统计聚合：只读本地仓储，进入主页时计算一次。
+/// 逐日数据点。
+class DailyPoint {
+  const DailyPoint({
+    required this.day,
+    required this.tasks,
+    required this.learningMinutes,
+  });
+
+  final DateTime day;
+  final int tasks;
+  final int learningMinutes;
+}
+
+/// 周聚合数据点。
+class WeeklyPoint {
+  const WeeklyPoint({
+    required this.start,
+    required this.tasks,
+    required this.learningMinutes,
+  });
+
+  final DateTime start;
+  final int tasks;
+  final int learningMinutes;
+}
+
+/// 能力投入占比。
+class CapabilityShare {
+  const CapabilityShare({required this.name, required this.count});
+
+  final String name;
+  final int count;
+}
 class DashboardService {
   DashboardService({
     required this.actions,
@@ -100,6 +132,7 @@ class DashboardService {
     required this.habits,
     required this.habitLogs,
     required this.sessions,
+    required this.capabilities,
   });
 
   final ActionItemRepository actions;
@@ -107,6 +140,7 @@ class DashboardService {
   final FoggHabitRepository habits;
   final HabitLogRepository habitLogs;
   final LearningSessionRepository sessions;
+  final CapabilityRepository capabilities;
 
   static const int heatmapDays = 84;
 
@@ -216,6 +250,98 @@ class DashboardService {
     );
   }
 
+
+  /// 近 N 天逐日数据点（任务完成与学习分钟）。
+List<DailyPoint> recentDaily(
+    DashboardSnapshot snapshot, {
+    int days = 14,
+    DateTime? now,
+  }) {
+    final DateTime current = now ?? DateTime.now();
+    final DateTime today = AppDate.startOfDay(current);
+    final List<DailyPoint> result = <DailyPoint>[];
+    for (int i = days - 1; i >= 0; i--) {
+      final DateTime day = today.subtract(Duration(days: i));
+      final DayStat stat = snapshot.statOf(day);
+      result.add(
+        DailyPoint(
+          day: day,
+          tasks: stat.tasks,
+          learningMinutes: stat.learningMinutes,
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// 近 N 周聚合（周一起）。
+  List<WeeklyPoint> recentWeeks(
+    DashboardSnapshot snapshot, {
+    int weeks = 4,
+    DateTime? now,
+  }) {
+    final DateTime current = now ?? DateTime.now();
+    final DateTime thisMonday = AppDate.startOfDay(current)
+        .subtract(Duration(days: current.weekday - 1));
+    final List<WeeklyPoint> result = <WeeklyPoint>[];
+    for (int i = weeks - 1; i >= 0; i--) {
+      final DateTime start = thisMonday.subtract(Duration(days: i * 7));
+      int tasks = 0;
+      int learningMinutes = 0;
+      for (int day = 0; day < 7; day++) {
+        final DayStat stat = snapshot.statOf(start.add(Duration(days: day)));
+        tasks += stat.tasks;
+        learningMinutes += stat.learningMinutes;
+      }
+      result.add(
+        WeeklyPoint(
+          start: start,
+          tasks: tasks,
+          learningMinutes: learningMinutes,
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// 近 N 天完成任务按能力聚合，取前 5 名，其余合并为「其他」。
+  List<CapabilityShare> capabilityShares({
+    int days = 30,
+    DateTime? now,
+  }) {
+    final DateTime current = now ?? DateTime.now();
+    final DateTime from =
+        AppDate.startOfDay(current).subtract(Duration(days: days - 1));
+    final Map<String, int> counts = <String, int>{};
+    for (final ActionItem item in actions.all) {
+      final DateTime? at = item.completedAt;
+      if (at == null || at.isBefore(from) || at.isAfter(current)) continue;
+      final String id = item.capabilityId ?? '';
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final List<CapabilityShare> shares = <CapabilityShare>[];
+    for (final MapEntry<String, int> entry in counts.entries) {
+      final Capability? capability =
+          entry.key.isEmpty ? null : capabilities.byId(entry.key);
+      shares.add(
+        CapabilityShare(
+          name: capability?.title ?? '未分类',
+          count: entry.value,
+        ),
+      );
+    }
+    shares.sort(
+      (CapabilityShare a, CapabilityShare b) => b.count.compareTo(a.count),
+    );
+    if (shares.length <= 5) return shares;
+    final List<CapabilityShare> top = shares.take(5).toList();
+    int rest = 0;
+    for (final CapabilityShare share in shares.skip(5)) {
+      rest += share.count;
+    }
+    top.add(CapabilityShare(name: '其他', count: rest));
+    return top;
+  }
 
   DayStat _bump(
     DayStat? base, {

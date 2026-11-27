@@ -60,7 +60,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(DesktopSideNav),
-        matching: find.text('设置'),
+        matching: find.byIcon(Icons.tune_outlined),
       ),
     );
     await tester.pump();
@@ -70,10 +70,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    final Finder row = find
-        .ancestor(of: find.text('热力图'), matching: find.byType(Row))
-        .first;
-    final Finder toggle = find.descendant(of: row, matching: find.byType(Switch));
+    final Finder row = find.byKey(
+      const ValueKey<String>('home-card-heatmap'),
+    );
+    final Finder toggle =
+        find.descendant(of: row, matching: find.byType(Switch));
     expect(toggle, findsOneWidget);
 
     await tester.tap(toggle);
@@ -87,7 +88,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(DesktopSideNav),
-        matching: find.text('主页'),
+        matching: find.byIcon(Icons.home_rounded),
       ),
     );
     await tester.pump();
@@ -95,5 +96,78 @@ void main() {
 
     expect(find.text('热力图'), findsNothing);
     expect(find.text('今天也按自己的节奏来'), findsOneWidget);
+  });
+
+  testWidgets('主页支持图表开关、排序、尺寸与快捷入口配置', (
+    WidgetTester tester,
+  ) async {
+    await openApp(tester);
+
+    // 图表默认关闭
+    expect(find.text('近 14 天趋势'), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(DesktopSideNav),
+        matching: find.byIcon(Icons.tune_outlined),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('主页').last);
+    await tester.pumpAndSettle();
+
+    final Finder trendRow =
+        find.byKey(const ValueKey<String>('home-card-trend'));
+    await tester.ensureVisible(trendRow);
+    await tester.pump();
+    final Finder trendSwitch =
+        find.descendant(of: trendRow, matching: find.byType(Switch));
+    await tester.tap(trendSwitch);
+    await tester.pump();
+    expect(bootstrap.homeSettings.isEnabled(HomeCard.trend), isTrue);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(DesktopSideNav),
+        matching: find.byIcon(Icons.home_rounded),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('近 14 天趋势'), findsOneWidget);
+
+    bootstrap.homeSettings.setOrder(<HomeCard>[
+      HomeCard.trend,
+      HomeCard.overview,
+      HomeCard.heatmap,
+      HomeCard.rhythm,
+      HomeCard.todos,
+      HomeCard.habits,
+      HomeCard.shortcuts,
+      HomeCard.weekly,
+      HomeCard.capability,
+    ]);
+    bootstrap.homeSettings.setSize(
+      HomeCard.overview,
+      HomeCardSize.compact,
+    );
+    await tester.pump();
+
+    expect(bootstrap.homeSettings.order.first, HomeCard.trend);
+    expect(
+      bootstrap.homeSettings.sizeOf(HomeCard.overview),
+      HomeCardSize.compact,
+    );
+
+    bootstrap.homeSettings.setShortcutIds(<String>['time_box']);
+    await tester.pump();
+    expect(
+      bootstrap.homeSettings.shortcutIds,
+      <String>['time_box'],
+    );
   });
 }

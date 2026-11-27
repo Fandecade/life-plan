@@ -7,6 +7,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/plugin/app_module_descriptor.dart';
+import '../../core/plugin/module_registry.dart';
 import '../../core/services/dashboard_service.dart';
 import '../../core/services/habit_service.dart';
 import '../../core/state/home_settings.dart';
@@ -14,6 +15,7 @@ import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import 'home_charts.dart';
 import 'home_heatmap.dart';
 
 const AppModuleDescriptor homeDescriptor = AppModuleDescriptor(
@@ -40,7 +42,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
     final HomeSettings homeSettings = context.watch<HomeSettings>();
     final DashboardService dashboard = context.read<DashboardService>();
     // 数据变化时重建主页。
@@ -51,34 +52,9 @@ class _HomePageState extends State<HomePage> {
     context.watch<LearningSessionRepository>();
 
     final DashboardSnapshot snapshot = dashboard.snapshot();
-    final List<Widget> cards = <Widget>[];
-
-    if (homeSettings.isEnabled(HomeCard.overview)) {
-      cards.add(_OverviewCard(snapshot: snapshot));
-    }
-    if (homeSettings.isEnabled(HomeCard.heatmap)) {
-      cards.add(
-        _HeatmapCard(
-          snapshot: snapshot,
-          metric: _metric,
-          onMetricChanged: (HeatmapMetric value) =>
-              setState(() => _metric = value),
-          onDayTap: _showDaySummary,
-        ),
-      );
-    }
-    if (homeSettings.isEnabled(HomeCard.rhythm)) {
-      cards.add(_RhythmCards(snapshot: snapshot));
-    }
-    if (homeSettings.isEnabled(HomeCard.todos)) {
-      cards.add(const _TodoCard());
-    }
-    if (homeSettings.isEnabled(HomeCard.habits)) {
-      cards.add(const _HabitCard());
-    }
-    if (homeSettings.isEnabled(HomeCard.shortcuts)) {
-      cards.add(const _Shortcuts());
-    }
+    final List<HomeCard> visible = homeSettings.order
+        .where((HomeCard card) => homeSettings.isEnabled(card))
+        .toList(growable: false);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -99,20 +75,44 @@ class _HomePageState extends State<HomePage> {
                   children: <Widget>[
                     _Header(isDesktop: isDesktop),
                     const SizedBox(height: AppSpacing.lg),
-                    for (int i = 0; i < cards.length; i++) ...<Widget>[
-                      cards[i],
-                      if (i != cards.length - 1)
-                        const SizedBox(height: AppSpacing.lg),
-                    ],
-                    if (cards.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 80),
-                        child: Text(
-                          '主页卡片都关掉了，可以在设置里重新打开。',
-                          textAlign: TextAlign.center,
-                          style: context.texts.bodySmall,
-                        ),
-                      ),
+                    LayoutBuilder(
+                      builder: (BuildContext context, BoxConstraints inner) {
+                        final double width = inner.maxWidth;
+                        final bool twoCol = width >= 720;
+                        const double gap = AppSpacing.lg;
+                        if (visible.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 80),
+                            child: Text(
+                              '主页卡片都关掉了，可以在设置里重新打开。',
+                              textAlign: TextAlign.center,
+                              style: context.texts.bodySmall,
+                            ),
+                          );
+                        }
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: <Widget>[
+                            for (final HomeCard card in visible)
+                              SizedBox(
+                                width: !twoCol ||
+                                        homeSettings.sizeOf(card) ==
+                                            HomeCardSize.large
+                                    ? width
+                                    : (width - gap) / 2,
+                                child: _cardFor(
+                                  card,
+                                  snapshot,
+                                  homeSettings.sizeOf(card),
+                                  homeSettings,
+                                  dashboard,
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -121,6 +121,51 @@ class _HomePageState extends State<HomePage> {
         );
       },
     );
+  }
+
+  Widget _cardFor(
+    HomeCard card,
+    DashboardSnapshot snapshot,
+    HomeCardSize size,
+    HomeSettings settings,
+    DashboardService dashboard,
+  ) {
+    switch (card) {
+      case HomeCard.overview:
+        return _OverviewCard(snapshot: snapshot, size: size);
+      case HomeCard.heatmap:
+        return _HeatmapCard(
+          snapshot: snapshot,
+          size: size,
+          metric: _metric,
+          onMetricChanged: (HeatmapMetric value) =>
+              setState(() => _metric = value),
+          onDayTap: _showDaySummary,
+        );
+      case HomeCard.rhythm:
+        return _RhythmCards(snapshot: snapshot, size: size);
+      case HomeCard.todos:
+        return _TodoCard(size: size);
+      case HomeCard.habits:
+        return _HabitCard(size: size);
+      case HomeCard.shortcuts:
+        return _Shortcuts(size: size, ids: settings.shortcutIds);
+      case HomeCard.trend:
+        return _TrendCard(
+          points: dashboard.recentDaily(snapshot),
+          size: size,
+        );
+      case HomeCard.weekly:
+        return _WeeklyCard(
+          points: dashboard.recentWeeks(snapshot),
+          size: size,
+        );
+      case HomeCard.capability:
+        return _CapabilityCard(
+          shares: dashboard.capabilityShares(),
+          size: size,
+        );
+    }
   }
 
   Future<void> _showDaySummary(DateTime day, DayStat stat) async {
@@ -227,9 +272,10 @@ class _Header extends StatelessWidget {
 }
 
 class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({required this.snapshot});
+  const _OverviewCard({required this.snapshot, required this.size});
 
   final DashboardSnapshot snapshot;
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +288,7 @@ class _OverviewCard extends StatelessWidget {
     final Color end = Color.lerp(base, Colors.black, dark ? 0.18 : 0.04)!;
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
+      padding: EdgeInsets.all(size.padding + 4),
       decoration: BoxDecoration(
         gradient: refresh
             ? LinearGradient(
@@ -360,18 +406,19 @@ class _HeatmapCard extends StatelessWidget {
     required this.metric,
     required this.onMetricChanged,
     required this.onDayTap,
+    required this.size,
   });
 
   final DashboardSnapshot snapshot;
   final HeatmapMetric metric;
   final ValueChanged<HeatmapMetric> onMetricChanged;
   final void Function(DateTime day, DayStat stat) onDayTap;
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(size.padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -446,9 +493,10 @@ class _MetricPill extends StatelessWidget {
 }
 
 class _RhythmCards extends StatelessWidget {
-  const _RhythmCards({required this.snapshot});
+  const _RhythmCards({required this.snapshot, required this.size});
 
   final DashboardSnapshot snapshot;
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
@@ -459,16 +507,22 @@ class _RhythmCards extends StatelessWidget {
           child: _MiniStat(
             label: '连续记录',
             value: '${snapshot.streakDays} 天',
+            size: size,
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: _MiniStat(label: '本周完成', value: '$percent%'),
+          child: _MiniStat(
+            label: '本周完成',
+            value: '$percent%',
+            size: size,
+          ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: _MiniStat(
             label: '本周学习',
+            size: size,
             value: snapshot.weekLearningMinutes >= 60
                 ? '${(snapshot.weekLearningMinutes / 60).toStringAsFixed(1)}h'
                 : '${snapshot.weekLearningMinutes}m',
@@ -480,17 +534,23 @@ class _RhythmCards extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.label, required this.value});
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.size,
+  });
 
   final String label;
   final String value;
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
+    final double padding = size.padding * 0.75;
     return AppCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.md,
+      padding: EdgeInsets.symmetric(
+        horizontal: padding,
+        vertical: padding,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +570,9 @@ class _MiniStat extends StatelessWidget {
 }
 
 class _TodoCard extends StatelessWidget {
-  const _TodoCard();
+  const _TodoCard({required this.size});
+
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +591,7 @@ class _TodoCard extends StatelessWidget {
     final UiController ui = context.read<UiController>();
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(size.padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -587,7 +649,9 @@ class _TodoCard extends StatelessWidget {
 }
 
 class _HabitCard extends StatelessWidget {
-  const _HabitCard();
+  const _HabitCard({required this.size});
+
+  final HomeCardSize size;
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +664,7 @@ class _HabitCard extends StatelessWidget {
     final UiController ui = context.read<UiController>();
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(size.padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -690,59 +754,135 @@ class _HabitDot extends StatelessWidget {
 }
 
 class _Shortcuts extends StatelessWidget {
-  const _Shortcuts();
+  const _Shortcuts({required this.size, required this.ids});
+
+  final HomeCardSize size;
+  final List<String> ids;
+
+  static const List<Color> _tones = <Color>[
+    Color(0xFFDCE8D3),
+    Color(0xFFE7E3F5),
+    Color(0xFFDDE8F2),
+    Color(0xFFF3E7DC),
+    Color(0xFFE8E1DA),
+    Color(0xFFDCE8E6),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final UiController ui = context.read<UiController>();
-    final List<_Shortcut> items = <_Shortcut>[
-      _Shortcut(
-        label: '时间盒',
-        icon: Icons.calendar_view_week_rounded,
-        route: AppRoutes.timeBox,
-        tone: const Color(0xFFDCE8D3),
-      ),
-      _Shortcut(
-        label: '输出式学习',
-        icon: Icons.auto_stories_rounded,
-        route: AppRoutes.outputLearning,
-        tone: const Color(0xFFE7E3F5),
-      ),
-      _Shortcut(
-        label: '项目',
-        icon: Icons.workspace_premium_rounded,
-        route: AppRoutes.projects,
-        tone: const Color(0xFFDDE8F2),
-      ),
-      _Shortcut(
-        label: '及时复盘',
-        icon: Icons.insights_rounded,
-        route: AppRoutes.review,
-        tone: const Color(0xFFF3E7DC),
-      ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text('快捷入口', style: context.texts.titleSmall),
-        const SizedBox(height: AppSpacing.sm),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: AppSpacing.sm,
-          crossAxisSpacing: AppSpacing.sm,
-          childAspectRatio: 2.6,
-          children: <Widget>[
-            for (final _Shortcut item in items)
-              _ShortcutTile(
-                item: item,
-                onTap: () => ui.setRoute(item.route),
-              ),
-          ],
+    final Map<String, AppModuleDescriptor> byId = <String, AppModuleDescriptor>{
+      for (final AppModuleDescriptor module
+          in context.watch<ModuleRegistry>().enabled)
+        module.id: module,
+    };
+    final List<_Shortcut> items = <_Shortcut>[];
+    for (final String id in ids) {
+      final AppModuleDescriptor? module = byId[id];
+      if (module == null) continue;
+      items.add(
+        _Shortcut(
+          label: module.title,
+          icon: module.icon,
+          route: module.routeName,
+          tone: _tones[items.length % _tones.length],
         ),
-      ],
+      );
+    }
+
+    return AppCard(
+      padding: EdgeInsets.all(size.padding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text('快捷入口', style: context.texts.titleSmall),
+              const Spacer(),
+              AppGhostButton(
+                label: '设置',
+                dense: true,
+                onPressed: () => ui.setRoute(AppRoutes.settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (items.isEmpty)
+            Text(
+              '在「设置 → 主页 → 快捷入口」中添加常用模块。',
+              style: context.texts.bodySmall,
+            )
+          else
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: size == HomeCardSize.compact
+                  ? 2.9
+                  : (size == HomeCardSize.large ? 2.2 : 2.5),
+              children: <Widget>[
+                for (final _Shortcut item in items)
+                  _ShortcutTile(
+                    item: item,
+                    onTap: () => ui.setRoute(item.route),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendCard extends StatelessWidget {
+  const _TrendCard({required this.points, required this.size});
+
+  final List<DailyPoint> points;
+  final HomeCardSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeChartCard(
+      title: '近 14 天趋势',
+      subtitle: '任务完成与学习投入',
+      padding: size.padding,
+      child: TrendChart(points: points),
+    );
+  }
+}
+
+class _WeeklyCard extends StatelessWidget {
+  const _WeeklyCard({required this.points, required this.size});
+
+  final List<WeeklyPoint> points;
+  final HomeCardSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeChartCard(
+      title: '近四周对比',
+      subtitle: '任务与学习投入的周度变化',
+      padding: size.padding,
+      child: WeeklyBars(points: points),
+    );
+  }
+}
+
+class _CapabilityCard extends StatelessWidget {
+  const _CapabilityCard({required this.shares, required this.size});
+
+  final List<CapabilityShare> shares;
+  final HomeCardSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeChartCard(
+      title: '能力投入分布',
+      subtitle: '近 30 天完成任务的占比',
+      padding: size.padding,
+      child: CapabilityRing(shares: shares),
     );
   }
 }

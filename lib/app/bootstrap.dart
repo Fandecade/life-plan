@@ -144,6 +144,7 @@ class AppBootstrap {
       habits: foggHabits,
       habitLogs: habitLogs,
       sessions: learningSessions,
+      capabilities: capabilities,
     );
     final ReminderSettings reminderSettings = ReminderSettings(db.settings);
     final ReminderService reminders = ReminderService(

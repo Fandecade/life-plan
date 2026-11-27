@@ -8,21 +8,36 @@ import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_chip.dart';
 import 'settings_style_pages.dart';
 import 'settings_sub_page.dart';
 
-/// 主页卡片开关。
+/// 主页卡片：拖拽排序、尺寸与显示开关，以及快捷入口选择。
 class HomeCardsSettingsPage extends StatelessWidget {
   const HomeCardsSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const SettingsSubPage(
+    return SettingsSubPage(
       title: '主页',
-      subtitle: '选择主页上显示的卡片。',
-      child: AppCard(
-        padding: EdgeInsets.zero,
-        child: HomeCardsSection(),
+      subtitle: '拖拽调整顺序；设置每张卡片的尺寸与显示；图表默认关闭。',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const AppCard(
+            padding: EdgeInsets.zero,
+            child: HomeCardsSection(),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Text('快捷入口', style: context.texts.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '选择主页上显示的常用模块，最多 ${HomeSettings.maxShortcuts} 个。',
+            style: context.texts.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const AppCard(child: ShortcutSection()),
+        ],
       ),
     );
   }
@@ -48,33 +63,225 @@ class BottomNavSettingsPage extends StatelessWidget {
 class HomeCardsSection extends StatelessWidget {
   const HomeCardsSection({super.key});
 
-  static const Map<HomeCard, (String, String)> _labels =
-      <HomeCard, (String, String)>{
-    HomeCard.overview: ('今日概览', '完成任务、打卡、学习与完成时间块'),
-    HomeCard.heatmap: ('热力图', '最近 12 周的活跃度'),
-    HomeCard.rhythm: ('节奏指标', '连续记录、本周完成率与学习时长'),
-    HomeCard.todos: ('今日待办', '当天安排的待办事项'),
-    HomeCard.habits: ('今日习惯', '今日打卡情况'),
-    HomeCard.shortcuts: ('快捷入口', '时间盒、学习、项目、复盘'),
-  };
+  @override
+  Widget build(BuildContext context) {
+    final HomeSettings settings = context.watch<HomeSettings>();
+    final List<HomeCard> order = settings.order;
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: order.length,
+      onReorder: (int oldIndex, int newIndex) {
+        final List<HomeCard> next = <HomeCard>[...order];
+        if (newIndex > oldIndex) newIndex -= 1;
+        final HomeCard moved = next.removeAt(oldIndex);
+        next.insert(newIndex, moved);
+        settings.setOrder(next);
+      },
+      itemBuilder: (BuildContext context, int index) {
+        final HomeCard card = order[index];
+        return _HomeCardRow(
+          key: ValueKey<String>('home-card-${card.name}'),
+          card: card,
+          index: index,
+          size: settings.sizeOf(card),
+          enabled: settings.isEnabled(card),
+        );
+      },
+    );
+  }
+}
+
+class _HomeCardRow extends StatelessWidget {
+  const _HomeCardRow({
+    super.key,
+    required this.card,
+    required this.index,
+    required this.size,
+    required this.enabled,
+  });
+
+  final HomeCard card;
+  final int index;
+  final HomeCardSize size;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette palette = context.palette;
+    final HomeSettings settings = context.read<HomeSettings>();
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  ReorderableDragStartListener(
+                    index: index,
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      size: 18,
+                      color: palette.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Flexible(
+                              child: Text(
+                                card.label,
+                                style: context.texts.titleSmall,
+                              ),
+                            ),
+                            if (card.isChart) ...<Widget>[
+                              const SizedBox(width: 6),
+                              const AppChip(
+                                label: '图表',
+                                dense: true,
+                                filled: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          card.description,
+                          style: context.texts.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Switch(
+                    value: enabled,
+                    onChanged: (bool value) =>
+                        settings.setCardEnabled(card, value),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 26, top: 6),
+                child: Row(
+                  children: <Widget>[
+                    for (final HomeCardSize value in HomeCardSize.values)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: _SizePill(
+                          label: value.label,
+                          selected: size == value,
+                          onTap: () => settings.setSize(card, value),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Divider(color: palette.hairline, height: 1),
+      ],
+    );
+  }
+}
+
+class _SizePill extends StatelessWidget {
+  const _SizePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette palette = context.palette;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? palette.textPrimary : palette.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Text(
+          label,
+          style: context.texts.labelSmall?.copyWith(
+            color: selected ? palette.background : palette.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ShortcutSection extends StatelessWidget {
+  const ShortcutSection({super.key});
 
   @override
   Widget build(BuildContext context) {
     final HomeSettings settings = context.watch<HomeSettings>();
-    final List<HomeCard> cards = HomeCard.values;
-    return Column(
-      children: <Widget>[
-        for (int i = 0; i < cards.length; i++) ...<Widget>[
-          SettingsSwitchRow(
-            title: _labels[cards[i]]!.$1,
-            subtitle: _labels[cards[i]]!.$2,
-            value: settings.isEnabled(cards[i]),
-            onChanged: (bool value) =>
-                settings.setCardEnabled(cards[i], value),
+    final List<AppModuleDescriptor> modules = context
+        .watch<ModuleRegistry>()
+        .enabled
+        .where(
+          (AppModuleDescriptor module) =>
+              module.routeName != AppRoutes.settings,
+        )
+        .toList(growable: false);
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: <Widget>[
+              for (final AppModuleDescriptor module in modules)
+                ModuleChip(
+                  module: module,
+                  selected: settings.shortcutIds.contains(module.id),
+                  onTap: () {
+                    final List<String> ids =
+                        List<String>.from(settings.shortcutIds);
+                    if (ids.contains(module.id)) {
+                      ids.remove(module.id);
+                    } else {
+                      if (ids.length >= HomeSettings.maxShortcuts) return;
+                      ids.add(module.id);
+                    }
+                    settings.setShortcutIds(ids);
+                  },
+                ),
+            ],
           ),
-          if (i != cards.length - 1) const Divider(height: 1),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '已选 ${settings.shortcutIds.length} / ${HomeSettings.maxShortcuts}',
+            style: context.texts.labelSmall,
+          ),
         ],
-      ],
+      ),
     );
   }
 }

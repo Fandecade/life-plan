@@ -82,16 +82,39 @@ class AppCard extends StatelessWidget {
               ],
       ),
       clipBehavior: clip ? Clip.antiAlias : Clip.none,
-      child: onTap == null
-          ? content
-          : Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: borderRadius,
-                child: content,
+      child: Stack(
+        children: <Widget>[
+          onTap == null
+              ? content
+              : Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    borderRadius: borderRadius,
+                    child: content,
+                  ),
+                ),
+          // 斜向高光：增强玻璃质感，不拦截点击。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[
+                      palette.glassHighlight.withValues(alpha: 0.18),
+                      Colors.transparent,
+                      palette.glassHighlight.withValues(alpha: 0.05),
+                    ],
+                    stops: const <double>[0, 0.55, 1],
+                  ),
+                ),
               ),
             ),
+          ),
+        ],
+      ),
     );
 
     if (blurred) {
