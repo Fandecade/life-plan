@@ -9,22 +9,27 @@ class UiStyleController extends ChangeNotifier {
     _style = _readStyle();
     _accent = _readAccent();
     _glassEnabled = _readBool(_glassKey, true);
+    _visionView = _readVisionView();
   }
 
   static const String _styleKey = 'app.ui.style';
   static const String _accentKey = 'app.ui.accent';
   static const String _glassKey = 'app.ui.glassEnabled';
+  static const String _visionViewKey = 'app.ui.visionView';
 
   final Box<dynamic> _settings;
   AppUiStyle _style = AppUiStyle.classic;
   AppAccentTheme _accent = AppAccentTheme.sage;
   bool _glassEnabled = true;
+  VisionViewMode _visionView = VisionViewMode.map;
 
   AppUiStyle get style => _style;
 
   AppAccentTheme get accent => _accent;
 
   bool get glassEnabled => _glassEnabled;
+
+  VisionViewMode get visionView => _visionView;
 
   bool get isRefresh => _style == AppUiStyle.refresh;
 
@@ -47,6 +52,13 @@ class UiStyleController extends ChangeNotifier {
     _glassEnabled = value;
     notifyListeners();
     await _settings.put(_glassKey, value);
+  }
+
+  Future<void> setVisionView(VisionViewMode value) async {
+    if (_visionView == value) return;
+    _visionView = value;
+    notifyListeners();
+    await _settings.put(_visionViewKey, value.name);
   }
 
   AppUiStyle _readStyle() {
@@ -72,5 +84,15 @@ class UiStyleController extends ChangeNotifier {
   bool _readBool(String key, bool fallback) {
     final Object? stored = _settings.get(key);
     return stored is bool ? stored : fallback;
+  }
+
+  VisionViewMode _readVisionView() {
+    final Object? stored = _settings.get(_visionViewKey);
+    if (stored is String) {
+      for (final VisionViewMode value in VisionViewMode.values) {
+        if (value.name == stored) return value;
+      }
+    }
+    return VisionViewMode.map;
   }
 }

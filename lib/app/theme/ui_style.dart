@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 /// 界面风格：经典（保留）与新版（玻璃质感）。
 enum AppUiStyle { classic, refresh }
 
+/// 人生规划模块的视图样式：图谱画布与卡片故事流。
+enum VisionViewMode { map, board }
+
 /// 新版可切换的主题色。strong 用于渐变深端，soft 用于光斑与浅底。
 enum AppAccentTheme {
   sage('苔绿', Color(0xFF5F7A4F), Color(0xFF7E9A6B), Color(0xFFDCE8D3)),

@@ -3,12 +3,16 @@ import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
+import '../../app/theme/ui_style.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/state/ui_controller.dart';
+import '../../core/state/ui_style_controller.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/state_views.dart';
+import 'vision_board.dart';
 import 'vision_canvas.dart';
 import 'capability_milestones_dialog.dart';
 import 'vision_editor_dialogs.dart';
@@ -89,6 +93,8 @@ class _VisionMapPageState extends State<VisionMapPage>
     final AppPalette palette = context.palette;
     final List<Vision> visions = context.watch<VisionRepository>().ordered;
     final UiController ui = context.watch<UiController>();
+    final VisionViewMode viewMode =
+        context.watch<UiStyleController>().visionView;
     final Vision? vision = _currentVision(visions);
     final String? focusCapabilityId = ui.focusCapabilityId;
     final String? focusTaskId = ui.focusTaskId;
@@ -150,43 +156,76 @@ class _VisionMapPageState extends State<VisionMapPage>
 
     return Column(
       children: <Widget>[
-        _toolbar(context, visions, vision),
+        _toolbar(context, visions, vision, viewMode),
         Divider(color: palette.hairline, height: 1),
         Expanded(
-          child: ClipRect(
-            child: VisionCanvas(
-              key: ValueKey<String>(vision.id),
-              vision: vision,
-              capabilities: capabilities,
-              tasksByCapability: tasksByCapability,
-              transformController: _transform,
-              vertical: _resolveVertical(context),
-              onOpenTask: (ActionItem item) =>
-                  context.read<UiController>().openDetail(item.id),
-              onToggleTask: _toggleTask,
-              onVisionAction: (Vision target, MapNodeAction action) =>
-                  _handleVisionAction(vision, capabilities, tasksByCapability, action),
-              onCapabilityAction:
-                  (Capability capability, MapNodeAction action) =>
-                      _handleCapabilityAction(
-                capability,
-                tasksByCapability[capability.id] ?? const <ActionItem>[],
-                action,
-              ),
-              onTaskAction: _handleTaskAction,
-              onRequestVisionSwitch: (String visionId) {
-                setState(() => _activeVisionId = visionId);
-                _transform.value = Matrix4.identity();
-              },
-              focusNodeId: focusCapabilityId,
-              focusTaskId: focusTaskId,
-              onFocusHandled: () {
-                final UiController controller = context.read<UiController>();
-                controller.consumeCapabilityFocus();
-                controller.consumeTaskFocus();
-              },
-            ),
-          ),
+          child: viewMode == VisionViewMode.board
+              ? VisionBoardView(
+                  key: ValueKey<String>('vision-board-${vision.id}'),
+                  vision: vision,
+                  capabilities: capabilities,
+                  tasksByCapability: tasksByCapability,
+                  onOpenTask: (ActionItem item) =>
+                      context.read<UiController>().openDetail(item.id),
+                  onToggleTask: _toggleTask,
+                  onVisionAction:
+                      (Vision target, MapNodeAction action) =>
+                          _handleVisionAction(
+                    vision,
+                    capabilities,
+                    tasksByCapability,
+                    action,
+                  ),
+                  onCapabilityAction:
+                      (Capability capability, MapNodeAction action) =>
+                          _handleCapabilityAction(
+                    capability,
+                    tasksByCapability[capability.id] ??
+                        const <ActionItem>[],
+                    action,
+                  ),
+                )
+              : ClipRect(
+                  child: VisionCanvas(
+                    key: ValueKey<String>(vision.id),
+                    vision: vision,
+                    capabilities: capabilities,
+                    tasksByCapability: tasksByCapability,
+                    transformController: _transform,
+                    vertical: _resolveVertical(context),
+                    onOpenTask: (ActionItem item) =>
+                        context.read<UiController>().openDetail(item.id),
+                    onToggleTask: _toggleTask,
+                    onVisionAction: (Vision target, MapNodeAction action) =>
+                        _handleVisionAction(
+                      vision,
+                      capabilities,
+                      tasksByCapability,
+                      action,
+                    ),
+                    onCapabilityAction:
+                        (Capability capability, MapNodeAction action) =>
+                            _handleCapabilityAction(
+                      capability,
+                      tasksByCapability[capability.id] ??
+                          const <ActionItem>[],
+                      action,
+                    ),
+                    onTaskAction: _handleTaskAction,
+                    onRequestVisionSwitch: (String visionId) {
+                      setState(() => _activeVisionId = visionId);
+                      _transform.value = Matrix4.identity();
+                    },
+                    focusNodeId: focusCapabilityId,
+                    focusTaskId: focusTaskId,
+                    onFocusHandled: () {
+                      final UiController controller =
+                          context.read<UiController>();
+                      controller.consumeCapabilityFocus();
+                      controller.consumeTaskFocus();
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -358,17 +397,40 @@ class _VisionMapPageState extends State<VisionMapPage>
     );
   }
 
-  Widget _toolbar(BuildContext context, List<Vision> visions, Vision current) {
+  Widget _toolbar(
+    BuildContext context,
+    List<Vision> visions,
+    Vision current,
+    VisionViewMode viewMode,
+  ) {
     final AppPalette palette = context.palette;
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
+          final bool boardMode = viewMode == VisionViewMode.board;
           final bool needsCompact =
-              constraints.maxWidth < visions.length * 150 + 230;
+              constraints.maxWidth < visions.length * 150 + 350;
           final bool editing = _editingPills;
           final bool vertical = _resolveVertical(context);
+
+          final Widget viewSwitch = SegmentBar<VisionViewMode>(
+            dense: true,
+            value: viewMode,
+            options: const <SegmentOption<VisionViewMode>>[
+              SegmentOption<VisionViewMode>(
+                value: VisionViewMode.map,
+                label: '图谱',
+              ),
+              SegmentOption<VisionViewMode>(
+                value: VisionViewMode.board,
+                label: '卡片',
+              ),
+            ],
+            onChanged: (VisionViewMode mode) =>
+                context.read<UiStyleController>().setVisionView(mode),
+          );
 
           final Widget visionList = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -395,44 +457,48 @@ class _VisionMapPageState extends State<VisionMapPage>
             ),
           );
 
-          final List<Widget> tools = <Widget>[
-            AppIconButton(
-              icon: Icons.remove_rounded,
-              tooltip: '缩小',
-              onPressed: () => _zoom(0.86),
-            ),
-            AppIconButton(
-              icon: Icons.add_rounded,
-              tooltip: '放大',
-              onPressed: () => _zoom(1.16),
-            ),
-            AppIconButton(
-              icon: Icons.center_focus_strong_outlined,
-              tooltip: '回到根节点',
-              onPressed: () {
-                _transform.value = Matrix4.identity();
-                _toast('已回到愿景节点');
-              },
-            ),
-            AppIconButton(
-              icon: Icons.auto_awesome_motion_outlined,
-              tooltip: '重新自动排版',
-              onPressed: () => _relayout(current, context),
-            ),
-            AppIconButton(
-              icon: vertical
-                  ? Icons.swap_horiz_rounded
-                  : Icons.swap_vert_rounded,
-              tooltip: vertical ? '切换为横向布局' : '切换为纵向布局',
-              onPressed: () => _toggleOrientation(context),
-            ),
-          ];
+          final List<Widget> tools = boardMode
+              ? const <Widget>[]
+              : <Widget>[
+                  AppIconButton(
+                    icon: Icons.remove_rounded,
+                    tooltip: '缩小',
+                    onPressed: () => _zoom(0.86),
+                  ),
+                  AppIconButton(
+                    icon: Icons.add_rounded,
+                    tooltip: '放大',
+                    onPressed: () => _zoom(1.16),
+                  ),
+                  AppIconButton(
+                    icon: Icons.center_focus_strong_outlined,
+                    tooltip: '回到根节点',
+                    onPressed: () {
+                      _transform.value = Matrix4.identity();
+                      _toast('已回到愿景节点');
+                    },
+                  ),
+                  AppIconButton(
+                    icon: Icons.auto_awesome_motion_outlined,
+                    tooltip: '重新自动排版',
+                    onPressed: () => _relayout(current, context),
+                  ),
+                  AppIconButton(
+                    icon: vertical
+                        ? Icons.swap_horiz_rounded
+                        : Icons.swap_vert_rounded,
+                    tooltip: vertical ? '切换为横向布局' : '切换为纵向布局',
+                    onPressed: () => _toggleOrientation(context),
+                  ),
+                ];
 
           if (!needsCompact || editing) {
             return Row(
               children: <Widget>[
+                viewSwitch,
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(child: visionList),
-                if (!editing) ...<Widget>[
+                if (!editing && tools.isNotEmpty) ...<Widget>[
                   const SizedBox(width: AppSpacing.sm),
                   SizedBox(
                     height: 18,
@@ -448,9 +514,11 @@ class _VisionMapPageState extends State<VisionMapPage>
             );
           }
 
-          if (_toolsExpanded) {
+          if (_toolsExpanded && tools.isNotEmpty) {
             return Row(
               children: <Widget>[
+                viewSwitch,
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: Row(children: tools),
                 ),
@@ -465,12 +533,15 @@ class _VisionMapPageState extends State<VisionMapPage>
 
           return Row(
             children: <Widget>[
+              viewSwitch,
+              const SizedBox(width: AppSpacing.xs),
               Expanded(child: visionList),
-              AppIconButton(
-                icon: Icons.tune_rounded,
-                tooltip: '视图工具',
-                onPressed: () => setState(() => _toolsExpanded = true),
-              ),
+              if (!editing && tools.isNotEmpty)
+                AppIconButton(
+                  icon: Icons.tune_rounded,
+                  tooltip: '视图工具',
+                  onPressed: () => setState(() => _toolsExpanded = true),
+                ),
             ],
           );
         },
