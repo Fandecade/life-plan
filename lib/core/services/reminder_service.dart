@@ -271,16 +271,21 @@ class ReminderService {
       if (item.isTaskBound) continue;
       final DateTime? target = item.targetAt;
       if (target == null) continue;
-      if (target.isBefore(current) || target.isAfter(end)) continue;
+      final DateTime remindAt = item.dateOnly
+          ? DateTime(target.year, target.month, target.day, 9)
+          : target;
+      if (remindAt.isBefore(current) || remindAt.isAfter(end)) continue;
       final String title =
           item.title.trim().isEmpty ? '倒计时' : item.title.trim();
       plan.add(
         ReminderEvent(
           key: 'countdown:${item.id}',
           kind: ReminderKind.countdown,
-          at: target,
+          at: remindAt,
           title: title,
-          subtitle: '倒计时 · ${AppDate.timeLabel(target)}',
+          subtitle: item.dateOnly
+              ? '倒计时 · ${target.month}/${target.day}'
+              : '倒计时 · ${AppDate.timeLabel(target)}',
           startAt: target,
         ),
       );
@@ -503,7 +508,11 @@ class ReminderService {
     for (final Countdown item in countdowns.all) {
       if (item.isTaskBound) continue;
       final DateTime? target = item.targetAt;
-      if (target == null || !_isDue(target, current)) continue;
+      if (target == null) continue;
+      final DateTime remindAt = item.dateOnly
+          ? DateTime(target.year, target.month, target.day, 9)
+          : target;
+      if (!_isDue(remindAt, current)) continue;
       final String key = 'countdown:${item.id}';
       if (sent.containsKey(key) || produced.contains(key)) continue;
       due.add(
@@ -512,7 +521,9 @@ class ReminderService {
           kind: ReminderKind.countdown,
           at: current,
           title: item.title.trim().isEmpty ? '倒计时' : item.title.trim(),
-          subtitle: '倒计时 · ${AppDate.timeLabel(target)}',
+          subtitle: item.dateOnly
+              ? '倒计时 · ${target.month}/${target.day}'
+              : '倒计时 · ${AppDate.timeLabel(target)}',
           startAt: target,
         ),
       );

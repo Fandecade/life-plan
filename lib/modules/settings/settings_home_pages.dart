@@ -10,7 +10,7 @@ import '../../core/state/home_settings.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import 'countdown_settings_section.dart';
-import 'settings_style_pages.dart';
+
 import 'settings_sub_page.dart';
 
 /// 主页卡片：拖拽排序、尺寸与显示开关，以及快捷入口选择。

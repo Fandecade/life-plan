@@ -578,6 +578,8 @@ class CountdownRepository extends JsonEntityRepository<Countdown> {
     DateTime? targetAt,
     String? sourceTaskId,
     bool autoHideExpired = false,
+    bool dateOnly = false,
+    String? colorHex,
   }) async {
     int nextOrder = 0;
     for (final Countdown item in all) {
@@ -588,6 +590,8 @@ class CountdownRepository extends JsonEntityRepository<Countdown> {
       targetAt: targetAt,
       sourceTaskId: sourceTaskId,
       autoHideExpired: autoHideExpired,
+      dateOnly: dateOnly,
+      colorHex: colorHex,
       sortOrder: nextOrder,
     );
     await put(item);

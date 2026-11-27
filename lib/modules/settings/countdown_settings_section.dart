@@ -5,6 +5,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
+import '../../core/services/schedule_picker.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/text_input_dialog.dart';
@@ -53,7 +54,8 @@ class CountdownSection extends StatelessWidget {
                 taskDue: items[index].isTaskBound
                     ? actions.byId(items[index].sourceTaskId)?.dueDate
                     : null,
-                taskMissing: items[index].isTaskBound &&
+                taskMissing:
+                    items[index].isTaskBound &&
                     actions.byId(items[index].sourceTaskId) == null,
               ),
           ],
@@ -117,8 +119,18 @@ class _CountdownRow extends StatelessWidget {
     } else if (item.targetAt == null) {
       subtitle = '未设置时间';
     } else {
-      subtitle = countdownTargetLabel(item.targetAt!);
+      subtitle = countdownTargetLabel(item.targetAt!, dateOnly: item.dateOnly);
     }
+
+    final DateTime? dotTarget = item.isTaskBound ? taskDue : item.targetAt;
+    final Color dotColor = dotTarget == null
+        ? palette.textTertiary
+        : countdownColorFor(
+            target: dotTarget,
+
+            dateOnly: item.dateOnly,
+            customHex: item.colorHex,
+          );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -140,6 +152,21 @@ class _CountdownRow extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: '颜色',
+                iconSize: 16,
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _pickCountdownColor(context, item),
+                icon: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.glassBorder),
+                  ),
+                ),
+              ),
+              IconButton(
                 tooltip: '上移',
                 iconSize: 16,
                 visualDensity: VisualDensity.compact,
@@ -150,8 +177,7 @@ class _CountdownRow extends StatelessWidget {
                 tooltip: '下移',
                 iconSize: 16,
                 visualDensity: VisualDensity.compact,
-                onPressed:
-                    index >= total - 1 ? null : () => _move(context, 1),
+                onPressed: index >= total - 1 ? null : () => _move(context, 1),
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),
               IconButton(
@@ -203,10 +229,16 @@ Future<void> _addCustomCountdown(BuildContext context) async {
   }
   final String? title = await _promptCountdownTitle(context, initial: '倒计时');
   if (title == null || !context.mounted) return;
-  final DateTime initial = DateTime.now().add(const Duration(days: 1));
-  final DateTime? target = await _pickCountdownDateTime(context, initial);
-  if (target == null || !context.mounted) return;
-  await repo.create(title: title, targetAt: target);
+  final SchedulePickResult? picked = await pickScheduleResult(
+    context,
+    initialDate: DateTime.now().add(const Duration(days: 1)),
+  );
+  if (picked == null || !context.mounted) return;
+  await repo.create(
+    title: title,
+    targetAt: picked.start,
+    dateOnly: picked.dateOnly,
+  );
   await _enableCountdownCard(context);
 }
 
@@ -289,40 +321,17 @@ Future<void> _editCountdown(BuildContext context, Countdown item) async {
     initial: item.title,
   );
   if (title == null || !context.mounted) return;
-  final DateTime initial =
-      item.targetAt ?? DateTime.now().add(const Duration(days: 1));
-  final DateTime? target = await _pickCountdownDateTime(context, initial);
-  if (target == null || !context.mounted) return;
+  final SchedulePickResult? picked = await pickScheduleResult(
+    context,
+    initialDate: item.targetAt ?? DateTime.now().add(const Duration(days: 1)),
+  );
+  if (picked == null || !context.mounted) return;
   await context.read<CountdownRepository>().save(
-        item.copyWith(title: title, targetAt: target),
-      );
-}
-
-Future<DateTime?> _pickCountdownDateTime(
-  BuildContext context,
-  DateTime initial,
-) async {
-  final DateTime today = DateTime.now();
-  final DateTime? date = await showDatePicker(
-    context: context,
-    initialDate: initial,
-    firstDate: DateTime(today.year, today.month, today.day),
-    lastDate: DateTime(2100),
-    helpText: '选择倒计时日期',
-  );
-  if (date == null || !context.mounted) return null;
-  final TimeOfDay? time = await showTimePicker(
-    context: context,
-    initialTime: TimeOfDay.fromDateTime(initial),
-    helpText: '选择倒计时时间',
-  );
-  if (time == null) return null;
-  return DateTime(
-    date.year,
-    date.month,
-    date.day,
-    time.hour,
-    time.minute,
+    item.copyWith(
+      title: title,
+      targetAt: picked.start,
+      dateOnly: picked.dateOnly,
+    ),
   );
 }
 
@@ -335,15 +344,138 @@ Future<String?> _promptCountdownTitle(
     title: '倒计时标题',
     initial: initial,
     hintText: '例如：项目截止',
-    validate: (String value) =>
-        value.isEmpty ? '请输入倒计时标题' : null,
+    validate: (String value) => value.isEmpty ? '请输入倒计时标题' : null,
   );
 }
 
 Future<void> _enableCountdownCard(BuildContext context) async {
-
   if (!context.mounted) return;
   _countdownToast(context, '倒计时已添加');
+}
+
+Future<void> _pickCountdownColor(BuildContext context, Countdown item) async {
+  final AppPalette palette = context.palette;
+  final List<_CountdownColorOption> options = <_CountdownColorOption>[
+    const _CountdownColorOption(
+      '自动',
+      null,
+      countdownCalm,
+      gradient: LinearGradient(
+        colors: <Color>[
+          countdownCalm,
+          countdownSoon,
+          countdownNear,
+          countdownUrgent,
+        ],
+      ),
+    ),
+    _CountdownColorOption('主题色', hexFromColor(palette.accent), palette.accent),
+    const _CountdownColorOption('琥珀', '#C08A4E', Color(0xFFC08A4E)),
+    const _CountdownColorOption('珊瑚', '#B05B52', Color(0xFFB05B52)),
+    const _CountdownColorOption('雾蓝', '#7191AE', Color(0xFF7191AE)),
+    const _CountdownColorOption('薰衣草', '#8E85B8', Color(0xFF8E85B8)),
+  ];
+  final String? choice = await showDialog<String>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      final AppPalette p = dialogContext.palette;
+      final bool autoSelected = item.colorHex == null;
+      return AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: p.border),
+        ),
+        title: Text('倒计时颜色', style: dialogContext.texts.titleLarge),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '自动：按紧迫度 绿 → 黄 → 橙 → 红',
+              style: dialogContext.texts.labelSmall,
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: <Widget>[
+                for (final _CountdownColorOption option in options)
+                  InkWell(
+                    onTap: () =>
+                        Navigator.of(dialogContext).pop(option.hex ?? 'auto'),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: option.gradient == null
+                                ? option.color
+                                : null,
+                            gradient: option.gradient,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color:
+                                  (option.hex == null && autoSelected) ||
+                                      (option.hex != null &&
+                                          item.colorHex == option.hex)
+                                  ? p.textPrimary
+                                  : p.glassBorder,
+                              width:
+                                  (option.hex == null && autoSelected) ||
+                                      (option.hex != null &&
+                                          item.colorHex == option.hex)
+                                  ? 2
+                                  : 1,
+                            ),
+                          ),
+                          child:
+                              (option.hex == null && autoSelected) ||
+                                  (option.hex != null &&
+                                      item.colorHex == option.hex)
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  size: 15,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(option.label, style: dialogContext.texts.labelSmall),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  if (choice == null || !context.mounted) return;
+  final CountdownRepository repo = context.read<CountdownRepository>();
+  if (choice == 'auto') {
+    await repo.save(item.copyWith(clearColor: true));
+  } else {
+    await repo.save(item.copyWith(colorHex: choice));
+  }
+}
+
+class _CountdownColorOption {
+  const _CountdownColorOption(
+    this.label,
+    this.hex,
+    this.color, {
+    this.gradient,
+  });
+
+  final String label;
+  final String? hex;
+  final Color color;
+  final Gradient? gradient;
 }
 
 void _countdownToast(BuildContext context, String message) {

@@ -14,6 +14,8 @@ class Countdown extends SyncEntity {
     this.targetAt,
     this.sourceTaskId,
     this.autoHideExpired = false,
+    this.dateOnly = false,
+    this.colorHex,
     this.sortOrder = 0,
     super.deletedAt,
     super.syncStatus,
@@ -23,6 +25,10 @@ class Countdown extends SyncEntity {
   final DateTime? targetAt;
   final String? sourceTaskId;
   final bool autoHideExpired;
+  final bool dateOnly;
+
+  /// 自定义颜色（#RRGGBB）；null 表示按剩余时间自动变色。
+  final String? colorHex;
   final int sortOrder;
 
   bool get isTaskBound => sourceTaskId != null;
@@ -36,6 +42,8 @@ class Countdown extends SyncEntity {
     DateTime? targetAt,
     String? sourceTaskId,
     bool autoHideExpired = false,
+    bool dateOnly = false,
+    String? colorHex,
     int sortOrder = 0,
   }) {
     final DateTime now = DateTime.now();
@@ -47,6 +55,8 @@ class Countdown extends SyncEntity {
       targetAt: targetAt,
       sourceTaskId: sourceTaskId,
       autoHideExpired: autoHideExpired,
+      dateOnly: dateOnly,
+      colorHex: colorHex,
       sortOrder: sortOrder,
     );
   }
@@ -58,6 +68,9 @@ class Countdown extends SyncEntity {
     String? sourceTaskId,
     bool clearSourceTask = false,
     bool? autoHideExpired,
+    bool? dateOnly,
+    String? colorHex,
+    bool clearColor = false,
     int? sortOrder,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -73,6 +86,8 @@ class Countdown extends SyncEntity {
       sourceTaskId:
           clearSourceTask ? null : (sourceTaskId ?? this.sourceTaskId),
       autoHideExpired: autoHideExpired ?? this.autoHideExpired,
+      dateOnly: dateOnly ?? this.dateOnly,
+      colorHex: clearColor ? null : (colorHex ?? this.colorHex),
       sortOrder: sortOrder ?? this.sortOrder,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       syncStatus: syncStatus ?? this.syncStatus,
@@ -86,6 +101,8 @@ class Countdown extends SyncEntity {
         'targetAt': targetAt?.toIso8601String(),
         'sourceTaskId': sourceTaskId,
         'autoHideExpired': autoHideExpired,
+        'dateOnly': dateOnly,
+        'colorHex': colorHex,
         'sortOrder': sortOrder,
       };
 
@@ -98,6 +115,8 @@ class Countdown extends SyncEntity {
       targetAt: parseNullableDate(json['targetAt']),
       sourceTaskId: json['sourceTaskId'] as String?,
       autoHideExpired: json['autoHideExpired'] as bool? ?? false,
+      dateOnly: json['dateOnly'] as bool? ?? false,
+      colorHex: json['colorHex'] as String?,
       sortOrder: json['sortOrder'] as int? ?? 0,
       deletedAt: parseNullableDate(json['deletedAt']),
       syncStatus: SyncStatus.fromName(json['syncStatus']),

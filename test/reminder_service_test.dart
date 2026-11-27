@@ -316,6 +316,31 @@ void main() {
     expect(bootstrap.actions.byId(dueTask.id)!.isCompleted, isTrue);
   });
 
+  test('仅日期的倒计时在当天 09:00 提醒', () async {
+    final DateTime today = AppDate.startOfDay(DateTime.now());
+    final Countdown dateOnly = await bootstrap.countdowns.create(
+      title: '仅日期倒计时测试',
+      targetAt: today,
+      dateOnly: true,
+    );
+
+    final List<ReminderEvent> plan =
+        bootstrap.reminders.upcoming(now: at(8, 0));
+    final ReminderEvent event = plan.firstWhere(
+      (ReminderEvent e) => e.key == 'countdown:${dateOnly.id}',
+    );
+    expect(event.at, at(9, 0));
+    expect(event.subtitle, contains('${today.month}/${today.day}'));
+    expect(event.subtitle, isNot(contains(':')));
+
+    final List<ReminderEvent> ticked =
+        bootstrap.reminders.tick(now: at(9, 0));
+    expect(
+      ticked.any((ReminderEvent e) => e.key == 'countdown:${dateOnly.id}'),
+      isTrue,
+    );
+  });
+
   test('仅日期的截止任务在当天 09:00 提醒', () async {
     final DateTime today = AppDate.startOfDay(DateTime.now());
     final ActionItem dateOnlyDue = await bootstrap.actions.create(

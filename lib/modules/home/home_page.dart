@@ -785,7 +785,12 @@ List<Widget> _countdownCards(
       final DateTime? target = item.isTaskBound
           ? actions.byId(item.sourceTaskId)?.dueDate
           : item.targetAt;
-      if (target != null && !target.isAfter(now)) continue;
+      if (target != null) {
+        final bool expired = item.dateOnly
+            ? countdownDayDiff(target, now) < 0
+            : !target.isAfter(now);
+        if (expired) continue;
+      }
     }
     cards.add(
       SizedBox(
@@ -851,7 +856,18 @@ class _CountdownTileCardState extends State<_CountdownTileCard>
       taskId = task.id;
       if (title.isEmpty) title = task.title;
     }
-    final bool expired = target != null && !target.isAfter(now);
+    final bool dateOnly = item.dateOnly;
+    final bool expired = target != null &&
+        (dateOnly ? countdownDayDiff(target, now) < 0 : !target.isAfter(now));
+    final Color valueColor = target == null
+        ? context.palette.textTertiary
+        : countdownColorFor(
+            target: target,
+
+            now: now,
+            dateOnly: dateOnly,
+            customHex: item.colorHex,
+          );
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -883,7 +899,7 @@ class _CountdownTileCardState extends State<_CountdownTileCard>
           InkWell(
             onTap: () {
               if (taskId != null) {
-                ui.openDetail(taskId!);
+                ui.openDetail(taskId);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -901,15 +917,13 @@ class _CountdownTileCardState extends State<_CountdownTileCard>
                 Text(
                   target == null
                       ? '未设置时间'
-                      : (expired
-                          ? '已到期'
-                          : formatCountdown(target.difference(now))),
+                      : (dateOnly
+                          ? formatDateOnlyCountdown(target, now)
+                          : (expired
+                              ? '已到期'
+                              : formatCountdown(target.difference(now)))),
                   style: context.texts.headlineSmall?.copyWith(
-                    color: target == null
-                        ? context.palette.textTertiary
-                        : (expired
-                            ? context.palette.danger
-                            : context.palette.accent),
+                    color: valueColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -917,7 +931,7 @@ class _CountdownTileCardState extends State<_CountdownTileCard>
                 Text(
                   target == null
                       ? '在设置中补上截止时间'
-                      : countdownTargetLabel(target),
+                      : countdownTargetLabel(target, dateOnly: dateOnly),
                   style: context.texts.labelSmall,
                 ),
               ],
