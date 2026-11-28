@@ -388,16 +388,17 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
     ActionItem item, {
     LearningType type = LearningType.declarative,
     LearningMode mode = LearningMode.full,
+    LearningDraft? draft,
   }) async {
     final LearningSession? existing = inProgressFor(item.id);
     if (existing != null) return existing;
 
-    final LearningDraft draft = LearningDraft.initial(type, mode: mode);
+    final LearningDraft next = draft ?? LearningDraft.initial(type, mode: mode);
     final LearningSession session = LearningSession.create(
       actionItemId: item.id,
       learningType: type,
       mode: mode,
-    ).copyWith(stepsDataJson: draft.encode());
+    ).copyWith(stepsDataJson: next.encode());
     await put(session);
     return session;
   }
@@ -408,8 +409,9 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
     required String title,
     LearningType type = LearningType.declarative,
     LearningMode mode = LearningMode.full,
+    LearningDraft? draft,
   }) async {
-    final LearningDraft draft = LearningDraft.initial(type, mode: mode);
+    final LearningDraft next = draft ?? LearningDraft.initial(type, mode: mode);
     final String syntheticId =
         'standalone-${DateTime.now().microsecondsSinceEpoch}';
     final LearningSession session = LearningSession.create(
@@ -417,7 +419,7 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
       title: title.trim().isEmpty ? '独立学习' : title.trim(),
       learningType: type,
       mode: mode,
-    ).copyWith(stepsDataJson: draft.encode());
+    ).copyWith(stepsDataJson: next.encode());
     await put(session);
     return session;
   }

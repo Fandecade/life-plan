@@ -182,10 +182,9 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                AppGhostButton(
+                AppPrimaryButton(
                   label: '新建学习',
                   icon: Icons.add_rounded,
-                  dense: true,
                   onPressed: _openNewLearning,
                 ),
               ],
@@ -474,6 +473,15 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
         );
   }
 
+  LearningStepSeed _seedFromLine(String line) {
+    final int index = line.indexOf('|');
+    if (index < 0) return LearningStepSeed(title: line.trim());
+    return LearningStepSeed(
+      title: line.substring(0, index).trim(),
+      content: line.substring(index + 1).trim(),
+    );
+  }
+
   Future<void> _openNewLearning() async {
     final LearningSessionRepository sessions = context
         .read<LearningSessionRepository>();
@@ -483,8 +491,7 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
         .where(
           (ActionItem item) =>
               item.executionMode == ExecutionMode.outputLearning &&
-              !item.isCompleted &&
-              sessions.inProgressFor(item.id) == null,
+              !item.isCompleted,
         )
         .toList(growable: false);
 
@@ -493,6 +500,9 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     LearningType type = LearningType.declarative;
     LearningMode mode = LearningMode.full;
     final TextEditingController title = TextEditingController();
+    final TextEditingController stepsText = TextEditingController(
+      text: learningMethods[type]!.steps.map((step) => step.title).join('\n'),
+    );
 
     final _NewLearningRequest? request =
         await showAppSheet<_NewLearningRequest>(
@@ -510,18 +520,35 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
                   ),
                   AppPrimaryButton(
                     label: '开始学习',
-                    onPressed: () => Navigator.of(sheetContext).pop(
-                      _NewLearningRequest(
-                        task: selectedTaskId == null
-                            ? null
-                            : candidates.firstWhere(
-                                (ActionItem item) => item.id == selectedTaskId,
-                              ),
-                        title: title.text.trim(),
-                        type: type,
-                        mode: mode,
-                      ),
-                    ),
+                    onPressed: () {
+                      final List<LearningStepSeed> seeds = <LearningStepSeed>[
+                        for (final String line in stepsText.text.split('\n'))
+                          if (line.trim().isNotEmpty) _seedFromLine(line),
+                      ];
+                      final LearningMode nextMode = seeds.isEmpty
+                          ? mode
+                          : LearningMode.full;
+                      Navigator.of(sheetContext).pop(
+                        _NewLearningRequest(
+                          task: selectedTaskId == null
+                              ? null
+                              : candidates.firstWhere(
+                                  (ActionItem item) =>
+                                      item.id == selectedTaskId,
+                                ),
+                          title: title.text.trim(),
+                          type: type,
+                          mode: nextMode,
+                          draft: seeds.isEmpty
+                              ? null
+                              : LearningDraft.custom(
+                                  type: type,
+                                  steps: seeds,
+                                  mode: LearningMode.full,
+                                ),
+                        ),
+                      );
+                    },
                   ),
                 ],
                 child: Column(
@@ -602,6 +629,34 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
                             ),
                       ],
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '步骤（每行一个：标题 | 初始内容）',
+                            style: context.texts.labelSmall,
+                          ),
+                        ),
+                        AppGhostButton(
+                          label: '套用模板',
+                          dense: true,
+                          onPressed: () => setLocal(() {
+                            stepsText.text = learningMethods[type]!.steps
+                                .map((step) => step.title)
+                                .join('\n');
+                          }),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    AppTextField(
+                      controller: stepsText,
+                      dense: true,
+                      minLines: 3,
+                      maxLines: 6,
+                      hintText: '设问 | 我已知什么？\n独立输出 | 用三句话说明…',
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       '不关联任务的学习也会进入「进行中草稿」与「输出成果库」，不会占用任务池。',
@@ -614,6 +669,7 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
           ),
         );
     title.dispose();
+    stepsText.dispose();
     if (request == null || !mounted) return;
 
     final LearningSession session;
@@ -624,12 +680,14 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
             request.task!,
             type: request.type,
             mode: request.mode,
+            draft: request.draft,
           );
     } else {
       session = await sessions.startStandalone(
         title: request.title,
         type: request.type,
         mode: request.mode,
+        draft: request.draft,
       );
     }
     if (!mounted) return;
@@ -829,12 +887,14 @@ class _NewLearningRequest {
     required this.title,
     required this.type,
     required this.mode,
+    required this.draft,
   });
 
   final ActionItem? task;
   final String title;
   final LearningType type;
   final LearningMode mode;
+  final LearningDraft? draft;
 }
 
 /// 成果查看：按学习步骤分块展示，每块可独立折叠，也可一键全部展开/收起。
@@ -898,9 +958,6 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final Color tone = LearningVisuals.toneOf(widget.session.learningType);
-    final LearningMethodTemplate template = methodOf(
-      widget.session.learningType,
-    );
 
     return AppSheetContent(
       title: '输出成果',
@@ -985,7 +1042,7 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
               _section(
                 context,
                 sectionId: index,
-                title: '${index + 1} ${template.stepAt(index).title}',
+                title: '${index + 1} ${widget.draft.titleAt(index)}',
                 content: widget.draft.fullSteps[index].text,
                 tone: tone,
               ),

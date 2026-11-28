@@ -411,12 +411,50 @@ class AiDraftApplier {
           case 'create_learning':
             final String title = _text(draft.args['title']);
             if (title.isEmpty) throw const _DraftError('学习主题为空');
-            final LearningSession session = await learningSessions
-                .startStandalone(
-                  title: title,
-                  type: LearningType.fromName(draft.args['learningType']),
-                  mode: LearningMode.fromName(draft.args['mode']),
-                );
+            final LearningType type = LearningType.fromName(
+              draft.args['learningType'],
+            );
+            final LearningMode mode = LearningMode.fromName(draft.args['mode']);
+            final List<LearningStepSeed> seeds = <LearningStepSeed>[
+              for (final Object? item
+                  in (draft.args['steps'] as List<dynamic>?) ??
+                      const <dynamic>[])
+                if (item is Map)
+                  LearningStepSeed(
+                    title: _text(item['title']),
+                    content: _text(item['content']),
+                  ),
+            ]..removeWhere((LearningStepSeed item) => item.title.isEmpty);
+            final LearningDraft? custom = seeds.isEmpty
+                ? null
+                : LearningDraft.custom(
+                    type: type,
+                    steps: seeds,
+                    mode: LearningMode.full,
+                  );
+            final String taskTitle = _text(draft.args['taskTitle']);
+            final ActionItem? task = taskTitle.isEmpty
+                ? null
+                : _findTaskEntity(taskTitle);
+            if (taskTitle.isNotEmpty && task == null) {
+              throw const _DraftError('找不到要配对的任务');
+            }
+            final LearningSession session;
+            if (task != null) {
+              session = await learningSessions.startFor(
+                task,
+                type: type,
+                mode: mode,
+                draft: custom,
+              );
+            } else {
+              session = await learningSessions.startStandalone(
+                title: title,
+                type: type,
+                mode: mode,
+                draft: custom,
+              );
+            }
             _undo.add(_UndoOp(_UndoKind.learning, session.id));
             created++;
           default:

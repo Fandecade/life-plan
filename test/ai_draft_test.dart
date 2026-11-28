@@ -352,4 +352,51 @@ void main() {
     expect(restored.startAt.hour, 10);
     expect(applier.canUndo, isFalse);
   });
+
+  test('AI 可新建带自定义步骤的学习并可撤销', () async {
+    final AiDraftApplier applier = AiDraftApplier(
+      visions: bootstrap.visions,
+      capabilities: bootstrap.capabilities,
+      actions: bootstrap.actions,
+      projects: bootstrap.projects,
+      routines: bootstrap.weeklyRoutines,
+      schedules: bootstrap.schedules,
+      learningSessions: bootstrap.learningSessions,
+      habits: bootstrap.foggHabits,
+      reviewLogs: bootstrap.reviewLogs,
+    );
+    final AiApplyResult result = await applier.apply(<AiDraft>[
+      const AiDraft(
+        id: 'l1',
+        tool: 'create_learning',
+        args: <String, dynamic>{
+          'title': '自定义学习测试',
+          'learningType': 'declarative',
+          'mode': 'full',
+          'steps': <Map<String, dynamic>>[
+            <String, dynamic>{'title': '设问', 'content': '我已知什么？'},
+            <String, dynamic>{'title': '独立输出', 'content': '用三句话说明'},
+            <String, dynamic>{'title': '校验', 'content': ''},
+          ],
+        },
+        summary: '新建学习',
+      ),
+    ]);
+    expect(result.created, 1);
+    expect(result.errors, isEmpty);
+
+    final LearningSession session = bootstrap.learningSessions.inProgress
+        .firstWhere((LearningSession item) => item.title == '自定义学习测试');
+    final LearningDraft draft = LearningDraft.decode(
+      session.stepsDataJson,
+      session.learningType,
+    );
+    expect(draft.customTitles, <String>['设问', '独立输出', '校验']);
+    expect(draft.fullSteps.length, 3);
+    expect(draft.fullSteps.first.text, '我已知什么？');
+    expect(draft.titleAt(1), '独立输出');
+
+    await applier.undoLast();
+    expect(bootstrap.learningSessions.byId(session.id), isNull);
+  });
 }

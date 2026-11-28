@@ -581,7 +581,7 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
             AppChip(
               label: index == 0 && _draft.isQuick
                   ? quickOutputStep.title
-                  : '${index + 1} ${template.stepAt(index).title}',
+                  : '${index + 1} ${_draft.titleAt(index)}',
               dense: true,
               filled: index == current,
               color: tone,

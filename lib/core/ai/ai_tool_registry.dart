@@ -352,11 +352,27 @@ class AiToolRegistry {
     ),
     AiToolSpec(
       name: 'create_learning',
-      description: '生成不配对任务的学习草稿（主题 + 学习方法 + 档位）。',
+      description: '生成学习草稿（可配对任务，可自定义步骤；不配对时 title 必填）。',
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
           'title': <String, dynamic>{'type': 'string'},
+          'taskTitle': <String, dynamic>{
+            'type': 'string',
+            'description': '要配对的任务标题（可选）',
+          },
+          'steps': <String, dynamic>{
+            'type': 'array',
+            'description': '自定义步骤；为空则使用所选学习方法的默认步骤',
+            'items': <String, dynamic>{
+              'type': 'object',
+              'properties': <String, dynamic>{
+                'title': <String, dynamic>{'type': 'string'},
+                'content': <String, dynamic>{'type': 'string'},
+              },
+              'required': <String>['title'],
+            },
+          },
           'learningType': <String, dynamic>{
             'type': 'string',
             'enum': <String>[
