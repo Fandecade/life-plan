@@ -15,9 +15,9 @@ enum LearningMode {
   final String description;
 
   static LearningMode fromName(Object? value) => LearningMode.values.firstWhere(
-        (mode) => mode.name == value,
-        orElse: () => LearningMode.full,
-      );
+    (mode) => mode.name == value,
+    orElse: () => LearningMode.full,
+  );
 }
 
 /// 五类学习目标，决定系统加载哪套方法论步骤流与复习间隔。
@@ -37,9 +37,9 @@ enum LearningType {
   final bool supportsQuick;
 
   static LearningType fromName(Object? value) => LearningType.values.firstWhere(
-        (type) => type.name == value,
-        orElse: () => LearningType.declarative,
-      );
+    (type) => type.name == value,
+    orElse: () => LearningType.declarative,
+  );
 }
 
 /// 一次学习推进会话：只存步骤进度、简要记录、卡点与外部链接。
@@ -49,6 +49,7 @@ class LearningSession extends SyncEntity {
     required super.createdAt,
     required super.updatedAt,
     required this.actionItemId,
+    this.title = '',
     this.learningType = LearningType.declarative,
     this.mode = LearningMode.full,
     this.stepsDataJson = '{}',
@@ -61,6 +62,9 @@ class LearningSession extends SyncEntity {
   });
 
   final String actionItemId;
+
+  /// 会话标题：无任务学习时直接使用；有任务时为空，回退到任务标题。
+  final String title;
   final LearningType learningType;
   final LearningMode mode;
   final String stepsDataJson;
@@ -73,6 +77,7 @@ class LearningSession extends SyncEntity {
 
   factory LearningSession.create({
     required String actionItemId,
+    String title = '',
     LearningType learningType = LearningType.declarative,
     LearningMode mode = LearningMode.full,
   }) {
@@ -82,12 +87,14 @@ class LearningSession extends SyncEntity {
       createdAt: now,
       updatedAt: now,
       actionItemId: actionItemId,
+      title: title,
       learningType: learningType,
       mode: mode,
     );
   }
 
   LearningSession copyWith({
+    String? title,
     LearningType? learningType,
     LearningMode? mode,
     String? stepsDataJson,
@@ -106,6 +113,7 @@ class LearningSession extends SyncEntity {
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       actionItemId: actionItemId,
+      title: title ?? this.title,
       learningType: learningType ?? this.learningType,
       mode: mode ?? this.mode,
       stepsDataJson: stepsDataJson ?? this.stepsDataJson,
@@ -120,16 +128,17 @@ class LearningSession extends SyncEntity {
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
-        ...baseToJson(),
-        'actionItemId': actionItemId,
-        'learningType': learningType.name,
-        'mode': mode.name,
-        'stepsDataJson': stepsDataJson,
-        'currentStepIndex': currentStepIndex,
-        'elapsedSeconds': elapsedSeconds,
-        'isFinished': isFinished,
-        'completedAt': completedAt?.toIso8601String(),
-      };
+    ...baseToJson(),
+    'actionItemId': actionItemId,
+    'title': title,
+    'learningType': learningType.name,
+    'mode': mode.name,
+    'stepsDataJson': stepsDataJson,
+    'currentStepIndex': currentStepIndex,
+    'elapsedSeconds': elapsedSeconds,
+    'isFinished': isFinished,
+    'completedAt': completedAt?.toIso8601String(),
+  };
 
   factory LearningSession.fromJson(Map<String, dynamic> json) {
     return LearningSession(
@@ -137,6 +146,7 @@ class LearningSession extends SyncEntity {
       createdAt: parseDate(json['createdAt']),
       updatedAt: parseDate(json['updatedAt']),
       actionItemId: json['actionItemId'] as String? ?? '',
+      title: json['title'] as String? ?? '',
       learningType: LearningType.fromName(json['learningType']),
       mode: LearningMode.fromName(json['mode']),
       stepsDataJson: json['stepsDataJson'] as String? ?? '{}',
@@ -160,7 +170,8 @@ enum ReviewOutcome {
 
   final String label;
 
-  static ReviewOutcome fromName(Object? value) => ReviewOutcome.values.firstWhere(
+  static ReviewOutcome fromName(Object? value) =>
+      ReviewOutcome.values.firstWhere(
         (outcome) => outcome.name == value,
         orElse: () => ReviewOutcome.vague,
       );
@@ -192,7 +203,8 @@ class LearningReview extends SyncEntity {
   final DateTime? doneAt;
 
   bool get isOverdue =>
-      !isDone && dueDate.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+      !isDone &&
+      dueDate.isBefore(DateTime.now().subtract(const Duration(days: 1)));
 
   factory LearningReview.create({
     required String sessionId,
@@ -243,15 +255,15 @@ class LearningReview extends SyncEntity {
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
-        ...baseToJson(),
-        'sessionId': sessionId,
-        'actionItemId': actionItemId,
-        'dueDate': dueDate.toIso8601String(),
-        'intervalDays': intervalDays,
-        'isDone': isDone,
-        'outcome': outcome?.name,
-        'doneAt': doneAt?.toIso8601String(),
-      };
+    ...baseToJson(),
+    'sessionId': sessionId,
+    'actionItemId': actionItemId,
+    'dueDate': dueDate.toIso8601String(),
+    'intervalDays': intervalDays,
+    'isDone': isDone,
+    'outcome': outcome?.name,
+    'doneAt': doneAt?.toIso8601String(),
+  };
 
   factory LearningReview.fromJson(Map<String, dynamic> json) {
     return LearningReview(

@@ -64,6 +64,7 @@ void main() {
       projects: bootstrap.projects,
       routines: bootstrap.weeklyRoutines,
       schedules: bootstrap.schedules,
+      learningSessions: bootstrap.learningSessions,
       habits: bootstrap.foggHabits,
       reviewLogs: bootstrap.reviewLogs,
     );
@@ -215,6 +216,7 @@ void main() {
       projects: bootstrap.projects,
       routines: bootstrap.weeklyRoutines,
       schedules: bootstrap.schedules,
+      learningSessions: bootstrap.learningSessions,
       habits: bootstrap.foggHabits,
       reviewLogs: bootstrap.reviewLogs,
     );

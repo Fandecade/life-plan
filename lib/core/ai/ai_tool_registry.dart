@@ -350,6 +350,31 @@ class AiToolRegistry {
         'required': <String>['taskTitle'],
       },
     ),
+    AiToolSpec(
+      name: 'create_learning',
+      description: '生成不配对任务的学习草稿（主题 + 学习方法 + 档位）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'learningType': <String, dynamic>{
+            'type': 'string',
+            'enum': <String>[
+              'declarative',
+              'procedural',
+              'project',
+              'language',
+              'custom',
+            ],
+          },
+          'mode': <String, dynamic>{
+            'type': 'string',
+            'enum': <String>['full', 'quick'],
+          },
+        },
+        'required': <String>['title'],
+      },
+    ),
   ];
 
   Future<Map<String, dynamic>> execute(
@@ -525,6 +550,12 @@ class AiToolRegistry {
           'cancel_schedule',
           arguments,
           '取消任务「${_text(arguments['taskTitle'])}」的排期',
+        );
+      case 'create_learning':
+        return _draft(
+          'create_learning',
+          arguments,
+          '新建学习「${_text(arguments['title'])}」',
         );
       default:
         return <String, dynamic>{'error': '未知工具：$name'};

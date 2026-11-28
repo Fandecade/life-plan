@@ -21,6 +21,7 @@ class AiDraftApplier {
     required this.schedules,
     required this.habits,
     required this.reviewLogs,
+    required this.learningSessions,
     Box<dynamic>? undoBox,
   }) : _undoBox = undoBox {
     _restoreUndo();
@@ -34,6 +35,7 @@ class AiDraftApplier {
   final ScheduleService schedules;
   final FoggHabitRepository habits;
   final ReviewLogRepository reviewLogs;
+  final LearningSessionRepository learningSessions;
   final Box<dynamic>? _undoBox;
 
   final List<_UndoOp> _undo = <_UndoOp>[];
@@ -406,6 +408,17 @@ class AiDraftApplier {
               _UndoOp(_UndoKind.scheduleRestore, task.id, extra: restore),
             );
             created++;
+          case 'create_learning':
+            final String title = _text(draft.args['title']);
+            if (title.isEmpty) throw const _DraftError('学习主题为空');
+            final LearningSession session = await learningSessions
+                .startStandalone(
+                  title: title,
+                  type: LearningType.fromName(draft.args['learningType']),
+                  mode: LearningMode.fromName(draft.args['mode']),
+                );
+            _undo.add(_UndoOp(_UndoKind.learning, session.id));
+            created++;
           default:
             errors.add('未知草稿类型：${draft.tool}');
         }
@@ -453,6 +466,8 @@ class AiDraftApplier {
             );
             await reviewLogs.save(old);
           }
+        case _UndoKind.learning:
+          await learningSessions.softDelete(op.id);
         case _UndoKind.visionUpdate:
           if (op.extra != null) {
             await visions.save(
@@ -657,6 +672,7 @@ class AiDraftApplier {
     'add_project_stage' => 13,
     'create_task' => 4,
     'plan_learning' => 4,
+    'create_learning' => 4,
     'update_task_fields' => 14,
     'schedule_task' => 5,
     'cancel_schedule' => 15,
@@ -692,6 +708,7 @@ enum _UndoKind {
   projectUpdate,
   projectStage,
   scheduleRestore,
+  learning,
 }
 
 class _UndoOp {

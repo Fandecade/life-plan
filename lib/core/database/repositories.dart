@@ -107,8 +107,7 @@ class VisionRepository extends JsonEntityRepository<Vision> {
     return a.createdAt.compareTo(b.createdAt);
   }
 
-  List<Vision> get ordered =>
-      all.toList(growable: false)..sort(compareOrder);
+  List<Vision> get ordered => all.toList(growable: false)..sort(compareOrder);
 
   Future<Vision> create({
     required String title,
@@ -172,8 +171,9 @@ class VisionRepository extends JsonEntityRepository<Vision> {
 class CapabilityRepository extends JsonEntityRepository<Capability> {
   CapabilityRepository(Box<String> box) : super(box, Capability.fromJson);
 
-  List<Capability> forVision(String visionId) =>
-      all.where((Capability item) => item.visionId == visionId).toList(growable: false);
+  List<Capability> forVision(String visionId) => all
+      .where((Capability item) => item.visionId == visionId)
+      .toList(growable: false);
 
   Future<Capability> create({
     required String visionId,
@@ -278,9 +278,10 @@ class ActionItemRepository extends JsonEntityRepository<ActionItem> {
 
   Future<void> defer(String id) => setStatus(id, ActionItemStatus.deferred);
 
-  int completedCountFor(String capabilityId) => forCapability(capabilityId)
-      .where((ActionItem item) => item.isCompleted)
-      .length;
+  int completedCountFor(String capabilityId) =>
+      forCapability(capabilityId)
+          .where((ActionItem item) => item.isCompleted)
+          .length;
 }
 
 class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
@@ -296,10 +297,11 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
 
   /// 一个任务的全部时间块（按开始时间升序），支持同一任务多次推进。
   List<TimeBlock> blocksForActionItem(String actionItemId) {
-    final List<TimeBlock> result = all
-        .where((TimeBlock block) => block.actionItemId == actionItemId)
-        .toList()
-      ..sort((TimeBlock a, TimeBlock b) => a.startAt.compareTo(b.startAt));
+    final List<TimeBlock> result =
+        all
+            .where((TimeBlock block) => block.actionItemId == actionItemId)
+            .toList()
+          ..sort((TimeBlock a, TimeBlock b) => a.startAt.compareTo(b.startAt));
     return result;
   }
 
@@ -307,8 +309,9 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
   TimeBlock? forActionItem(String actionItemId) {
     final List<TimeBlock> blocks = blocksForActionItem(actionItemId);
     if (blocks.isEmpty) return null;
-    final List<TimeBlock> unfinished =
-        blocks.where((TimeBlock block) => !block.isCompleted).toList();
+    final List<TimeBlock> unfinished = blocks
+        .where((TimeBlock block) => !block.isCompleted)
+        .toList();
     return unfinished.isEmpty ? blocks.last : unfinished.last;
   }
 
@@ -354,8 +357,10 @@ class TimeBlockRepository extends JsonEntityRepository<TimeBlock> {
     );
   }
 }
+
 class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
-  LearningSessionRepository(Box<String> box) : super(box, LearningSession.fromJson);
+  LearningSessionRepository(Box<String> box)
+    : super(box, LearningSession.fromJson);
 
   List<LearningSession> forActionItem(String actionItemId) => all
       .where((LearningSession session) => session.actionItemId == actionItemId)
@@ -397,6 +402,26 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
     return session;
   }
 
+  /// 开启一次「不配对任务」的学习；actionItemId 使用合成 id，
+  /// 仅用于复习节点与时间块关联，不进入任务池。
+  Future<LearningSession> startStandalone({
+    required String title,
+    LearningType type = LearningType.declarative,
+    LearningMode mode = LearningMode.full,
+  }) async {
+    final LearningDraft draft = LearningDraft.initial(type, mode: mode);
+    final String syntheticId =
+        'standalone-${DateTime.now().microsecondsSinceEpoch}';
+    final LearningSession session = LearningSession.create(
+      actionItemId: syntheticId,
+      title: title.trim().isEmpty ? '独立学习' : title.trim(),
+      learningType: type,
+      mode: mode,
+    ).copyWith(stepsDataJson: draft.encode());
+    await put(session);
+    return session;
+  }
+
   Future<void> finish(LearningSession session, {LearningMode? mode}) async {
     await put(
       session.copyWith(
@@ -410,7 +435,8 @@ class LearningSessionRepository extends JsonEntityRepository<LearningSession> {
 }
 
 class LearningReviewRepository extends JsonEntityRepository<LearningReview> {
-  LearningReviewRepository(Box<String> box) : super(box, LearningReview.fromJson);
+  LearningReviewRepository(Box<String> box)
+    : super(box, LearningReview.fromJson);
 
   Future<void> save(LearningReview review) =>
       put(review.copyWith(syncStatus: SyncStatus.pendingUpdate));
@@ -427,7 +453,9 @@ class LearningReviewRepository extends JsonEntityRepository<LearningReview> {
               !review.isDone && !review.dueDate.isAfter(limit),
         )
         .toList();
-    result.sort((LearningReview a, LearningReview b) => a.dueDate.compareTo(b.dueDate));
+    result.sort(
+      (LearningReview a, LearningReview b) => a.dueDate.compareTo(b.dueDate),
+    );
     return result;
   }
 
@@ -490,6 +518,7 @@ class LearningReviewRepository extends JsonEntityRepository<LearningReview> {
     return next;
   }
 }
+
 class WeeklyRoutineRepository extends JsonEntityRepository<WeeklyRoutine> {
   WeeklyRoutineRepository(Box<String> box) : super(box, WeeklyRoutine.fromJson);
 
@@ -527,9 +556,10 @@ class WeeklyRoutineRepository extends JsonEntityRepository<WeeklyRoutine> {
       put(routine.copyWith(syncStatus: SyncStatus.pendingUpdate));
 }
 
-class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> {
+class RoutineExceptionRepository
+    extends JsonEntityRepository<RoutineException> {
   RoutineExceptionRepository(Box<String> box)
-      : super(box, RoutineException.fromJson);
+    : super(box, RoutineException.fromJson);
 
   bool isSkipped(String routineId, String dateKey) {
     for (final RoutineException exception in all) {
@@ -561,6 +591,7 @@ class RoutineExceptionRepository extends JsonEntityRepository<RoutineException> 
     }
   }
 }
+
 class CountdownRepository extends JsonEntityRepository<Countdown> {
   CountdownRepository(Box<String> box) : super(box, Countdown.fromJson);
 
@@ -608,10 +639,7 @@ class CountdownRepository extends JsonEntityRepository<Countdown> {
       final Countdown item = items[i];
       if (item.sortOrder == i) continue;
       await put(
-        item.copyWith(
-          sortOrder: i,
-          syncStatus: SyncStatus.pendingUpdate,
-        ),
+        item.copyWith(sortOrder: i, syncStatus: SyncStatus.pendingUpdate),
       );
     }
   }
@@ -722,12 +750,12 @@ class ReviewLogRepository extends JsonEntityRepository<ReviewLog> {
     return months;
   }
 }
+
 class FoggHabitRepository extends JsonEntityRepository<FoggHabit> {
   FoggHabitRepository(Box<String> box) : super(box, FoggHabit.fromJson);
 
-  List<FoggHabit> get active => all
-      .where((FoggHabit habit) => habit.isActive)
-      .toList(growable: false);
+  List<FoggHabit> get active =>
+      all.where((FoggHabit habit) => habit.isActive).toList(growable: false);
 
   FoggHabit? forActionItem(String actionItemId) {
     for (final FoggHabit habit in all) {
@@ -787,10 +815,11 @@ class HabitLogRepository extends JsonEntityRepository<HabitLog> {
     return null;
   }
 
-  Set<String> completedDates(String habitId) => forHabit(habitId)
-      .where((HabitLog log) => log.isCompleted)
-      .map((HabitLog log) => log.dateKey)
-      .toSet();
+  Set<String> completedDates(String habitId) =>
+      forHabit(habitId)
+          .where((HabitLog log) => log.isCompleted)
+          .map((HabitLog log) => log.dateKey)
+          .toSet();
 
   Future<HabitLog> logDay(
     String habitId,
@@ -838,9 +867,10 @@ class HabitLogRepository extends JsonEntityRepository<HabitLog> {
   }
 }
 
-class BehaviorCandidateRepository extends JsonEntityRepository<BehaviorCandidate> {
+class BehaviorCandidateRepository
+    extends JsonEntityRepository<BehaviorCandidate> {
   BehaviorCandidateRepository(Box<String> box)
-      : super(box, BehaviorCandidate.fromJson);
+    : super(box, BehaviorCandidate.fromJson);
 
   List<BehaviorCandidate> get selected => all
       .where((BehaviorCandidate candidate) => candidate.isSelected)
@@ -871,14 +901,16 @@ class BehaviorCandidateRepository extends JsonEntityRepository<BehaviorCandidate
 class HabitRecipeVersionRepository
     extends JsonEntityRepository<HabitRecipeVersion> {
   HabitRecipeVersionRepository(Box<String> box)
-      : super(box, HabitRecipeVersion.fromJson);
+    : super(box, HabitRecipeVersion.fromJson);
 
   List<HabitRecipeVersion> forHabit(String habitId) {
     final List<HabitRecipeVersion> versions = all
         .where((HabitRecipeVersion version) => version.habitId == habitId)
         .toList();
-    versions.sort((HabitRecipeVersion a, HabitRecipeVersion b) =>
-        b.revision.compareTo(a.revision));
+    versions.sort(
+      (HabitRecipeVersion a, HabitRecipeVersion b) =>
+          b.revision.compareTo(a.revision),
+    );
     return versions;
   }
 

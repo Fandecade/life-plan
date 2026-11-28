@@ -227,6 +227,7 @@ class AppBootstrap {
       schedules: schedules,
       habits: foggHabits,
       reviewLogs: reviewLogs,
+      learningSessions: learningSessions,
       undoBox: db.settings,
     );
     final AiAssistantService aiAssistant = AiAssistantService(

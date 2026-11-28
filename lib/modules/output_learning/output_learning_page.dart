@@ -11,6 +11,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
 import 'artifact_dialog.dart';
 import 'learning_common.dart';
@@ -61,23 +62,28 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
 
     if (_activeReviewId != null) {
       final LearningReview? review = reviews.byId(_activeReviewId);
-      final ActionItem? task = review == null
+      final LearningSession? session = review == null
           ? null
-          : _findTask(actions, review.actionItemId);
+          : sessions.byId(review.sessionId);
+      final ActionItem? task = session != null
+          ? _taskForSession(actions, session)
+          : (review == null ? null : _findTask(actions, review.actionItemId));
       if (review != null && task != null) {
         return LearningReviewFlow(
           key: ValueKey<String>('review-${review.id}'),
           review: review,
           task: task,
-          session: sessions.byId(review.sessionId),
+          session: session,
           onClose: () => setState(() => _activeReviewId = null),
         );
       }
     }
 
     if (_activeTaskId != null) {
-      final ActionItem? task = _findTask(actions, _activeTaskId!);
       final LearningSession? session = sessions.inProgressFor(_activeTaskId!);
+      final ActionItem? task = session != null
+          ? _taskForSession(actions, session)
+          : _findTask(actions, _activeTaskId!);
       if (task != null && session != null) {
         return LearningSessionFlow(
           key: ValueKey<String>('learn-${session.id}'),
@@ -167,9 +173,22 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-            child: Text(
-              '选一种方法，把输入变成可复用的输出；笔记与产物留在外部工具。',
-              style: context.texts.bodySmall,
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '选一种方法，把输入变成可复用的输出；笔记与产物留在外部工具。',
+                    style: context.texts.bodySmall,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                AppGhostButton(
+                  label: '新建学习',
+                  icon: Icons.add_rounded,
+                  dense: true,
+                  onPressed: _openNewLearning,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm + 2),
@@ -253,9 +272,11 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
       const SizedBox(height: AppSpacing.sm),
     ];
     for (final LearningReview review in dueReviews) {
-      final ActionItem? task = _findTask(actions, review.actionItemId);
-      if (task == null) continue;
       final LearningSession? session = sessions.byId(review.sessionId);
+      final ActionItem? task =
+          _findTask(actions, review.actionItemId) ??
+          (session == null ? null : _taskForSession(actions, session));
+      if (task == null) continue;
       widgets.add(
         _taskCard(
           context,
@@ -289,8 +310,7 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
       const SizedBox(height: AppSpacing.sm),
     ];
     for (final LearningSession session in draftSessions) {
-      final ActionItem? task = _findTask(actions, session.actionItemId);
-      if (task == null) continue;
+      final ActionItem task = _taskForSession(actions, session);
       final LearningDraft draft = LearningDraft.decode(
         session.stepsDataJson,
         session.learningType,
@@ -306,7 +326,7 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
             meta:
                 '${stepProgressLabel(draft)} · 更新于 ${AppDate.friendlyDay(session.updatedAt)} ${AppDate.timeLabel(session.updatedAt)}',
             actionLabel: '继续',
-            onTap: () => setState(() => _activeTaskId = task.id),
+            onTap: () => setState(() => _activeTaskId = session.actionItemId),
           ),
         ),
       );
@@ -333,8 +353,7 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
       const SizedBox(height: AppSpacing.sm),
     ];
     for (final LearningSession session in archiveSessions) {
-      final ActionItem? task = _findTask(actions, session.actionItemId);
-      if (task == null) continue;
+      final ActionItem task = _taskForSession(actions, session);
       final LearningDraft draft = LearningDraft.decode(
         session.stepsDataJson,
         session.learningType,
@@ -439,6 +458,185 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
       if (!mounted) return;
     }
     setState(() => _activeTaskId = task.id);
+  }
+
+  ActionItem _taskForSession(
+    List<ActionItem> actions,
+    LearningSession session,
+  ) {
+    return _findTask(actions, session.actionItemId) ??
+        ActionItem(
+          id: session.actionItemId,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          title: session.title.trim().isEmpty ? '独立学习' : session.title,
+          executionMode: ExecutionMode.outputLearning,
+        );
+  }
+
+  Future<void> _openNewLearning() async {
+    final LearningSessionRepository sessions = context
+        .read<LearningSessionRepository>();
+    final List<ActionItem> candidates = context
+        .read<ActionItemRepository>()
+        .all
+        .where(
+          (ActionItem item) =>
+              item.executionMode == ExecutionMode.outputLearning &&
+              !item.isCompleted &&
+              sessions.inProgressFor(item.id) == null,
+        )
+        .toList(growable: false);
+
+    final AppPalette palette = context.palette;
+    String? selectedTaskId;
+    LearningType type = LearningType.declarative;
+    LearningMode mode = LearningMode.full;
+    final TextEditingController title = TextEditingController();
+
+    final _NewLearningRequest? request =
+        await showAppSheet<_NewLearningRequest>(
+          context,
+          builder: (BuildContext sheetContext) => StatefulBuilder(
+            builder: (BuildContext context, StateSetter setLocal) {
+              return AppSheetContent(
+                title: '新建学习',
+                heightFactor: 0.8,
+                maxWidth: 560,
+                actions: <Widget>[
+                  AppGhostButton(
+                    label: '取消',
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                  AppPrimaryButton(
+                    label: '开始学习',
+                    onPressed: () => Navigator.of(sheetContext).pop(
+                      _NewLearningRequest(
+                        task: selectedTaskId == null
+                            ? null
+                            : candidates.firstWhere(
+                                (ActionItem item) => item.id == selectedTaskId,
+                              ),
+                        title: title.text.trim(),
+                        type: type,
+                        mode: mode,
+                      ),
+                    ),
+                  ),
+                ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('配对任务（可选）', style: context.texts.labelSmall),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: <Widget>[
+                        AppChip(
+                          label: '不关联任务',
+                          dense: true,
+                          filled: selectedTaskId == null,
+                          color: palette.accent,
+                          onTap: () => setLocal(() => selectedTaskId = null),
+                        ),
+                        for (final ActionItem item in candidates)
+                          AppChip(
+                            label: item.title,
+                            dense: true,
+                            filled: selectedTaskId == item.id,
+                            color: palette.accent,
+                            onTap: () =>
+                                setLocal(() => selectedTaskId = item.id),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      selectedTaskId == null ? '学习主题' : '学习主题（可留空，默认用任务标题）',
+                      style: context.texts.labelSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    AppTextField(
+                      controller: title,
+                      dense: true,
+                      hintText: '例：用 3 句话解释贝叶斯定理',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text('学习方法', style: context.texts.labelSmall),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: <Widget>[
+                        for (final LearningType item in LearningType.values)
+                          AppChip(
+                            label: item.label,
+                            dense: true,
+                            filled: type == item,
+                            color: palette.accent,
+                            onTap: () => setLocal(() {
+                              type = item;
+                              if (!item.supportsQuick) {
+                                mode = LearningMode.full;
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text('输出档位', style: context.texts.labelSmall),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: <Widget>[
+                        for (final LearningMode item in LearningMode.values)
+                          if (item == LearningMode.full || type.supportsQuick)
+                            AppChip(
+                              label: item.label,
+                              dense: true,
+                              filled: mode == item,
+                              color: palette.accent,
+                              onTap: () => setLocal(() => mode = item),
+                            ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      '不关联任务的学习也会进入「进行中草稿」与「输出成果库」，不会占用任务池。',
+                      style: context.texts.labelSmall,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+    title.dispose();
+    if (request == null || !mounted) return;
+
+    final LearningSession session;
+    if (request.task != null) {
+      session =
+          sessions.inProgressFor(request.task!.id) ??
+          await sessions.startFor(
+            request.task!,
+            type: request.type,
+            mode: request.mode,
+          );
+    } else {
+      session = await sessions.startStandalone(
+        title: request.title,
+        type: request.type,
+        mode: request.mode,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _activeTaskId = session.actionItemId;
+      _filter = LearningFilter.drafts;
+    });
   }
 
   Future<LearningType?> _pickType() {
@@ -623,6 +821,20 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
         return '输出成果库';
     }
   }
+}
+
+class _NewLearningRequest {
+  const _NewLearningRequest({
+    required this.task,
+    required this.title,
+    required this.type,
+    required this.mode,
+  });
+
+  final ActionItem? task;
+  final String title;
+  final LearningType type;
+  final LearningMode mode;
 }
 
 /// 成果查看：按学习步骤分块展示，每块可独立折叠，也可一键全部展开/收起。
