@@ -9,6 +9,7 @@ class AppRoutes {
   static const String outputLearning = '/output-learning';
   static const String foggHabit = '/fogg-habit';
   static const String review = '/review';
+  static const String aiAssistant = '/ai';
   static const String settings = '/settings';
 
   static const List<String> all = <String>[
@@ -18,6 +19,7 @@ class AppRoutes {
     outputLearning,
     foggHabit,
     review,
+    aiAssistant,
     settings,
   ];
 }

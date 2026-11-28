@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import '../core/ai/ai_assistant_service.dart';
+import '../core/ai/ai_settings_controller.dart';
 import '../core/database/repositories.dart';
 import '../core/plugin/module_registry.dart';
 import '../core/services/dashboard_service.dart';
@@ -45,6 +47,12 @@ class LifePlannerApp extends StatelessWidget {
         ),
         Provider<ReminderService>.value(value: bootstrap.reminders),
         Provider<NotificationService>.value(value: bootstrap.notifications),
+        ChangeNotifierProvider<AiSettingsController>.value(
+          value: bootstrap.aiSettings,
+        ),
+        ChangeNotifierProvider<AiAssistantService>.value(
+          value: bootstrap.aiAssistant,
+        ),
         ChangeNotifierProvider<ModuleRegistry>.value(value: bootstrap.modules),
         ChangeNotifierProvider<VisionRepository>.value(
           value: bootstrap.visions,

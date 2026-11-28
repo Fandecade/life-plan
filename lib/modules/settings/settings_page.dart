@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
+import '../../core/ai/ai_settings_controller.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/services/reminder_settings.dart';
@@ -11,6 +12,7 @@ import '../../core/state/theme_controller.dart';
 import '../../core/state/ui_style_controller.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/state_views.dart';
+import 'ai_settings_page.dart';
 import 'reminder_settings_page.dart';
 import 'settings_data_pages.dart';
 import 'settings_home_pages.dart';
@@ -27,6 +29,7 @@ class SettingsPage extends StatelessWidget {
     final HomeSettings home = context.watch<HomeSettings>();
     final ReminderSettings reminder = context.watch<ReminderSettings>();
     final ModuleRegistry modules = context.watch<ModuleRegistry>();
+    final AiSettingsController ai = context.watch<AiSettingsController>();
     final double width = MediaQuery.sizeOf(context).width;
     final double horizontal = width < 700 ? AppSpacing.xl : AppSpacing.xxl;
 
@@ -53,6 +56,12 @@ class SettingsPage extends StatelessWidget {
         summary:
             '$themeLabel · ${ui.isRefresh ? '新版' : '简洁'} · ${ui.accent.label}',
         builder: () => const AppearanceSettingsPage(),
+      ),
+      _SettingsEntryData(
+        icon: Icons.auto_awesome_outlined,
+        title: 'AI 助手',
+        summary: ai.isConfigured ? '已配置 · ${ai.model}' : '未配置',
+        builder: () => const AiSettingsPage(),
       ),
       _SettingsEntryData(
         icon: Icons.home_outlined,

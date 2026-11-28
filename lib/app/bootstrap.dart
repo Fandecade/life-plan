@@ -1,3 +1,9 @@
+import '../core/ai/ai_assistant_service.dart';
+import '../core/ai/ai_context_builder.dart';
+import '../core/ai/ai_key_store.dart';
+import '../core/ai/ai_settings_controller.dart';
+import '../core/ai/ai_tool_registry.dart';
+import '../core/ai/openai_provider.dart';
 import '../core/database/local_db.dart';
 import '../core/database/repositories.dart';
 import '../core/database/seed_data.dart';
@@ -50,6 +56,8 @@ class AppBootstrap {
     required this.reminderSettings,
     required this.reminders,
     required this.notifications,
+    required this.aiSettings,
+    required this.aiAssistant,
   });
 
   final LocalDatabase db;
@@ -81,21 +89,27 @@ class AppBootstrap {
   final ReminderSettings reminderSettings;
   final ReminderService reminders;
   final NotificationService notifications;
+  final AiSettingsController aiSettings;
+  final AiAssistantService aiAssistant;
 
   static Future<AppBootstrap> create({String? storagePath}) async {
     final LocalDatabase db = LocalDatabase();
     await db.open(storagePath: storagePath);
 
     final VisionRepository visions = VisionRepository(db.visions);
-    final CapabilityRepository capabilities = CapabilityRepository(db.capabilities);
+    final CapabilityRepository capabilities = CapabilityRepository(
+      db.capabilities,
+    );
     final ActionItemRepository actions = ActionItemRepository(db.actionItems);
     final TimeBlockRepository timeBlocks = TimeBlockRepository(db.timeBlocks);
     final LearningSessionRepository learningSessions =
         LearningSessionRepository(db.learningSessions);
-    final LearningReviewRepository learningReviews =
-        LearningReviewRepository(db.learningReviews);
-    final WeeklyRoutineRepository weeklyRoutines =
-        WeeklyRoutineRepository(db.weeklyRoutines);
+    final LearningReviewRepository learningReviews = LearningReviewRepository(
+      db.learningReviews,
+    );
+    final WeeklyRoutineRepository weeklyRoutines = WeeklyRoutineRepository(
+      db.weeklyRoutines,
+    );
     final RoutineExceptionRepository routineExceptions =
         RoutineExceptionRepository(db.routineExceptions);
     final ReviewLogRepository reviewLogs = ReviewLogRepository(db.reviewLogs);
@@ -119,8 +133,10 @@ class AppBootstrap {
       blocks: timeBlocks,
       actions: actions,
     );
-    final ScheduleService schedules =
-        ScheduleService(actions: actions, blocks: timeBlocks);
+    final ScheduleService schedules = ScheduleService(
+      actions: actions,
+      blocks: timeBlocks,
+    );
     final ReviewService reviewService = ReviewService(
       logs: reviewLogs,
       actions: actions,
@@ -167,6 +183,36 @@ class AppBootstrap {
       reminders: reminders,
       settings: reminderSettings,
     );
+    final AiProvider aiProvider = OpenAiCompatibleProvider();
+    final AiSettingsController aiSettings = AiSettingsController(
+      box: db.settings,
+      keyStore: AiKeyStore(),
+      provider: aiProvider,
+    );
+    await aiSettings.load();
+    final AiContextBuilder aiContext = AiContextBuilder(
+      visions: visions,
+      capabilities: capabilities,
+      actions: actions,
+      blocks: timeBlocks,
+      projects: projects,
+      habits: foggHabits,
+      reviewLogs: reviewLogs,
+    );
+    final AiToolRegistry aiTools = AiToolRegistry(
+      context: aiContext,
+      actions: actions,
+      visions: visions,
+      capabilities: capabilities,
+      projects: projects,
+      habits: foggHabits,
+      reviewLogs: reviewLogs,
+    );
+    final AiAssistantService aiAssistant = AiAssistantService(
+      settings: aiSettings,
+      tools: aiTools,
+      provider: aiProvider,
+    );
 
     await SeedData.seedIfNeeded(
       db: db,
@@ -206,6 +252,8 @@ class AppBootstrap {
       reminderSettings: reminderSettings,
       reminders: reminders,
       notifications: notifications,
+      aiSettings: aiSettings,
+      aiAssistant: aiAssistant,
     );
   }
 
@@ -230,6 +278,8 @@ class AppBootstrap {
     uiStyle.dispose();
     homeSettings.dispose();
     reminderSettings.dispose();
+    aiAssistant.dispose();
+    aiSettings.dispose();
     db.close();
   }
 }

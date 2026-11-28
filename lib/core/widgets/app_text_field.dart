@@ -22,6 +22,7 @@ class AppTextField extends StatefulWidget {
     this.focusNode,
     this.textInputAction,
     this.keyboardType,
+    this.obscureText = false,
     this.enabled = true,
   });
 
@@ -40,6 +41,7 @@ class AppTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final TextInputAction? textInputAction;
   final TextInputType? keyboardType;
+  final bool obscureText;
   final bool enabled;
 
   @override
@@ -95,17 +97,24 @@ class _AppTextFieldState extends State<AppTextField> {
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       textInputAction: widget.textInputAction ?? TextInputAction.done,
-      keyboardType: widget.keyboardType ??
+      keyboardType:
+          widget.keyboardType ??
           (multiline ? TextInputType.multiline : TextInputType.text),
-      style: widget.textStyle ??
+      obscureText: widget.obscureText,
+      style:
+          widget.textStyle ??
           (multiline ? context.texts.bodyMedium : context.texts.bodyLarge),
       cursorWidth: 1.4,
       decoration: InputDecoration(
         hintText: widget.hintText,
-        hintStyle: context.texts.bodyMedium?.copyWith(color: palette.textTertiary),
+        hintStyle: context.texts.bodyMedium?.copyWith(
+          color: palette.textTertiary,
+        ),
         isDense: true,
         filled: !widget.transparent,
-        fillColor: widget.transparent ? Colors.transparent : palette.surfaceMuted,
+        fillColor: widget.transparent
+            ? Colors.transparent
+            : palette.surfaceMuted,
         contentPadding: EdgeInsets.symmetric(
           horizontal: widget.dense ? 10 : 12,
           vertical: widget.dense ? 8 : (multiline ? 12 : 10),
@@ -114,12 +123,22 @@ class _AppTextFieldState extends State<AppTextField> {
             ? null
             : Padding(
                 padding: const EdgeInsets.only(left: 10, right: 6),
-                child: Icon(widget.prefixIcon, size: 15, color: palette.textTertiary),
+                child: Icon(
+                  widget.prefixIcon,
+                  size: 15,
+                  color: palette.textTertiary,
+                ),
               ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: widget.suffix,
-        border: _border(palette, widget.transparent ? Colors.transparent : palette.hairline),
-        enabledBorder: _border(palette, widget.transparent ? Colors.transparent : palette.hairline),
+        border: _border(
+          palette,
+          widget.transparent ? Colors.transparent : palette.hairline,
+        ),
+        enabledBorder: _border(
+          palette,
+          widget.transparent ? Colors.transparent : palette.hairline,
+        ),
         focusedBorder: _border(palette, palette.accent.withValues(alpha: 0.55)),
         disabledBorder: _border(palette, palette.hairline),
       ),
