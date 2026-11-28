@@ -214,6 +214,7 @@ class AppBootstrap {
       capabilities: capabilities,
       actions: actions,
       projects: projects,
+      routines: weeklyRoutines,
       schedules: schedules,
     );
     final AiAssistantService aiAssistant = AiAssistantService(

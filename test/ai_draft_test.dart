@@ -62,6 +62,7 @@ void main() {
       capabilities: bootstrap.capabilities,
       actions: bootstrap.actions,
       projects: bootstrap.projects,
+      routines: bootstrap.weeklyRoutines,
       schedules: bootstrap.schedules,
     );
     final List<AiDraft> drafts = <AiDraft>[
@@ -98,10 +99,34 @@ void main() {
         },
         summary: '排期「AI 测试任务」',
       ),
+      const AiDraft(
+        id: '5',
+        tool: 'plan_learning',
+        args: <String, dynamic>{
+          'title': 'AI 学习计划',
+          'capabilityTitle': 'AI 测试能力',
+          'estimatedMinutes': 30,
+          'scheduleDate': '2026-12-02',
+          'startTime': '20:00',
+        },
+        summary: '创建学习计划「AI 学习计划」',
+      ),
+      const AiDraft(
+        id: '6',
+        tool: 'create_weekly_routine',
+        args: <String, dynamic>{
+          'title': 'AI 固定晨读',
+          'weekday': 1,
+          'startTime': '07:30',
+          'durationMinutes': 30,
+          'linkedTaskTitle': 'AI 学习计划',
+        },
+        summary: '固定安排「AI 固定晨读」',
+      ),
     ];
 
     final AiApplyResult result = await applier.apply(drafts);
-    expect(result.created, 4);
+    expect(result.created, 6);
     expect(result.errors, isEmpty);
 
     final Vision vision = bootstrap.visions.all.firstWhere(
@@ -120,12 +145,24 @@ void main() {
     );
     expect(block.startAt.hour, 9);
     expect(block.startAt.minute, 30);
+
+    final ActionItem learning = bootstrap.actions.all.firstWhere(
+      (ActionItem item) => item.title == 'AI 学习计划',
+    );
+    expect(learning.executionMode, ExecutionMode.outputLearning);
+    final WeeklyRoutine routine = bootstrap.weeklyRoutines.all.firstWhere(
+      (WeeklyRoutine item) => item.title == 'AI 固定晨读',
+    );
+    expect(routine.weekday, 1);
+    expect(routine.actionItemId, learning.id);
     expect(applier.canUndo, isTrue);
 
     await applier.undoLast();
     expect(bootstrap.visions.byId(vision.id), isNull);
     expect(bootstrap.capabilities.byId(capability.id), isNull);
     expect(bootstrap.actions.byId(task.id), isNull);
+    expect(bootstrap.actions.byId(learning.id), isNull);
+    expect(bootstrap.weeklyRoutines.byId(routine.id), isNull);
     expect(bootstrap.timeBlocks.forActionItem(task.id), isNull);
     expect(applier.canUndo, isFalse);
   });

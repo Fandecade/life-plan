@@ -13,6 +13,7 @@ class AiDraftApplier {
     required this.capabilities,
     required this.actions,
     required this.projects,
+    required this.routines,
     required this.schedules,
   });
 
@@ -20,6 +21,7 @@ class AiDraftApplier {
   final CapabilityRepository capabilities;
   final ActionItemRepository actions;
   final ProjectRepository projects;
+  final WeeklyRoutineRepository routines;
   final ScheduleService schedules;
 
   final List<_UndoOp> _undo = <_UndoOp>[];
@@ -142,6 +144,64 @@ class AiDraftApplier {
             );
             _undo.add(_UndoOp(_UndoKind.schedule, task.id));
             created++;
+          case 'plan_learning':
+            final String title = _text(draft.args['title']);
+            if (title.isEmpty) throw const _DraftError('学习计划标题为空');
+            final ActionItem task = await actions.create(
+              title: title,
+              note: _text(draft.args['note']),
+              executionMode: ExecutionMode.outputLearning,
+              estimatedMinutes: _minutes(draft.args['estimatedMinutes']),
+              dueDate: _date(draft.args['dueDate']),
+              capabilityId:
+                  capabilityIds[_key(_text(draft.args['capabilityTitle']))] ??
+                  _findCapability(_text(draft.args['capabilityTitle'])),
+              projectId:
+                  projectIds[_key(_text(draft.args['projectTitle']))] ??
+                  _findProject(_text(draft.args['projectTitle'])),
+            );
+            taskIds[_key(title)] = task.id;
+            _undo.add(_UndoOp(_UndoKind.task, task.id));
+            created++;
+            final DateTime? scheduleDay = _date(draft.args['scheduleDate']);
+            if (scheduleDay != null) {
+              final (int, int) time = _time(draft.args['startTime']);
+              await schedules.scheduleAction(
+                task,
+                DateTime(
+                  scheduleDay.year,
+                  scheduleDay.month,
+                  scheduleDay.day,
+                  time.$1,
+                  time.$2,
+                ),
+                durationMinutes: task.estimatedMinutes,
+              );
+              _undo.add(_UndoOp(_UndoKind.schedule, task.id));
+            }
+          case 'create_weekly_routine':
+            final String title = _text(draft.args['title']);
+            if (title.isEmpty) throw const _DraftError('固定安排标题为空');
+            final int weekday = ((draft.args['weekday'] as num?)?.toInt() ?? 1)
+                .clamp(1, 7);
+            final (int, int) time = _time(draft.args['startTime']);
+            final int minutes = _minutes(draft.args['durationMinutes']) ?? 60;
+            final String linkedTitle = _text(draft.args['linkedTaskTitle']);
+            final String? linkedId = linkedTitle.isEmpty
+                ? null
+                : (taskIds[_key(linkedTitle)] ?? _findTask(linkedTitle));
+            final WeeklyRoutine routine = await routines.create(
+              title: title,
+              weekday: weekday,
+              startMinutes: time.$1 * 60 + time.$2,
+              durationMinutes: minutes,
+              kind: linkedId == null
+                  ? RoutineKind.fixedRoutine
+                  : RoutineKind.linkedTask,
+              actionItemId: linkedId,
+            );
+            _undo.add(_UndoOp(_UndoKind.routine, routine.id));
+            created++;
           default:
             errors.add('未知草稿类型：${draft.tool}');
         }
@@ -175,6 +235,8 @@ class AiDraftApplier {
           await actions.softDelete(op.id);
         case _UndoKind.schedule:
           await schedules.unschedule(op.id);
+        case _UndoKind.routine:
+          await routines.softDelete(op.id);
       }
     }
   }
@@ -240,7 +302,9 @@ class AiDraftApplier {
     'add_milestone' => 2,
     'create_project' => 3,
     'create_task' => 4,
+    'plan_learning' => 4,
     'schedule_task' => 5,
+    'create_weekly_routine' => 6,
     _ => 9,
   };
 }
@@ -254,7 +318,15 @@ class _DraftError implements Exception {
   String toString() => message;
 }
 
-enum _UndoKind { vision, capability, milestone, project, task, schedule }
+enum _UndoKind {
+  vision,
+  capability,
+  milestone,
+  project,
+  task,
+  schedule,
+  routine,
+}
 
 class _UndoOp {
   const _UndoOp(this.kind, this.id, {this.extra});

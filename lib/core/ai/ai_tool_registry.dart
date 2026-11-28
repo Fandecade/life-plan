@@ -178,6 +178,53 @@ class AiToolRegistry {
         'required': <String>['taskTitle', 'date'],
       },
     ),
+    AiToolSpec(
+      name: 'plan_learning',
+      description: '生成输出式学习计划草稿：创建学习任务，可选排期到某天。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'note': <String, dynamic>{'type': 'string'},
+          'estimatedMinutes': <String, dynamic>{'type': 'integer'},
+          'dueDate': <String, dynamic>{
+            'type': 'string',
+            'description': 'yyyy-MM-dd',
+          },
+          'capabilityTitle': <String, dynamic>{'type': 'string'},
+          'projectTitle': <String, dynamic>{'type': 'string'},
+          'scheduleDate': <String, dynamic>{
+            'type': 'string',
+            'description': 'yyyy-MM-dd',
+          },
+          'startTime': <String, dynamic>{
+            'type': 'string',
+            'description': 'HH:mm',
+          },
+        },
+        'required': <String>['title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'create_weekly_routine',
+      description: '生成固定安排草稿（weekday 1=周一 … 7=周日）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'weekday': <String, dynamic>{'type': 'integer'},
+          'startTime': <String, dynamic>{'type': 'string'},
+          'durationMinutes': <String, dynamic>{'type': 'integer'},
+          'linkedTaskTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>[
+          'title',
+          'weekday',
+          'startTime',
+          'durationMinutes',
+        ],
+      },
+    ),
   ];
 
   Future<Map<String, dynamic>> execute(
@@ -293,6 +340,18 @@ class AiToolRegistry {
           'schedule_task',
           arguments,
           '排期「${_text(arguments['taskTitle'])}」到 ${_text(arguments['date'])} ${_text(arguments['startTime'])}',
+        );
+      case 'plan_learning':
+        return _draft(
+          'plan_learning',
+          arguments,
+          '创建学习计划「${_text(arguments['title'])}」',
+        );
+      case 'create_weekly_routine':
+        return _draft(
+          'create_weekly_routine',
+          arguments,
+          '固定安排「${_text(arguments['title'])}」',
         );
       default:
         return <String, dynamic>{'error': '未知工具：$name'};
