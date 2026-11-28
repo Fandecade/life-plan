@@ -225,6 +225,43 @@ class AiToolRegistry {
         ],
       },
     ),
+    AiToolSpec(
+      name: 'create_habit_recipe',
+      description: '生成福格微习惯配方草稿（锚点 + 15 秒微行为 + 庆祝）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'anchorPrompt': <String, dynamic>{'type': 'string'},
+          'tinyBehavior': <String, dynamic>{'type': 'string'},
+          'celebration': <String, dynamic>{'type': 'string'},
+          'abilityFrictionTip': <String, dynamic>{'type': 'string'},
+          'anchorPeriod': <String, dynamic>{
+            'type': 'string',
+            'enum': <String>['morning', 'midday', 'evening', 'anytime'],
+          },
+          'linkedCapabilityTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['anchorPrompt', 'tinyBehavior'],
+      },
+    ),
+    AiToolSpec(
+      name: 'propose_review_adjustments',
+      description: '生成复盘调整建议草稿（追加到当前周期的调整/聚焦/If-Then）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'periodType': <String, dynamic>{
+            'type': 'string',
+            'enum': <String>['daily', 'weekly', 'monthly', 'yearly'],
+          },
+          'periodKey': <String, dynamic>{'type': 'string'},
+          'adjustments': <String, dynamic>{'type': 'string'},
+          'focus': <String, dynamic>{'type': 'string'},
+          'ifThen': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['adjustments'],
+      },
+    ),
   ];
 
   Future<Map<String, dynamic>> execute(
@@ -352,6 +389,18 @@ class AiToolRegistry {
           'create_weekly_routine',
           arguments,
           '固定安排「${_text(arguments['title'])}」',
+        );
+      case 'create_habit_recipe':
+        return _draft(
+          'create_habit_recipe',
+          arguments,
+          '微习惯「${_text(arguments['tinyBehavior'])}」',
+        );
+      case 'propose_review_adjustments':
+        return _draft(
+          'propose_review_adjustments',
+          arguments,
+          '复盘调整建议（${_text(arguments['periodType'])}）',
         );
       default:
         return <String, dynamic>{'error': '未知工具：$name'};

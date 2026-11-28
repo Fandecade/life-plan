@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import '../database/repositories.dart';
 import '../models/models.dart';
+import '../services/review_service.dart';
 import '../services/schedule_service.dart';
 import 'ai_models.dart';
 
@@ -15,6 +18,8 @@ class AiDraftApplier {
     required this.projects,
     required this.routines,
     required this.schedules,
+    required this.habits,
+    required this.reviewLogs,
   });
 
   final VisionRepository visions;
@@ -23,6 +28,8 @@ class AiDraftApplier {
   final ProjectRepository projects;
   final WeeklyRoutineRepository routines;
   final ScheduleService schedules;
+  final FoggHabitRepository habits;
+  final ReviewLogRepository reviewLogs;
 
   final List<_UndoOp> _undo = <_UndoOp>[];
 
@@ -202,6 +209,61 @@ class AiDraftApplier {
             );
             _undo.add(_UndoOp(_UndoKind.routine, routine.id));
             created++;
+          case 'create_habit_recipe':
+            final String anchor = _text(draft.args['anchorPrompt']);
+            final String tiny = _text(draft.args['tinyBehavior']);
+            if (anchor.isEmpty || tiny.isEmpty) {
+              throw const _DraftError('锚点或微行为为空');
+            }
+            final String linkedTitle = _text(
+              draft.args['linkedCapabilityTitle'],
+            );
+            final String? linkedCapability = linkedTitle.isEmpty
+                ? null
+                : (capabilityIds[_key(linkedTitle)] ??
+                      _findCapability(linkedTitle));
+            final String celebration = _text(draft.args['celebration']);
+            final FoggHabit habit = await habits.create(
+              anchorPrompt: anchor,
+              tinyBehavior: tiny,
+              linkedCapabilityId: linkedCapability,
+              anchorPeriod: AnchorPeriod.fromName(draft.args['anchorPeriod']),
+              celebration: celebration.isEmpty ? '握拳，默念：我做到了' : celebration,
+              abilityFrictionTip: _text(draft.args['abilityFrictionTip']),
+            );
+            _undo.add(_UndoOp(_UndoKind.habit, habit.id));
+            created++;
+          case 'propose_review_adjustments':
+            final ReviewPeriodType type = ReviewPeriodType.fromName(
+              draft.args['periodType'],
+            );
+            final String key = _text(draft.args['periodKey']).isEmpty
+                ? ReviewWindow.of(type, DateTime.now()).periodKey
+                : _text(draft.args['periodKey']);
+            final ReviewLog? existing = reviewLogs.forPeriod(type, key);
+            final bool wasCreated = existing == null;
+            final String? original = existing == null
+                ? null
+                : jsonEncode(existing.toJson());
+            final ReviewLog log =
+                existing ?? ReviewLog.create(periodType: type, periodKey: key);
+            final String adjustments = _text(draft.args['adjustments']);
+            final String focus = _text(draft.args['focus']);
+            final String ifThen = _text(draft.args['ifThen']);
+            final ReviewLog next = log.copyWith(
+              adjustmentsText: _appendLine(log.adjustmentsText, adjustments),
+              focusText: focus.isEmpty ? log.focusText : focus,
+              ifThenText: ifThen.isEmpty ? log.ifThenText : ifThen,
+            );
+            await reviewLogs.save(next);
+            _undo.add(
+              _UndoOp(
+                _UndoKind.review,
+                next.id,
+                extra: wasCreated ? null : original,
+              ),
+            );
+            created++;
           default:
             errors.add('未知草稿类型：${draft.tool}');
         }
@@ -237,8 +299,24 @@ class AiDraftApplier {
           await schedules.unschedule(op.id);
         case _UndoKind.routine:
           await routines.softDelete(op.id);
+        case _UndoKind.habit:
+          await habits.softDelete(op.id);
+        case _UndoKind.review:
+          if (op.extra == null) {
+            await reviewLogs.softDelete(op.id);
+          } else {
+            final ReviewLog old = ReviewLog.fromJson(
+              (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
+            );
+            await reviewLogs.save(old);
+          }
       }
     }
+  }
+
+  String _appendLine(String base, String extra) {
+    if (extra.isEmpty) return base;
+    return base.trim().isEmpty ? extra : '$base\n$extra';
   }
 
   String? _findVision(String title) {
@@ -305,6 +383,8 @@ class AiDraftApplier {
     'plan_learning' => 4,
     'schedule_task' => 5,
     'create_weekly_routine' => 6,
+    'create_habit_recipe' => 7,
+    'propose_review_adjustments' => 8,
     _ => 9,
   };
 }
@@ -326,6 +406,8 @@ enum _UndoKind {
   task,
   schedule,
   routine,
+  habit,
+  review,
 }
 
 class _UndoOp {

@@ -216,6 +216,8 @@ class AppBootstrap {
       projects: projects,
       routines: weeklyRoutines,
       schedules: schedules,
+      habits: foggHabits,
+      reviewLogs: reviewLogs,
     );
     final AiAssistantService aiAssistant = AiAssistantService(
       settings: aiSettings,

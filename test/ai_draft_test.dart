@@ -64,6 +64,8 @@ void main() {
       projects: bootstrap.projects,
       routines: bootstrap.weeklyRoutines,
       schedules: bootstrap.schedules,
+      habits: bootstrap.foggHabits,
+      reviewLogs: bootstrap.reviewLogs,
     );
     final List<AiDraft> drafts = <AiDraft>[
       const AiDraft(
@@ -123,10 +125,31 @@ void main() {
         },
         summary: '固定安排「AI 固定晨读」',
       ),
+      const AiDraft(
+        id: '7',
+        tool: 'create_habit_recipe',
+        args: <String, dynamic>{
+          'anchorPrompt': '打开文档后',
+          'tinyBehavior': 'AI 微习惯',
+          'anchorPeriod': 'morning',
+        },
+        summary: '微习惯「AI 微习惯」',
+      ),
+      const AiDraft(
+        id: '8',
+        tool: 'propose_review_adjustments',
+        args: <String, dynamic>{
+          'periodType': 'weekly',
+          'periodKey': '2026-W48',
+          'adjustments': 'AI 复盘调整',
+          'focus': '聚焦 AI',
+        },
+        summary: '复盘调整建议',
+      ),
     ];
 
     final AiApplyResult result = await applier.apply(drafts);
-    expect(result.created, 6);
+    expect(result.created, 8);
     expect(result.errors, isEmpty);
 
     final Vision vision = bootstrap.visions.all.firstWhere(
@@ -155,6 +178,18 @@ void main() {
     );
     expect(routine.weekday, 1);
     expect(routine.actionItemId, learning.id);
+    final FoggHabit habit = bootstrap.foggHabits.all.firstWhere(
+      (FoggHabit item) => item.tinyBehavior == 'AI 微习惯',
+    );
+    expect(habit.anchorPrompt, '打开文档后');
+    expect(habit.anchorPeriod, AnchorPeriod.morning);
+    final ReviewLog? review = bootstrap.reviewLogs.forPeriod(
+      ReviewPeriodType.weekly,
+      '2026-W48',
+    );
+    expect(review, isNotNull);
+    expect(review!.adjustmentsText, contains('AI 复盘调整'));
+    expect(review.focusText, '聚焦 AI');
     expect(applier.canUndo, isTrue);
 
     await applier.undoLast();
@@ -163,6 +198,11 @@ void main() {
     expect(bootstrap.actions.byId(task.id), isNull);
     expect(bootstrap.actions.byId(learning.id), isNull);
     expect(bootstrap.weeklyRoutines.byId(routine.id), isNull);
+    expect(bootstrap.foggHabits.byId(habit.id), isNull);
+    expect(
+      bootstrap.reviewLogs.forPeriod(ReviewPeriodType.weekly, '2026-W48'),
+      isNull,
+    );
     expect(bootstrap.timeBlocks.forActionItem(task.id), isNull);
     expect(applier.canUndo, isFalse);
   });
