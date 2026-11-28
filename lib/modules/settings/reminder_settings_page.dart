@@ -9,7 +9,8 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_settings.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/text_input_dialog.dart';
-import '../../core/widgets/app_card.dart';
+
+import 'settings_rows.dart';
 
 /// 二级「提醒设置」：应用内/系统通知开关、提前量（含自定义）与两个兜底时刻。
 class ReminderSettingsPage extends StatelessWidget {
@@ -24,7 +25,8 @@ class ReminderSettingsPage extends StatelessWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         final AppPalette palette = dialogContext.palette;
-        final bool customSelected = settings.leadMinutes != 0 &&
+        final bool customSelected =
+            settings.leadMinutes != 0 &&
             !ReminderSettings.leadOptions.contains(settings.leadMinutes);
         return AlertDialog(
           backgroundColor: palette.surface,
@@ -122,177 +124,104 @@ class ReminderSettingsPage extends StatelessWidget {
       ),
       body: GlassBackground(
         child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.xs,
-          AppSpacing.lg,
-          AppSpacing.xl,
-        ),
-        children: <Widget>[
-          Text(
-            '应用内提醒与系统通知可分别关闭；系统通知在 Android / macOS 关闭应用后仍会送达。',
-            style: context.texts.bodySmall,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.xs,
+            AppSpacing.lg,
+            AppSpacing.xl,
           ),
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
+          children: <Widget>[
+            Text(
+              '应用内提醒与系统通知可分别关闭；系统通知在 Android / macOS 关闭应用后仍会送达。',
+              style: context.texts.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SettingsCardGroup(
               children: <Widget>[
-                _SwitchRow(
+                SettingsRow(
+                  icon: Icons.notifications_active_outlined,
                   title: '应用内提醒',
                   subtitle: '应用打开或回到前台时的顶部横幅',
-                  value: settings.inAppEnabled,
-                  onChanged: settings.setInAppEnabled,
+                  trailing: Switch(
+                    value: settings.inAppEnabled,
+                    onChanged: settings.setInAppEnabled,
+                  ),
                 ),
-                const Divider(height: 1),
-                _SwitchRow(
+                SettingsRow(
+                  icon: Icons.notifications_none_rounded,
                   title: '系统通知',
                   subtitle: '关闭应用后仍能提醒（Web 不支持）',
-                  value: settings.systemEnabled,
-                  onChanged: (bool value) {
-                    settings.setSystemEnabled(value);
-                    context.read<NotificationService>().syncUpcoming();
-                  },
+                  trailing: Switch(
+                    value: settings.systemEnabled,
+                    onChanged: (bool value) {
+                      settings.setSystemEnabled(value);
+                      context.read<NotificationService>().syncUpcoming();
+                    },
+                  ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          Text('时间', style: context.texts.titleSmall),
-          const SizedBox(height: AppSpacing.sm),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: <Widget>[
-                _ValueRow(
+                SettingsRow(
+                  icon: Icons.timer_outlined,
                   title: '时间盒提前量',
                   subtitle: '按任务开始时间提前提醒',
-                  value: settings.leadLabel,
                   onTap: () => _pickLead(context, settings),
+                  trailing: _ValueTrailing(value: settings.leadLabel),
                 ),
-                const Divider(height: 1),
-                _ValueRow(
+                SettingsRow(
+                  icon: Icons.event_available_outlined,
                   title: '只定日期任务',
                   subtitle: '当天没有具体时段的待办',
-                  value: settings.dateOnlyLabel,
                   onTap: () => _pickTime(
                     context,
                     settings.dateOnlyMinutes,
                     settings.setDateOnlyMinutes,
                   ),
+                  trailing: _ValueTrailing(value: settings.dateOnlyLabel),
                 ),
-                const Divider(height: 1),
-                _ValueRow(
+                SettingsRow(
+                  icon: Icons.checklist_rounded,
                   title: '微习惯汇总',
                   subtitle: '每天一次，只提醒未完成的习惯',
-                  value: settings.habitDigestLabel,
+                  showDivider: false,
                   onTap: () => _pickTime(
                     context,
                     settings.habitDigestMinutes,
                     settings.setHabitDigestMinutes,
                   ),
+                  trailing: _ValueTrailing(value: settings.habitDigestLabel),
                 ),
               ],
-            ),
-          ),
-        ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: 10,
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(title, style: context.texts.titleSmall),
-                const SizedBox(height: 2),
-                Text(subtitle, style: context.texts.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Switch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _ValueRow extends StatelessWidget {
-  const _ValueRow({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: 14,
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(title, style: context.texts.titleSmall),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: context.texts.bodySmall),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              value,
-              style: context.texts.bodyMedium?.copyWith(
-                color: palette.textSecondary,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 16,
-              color: palette.textTertiary,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ValueTrailing extends StatelessWidget {
+  const _ValueTrailing({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppPalette palette = context.palette;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          value,
+          style: context.texts.bodyMedium?.copyWith(
+            color: palette.textSecondary,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Icon(
+          Icons.chevron_right_rounded,
+          size: 16,
+          color: palette.textTertiary,
+        ),
+      ],
     );
   }
 }

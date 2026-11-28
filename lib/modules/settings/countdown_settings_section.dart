@@ -444,7 +444,10 @@ Future<void> _pickCountdownColor(BuildContext context, Countdown item) async {
                               : null,
                         ),
                         const SizedBox(height: 4),
-                        Text(option.label, style: dialogContext.texts.labelSmall),
+                        Text(
+                          option.label,
+                          style: dialogContext.texts.labelSmall,
+                        ),
                       ],
                     ),
                   ),

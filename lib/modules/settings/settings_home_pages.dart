@@ -7,10 +7,10 @@ import '../../app/theme/app_theme.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../../core/plugin/module_registry.dart';
 import '../../core/state/home_settings.dart';
-import '../../core/widgets/app_card.dart';
+
 import '../../core/widgets/app_chip.dart';
 import 'countdown_settings_section.dart';
-
+import 'settings_rows.dart';
 import 'settings_sub_page.dart';
 
 /// 主页卡片：拖拽排序、尺寸与显示开关，以及快捷入口选择。
@@ -22,31 +22,29 @@ class HomeCardsSettingsPage extends StatelessWidget {
     return SettingsSubPage(
       title: '主页',
       subtitle: '拖拽调整顺序；设置每张卡片的尺寸与显示；图表默认关闭。',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: SettingsCardGroup(
         children: <Widget>[
-          const AppCard(
-            padding: EdgeInsets.zero,
-            child: HomeCardsSection(),
+          const SettingsRow(
+            icon: Icons.dashboard_outlined,
+            title: '主页卡片',
+            subtitle: '显示开关、尺寸与排列顺序',
           ),
-          const SizedBox(height: AppSpacing.xl),
-          Text('快捷入口', style: context.texts.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            '选择主页上显示的常用模块，最多 ${HomeSettings.maxShortcuts} 个。',
-            style: context.texts.bodySmall,
+          const HomeCardsSection(),
+          const SettingsRow(
+            icon: Icons.bolt_outlined,
+            title: '快捷入口',
+            subtitle: '主页上显示的常用模块，最多 3 个',
           ),
-          const SizedBox(height: AppSpacing.sm),
-          const AppCard(child: ShortcutSection()),
-          const SizedBox(height: AppSpacing.xl),
-          Text('倒计时', style: context.texts.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            '最多 ${HomeSettings.maxCountdowns} 个；可自定义或绑定任务截止日。',
-            style: context.texts.bodySmall,
+          const ShortcutSection(),
+          const SettingsRow(
+            icon: Icons.timer_outlined,
+            title: '倒计时',
+            subtitle: '最多 6 个；可自定义或绑定任务截止日',
           ),
-          const SizedBox(height: AppSpacing.sm),
-          const AppCard(child: CountdownSection()),
+          const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            child: CountdownSection(),
+          ),
         ],
       ),
     );
@@ -59,14 +57,60 @@ class BottomNavSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SettingsSubPage(
+    final HomeSettings settings = context.watch<HomeSettings>();
+    final List<AppModuleDescriptor> modules = context
+        .watch<ModuleRegistry>()
+        .enabled
+        .where(
+          (AppModuleDescriptor module) =>
+              module.routeName != AppRoutes.settings,
+        )
+        .toList(growable: false);
+
+    return SettingsSubPage(
       title: '底部导航',
       subtitle: '主页与设置固定显示，可再添加最多 3 个模块。',
-      child: AppCard(
-        padding: EdgeInsets.zero,
-        child: BottomNavSection(),
+      child: SettingsCardGroup(
+        children: <Widget>[
+          SettingsRow(
+            icon: Icons.home_outlined,
+            title: '主页',
+            subtitle: '固定显示',
+            trailing: Switch(value: true, onChanged: null),
+          ),
+          SettingsRow(
+            icon: Icons.settings_outlined,
+            title: '设置',
+            subtitle: '固定显示',
+            trailing: Switch(value: true, onChanged: null),
+            showDivider: modules.isNotEmpty,
+          ),
+          for (int index = 0; index < modules.length; index++)
+            SettingsRow(
+              icon: modules[index].icon,
+              title: modules[index].title,
+              subtitle: modules[index].description,
+              showDivider: index != modules.length - 1,
+              trailing: Switch(
+                value: settings.bottomModules.contains(modules[index].id),
+                onChanged: (bool value) =>
+                    _toggleBottom(settings, modules[index].id, value),
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  void _toggleBottom(HomeSettings settings, String id, bool value) {
+    final List<String> ids = List<String>.from(settings.bottomModules);
+    if (value) {
+      if (ids.length >= HomeSettings.maxBottomModules) return;
+      if (!ids.contains(id)) ids.add(id);
+    } else {
+      ids.remove(id);
+    }
+    settings.setBottomModules(ids);
   }
 }
 
@@ -124,7 +168,6 @@ class _HomeCardRow extends StatelessWidget {
             children: <Widget>[
               Row(
                 children: <Widget>[
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,10 +191,7 @@ class _HomeCardRow extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          card.description,
-                          style: context.texts.bodySmall,
-                        ),
+                        Text(card.description, style: context.texts.bodySmall),
                       ],
                     ),
                   ),
@@ -280,8 +320,9 @@ class ShortcutSection extends StatelessWidget {
                   module: module,
                   selected: settings.shortcutIds.contains(module.id),
                   onTap: () {
-                    final List<String> ids =
-                        List<String>.from(settings.shortcutIds);
+                    final List<String> ids = List<String>.from(
+                      settings.shortcutIds,
+                    );
                     if (ids.contains(module.id)) {
                       ids.remove(module.id);
                     } else {
@@ -335,8 +376,9 @@ class BottomNavSection extends StatelessWidget {
                   module: module,
                   selected: settings.bottomModules.contains(module.id),
                   onTap: () {
-                    final List<String> ids =
-                        List<String>.from(settings.bottomModules);
+                    final List<String> ids = List<String>.from(
+                      settings.bottomModules,
+                    );
                     if (ids.contains(module.id)) {
                       ids.remove(module.id);
                     } else {

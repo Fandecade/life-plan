@@ -6,141 +6,128 @@ import '../../app/theme/app_theme.dart';
 import '../../app/theme/ui_style.dart';
 import '../../core/state/theme_controller.dart';
 import '../../core/state/ui_style_controller.dart';
-import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import 'settings_rows.dart';
 import 'settings_sub_page.dart';
 
-/// 外观：跟随系统 / 浅色 / 深色。
+/// 外观：主题模式 + 界面风格 + 主题色 + 降低透明效果。
 class AppearanceSettingsPage extends StatelessWidget {
   const AppearanceSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final ThemeController theme = context.watch<ThemeController>();
+    final UiStyleController ui = context.watch<UiStyleController>();
+    final AppPalette palette = context.palette;
+
     return SettingsSubPage(
       title: '外观',
-      subtitle: '主题模式会即时应用到所有页面。',
-      child: AppCard(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: SegmentBar<ThemeMode>(
-          expand: true,
-          options: const <SegmentOption<ThemeMode>>[
-            SegmentOption<ThemeMode>(value: ThemeMode.system, label: '跟随系统'),
-            SegmentOption<ThemeMode>(value: ThemeMode.light, label: '浅色'),
-            SegmentOption<ThemeMode>(value: ThemeMode.dark, label: '深色'),
-          ],
-          value: theme.mode,
-          onChanged: (ThemeMode mode) =>
-              context.read<ThemeController>().setMode(mode),
-        ),
+      subtitle: '主题模式、界面风格与主题色会即时应用到所有页面。',
+      child: SettingsCardGroup(
+        children: <Widget>[
+          SettingsControlRow(
+            icon: Icons.brightness_6_outlined,
+            title: '主题模式',
+            subtitle: '跟随系统 / 浅色 / 深色',
+            child: SegmentBar<ThemeMode>(
+              expand: true,
+              options: const <SegmentOption<ThemeMode>>[
+                SegmentOption<ThemeMode>(
+                  value: ThemeMode.system,
+                  label: '跟随系统',
+                ),
+                SegmentOption<ThemeMode>(value: ThemeMode.light, label: '浅色'),
+                SegmentOption<ThemeMode>(value: ThemeMode.dark, label: '深色'),
+              ],
+              value: theme.mode,
+              onChanged: (ThemeMode mode) =>
+                  context.read<ThemeController>().setMode(mode),
+            ),
+          ),
+          SettingsControlRow(
+            icon: Icons.palette_outlined,
+            title: '界面风格',
+            subtitle: '简洁无玻璃 / 新版玻璃质感',
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: StyleChoice(
+                    label: '简洁',
+                    selected: ui.isFlat,
+                    onTap: () => ui.setStyle(AppUiStyle.flat),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: StyleChoice(
+                    label: '新版',
+                    selected: ui.isRefresh,
+                    onTap: () => ui.setStyle(AppUiStyle.refresh),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SettingsControlRow(
+            icon: Icons.color_lens_outlined,
+            title: '主题色',
+            subtitle: '4 套主题色，两种风格通用',
+            showDivider: ui.isRefresh,
+            child: Row(
+              children: <Widget>[
+                for (final AppAccentTheme accent in AppAccentTheme.values)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.md),
+                    child: Tooltip(
+                      message: accent.label,
+                      child: InkWell(
+                        onTap: () => ui.setAccent(accent),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: accent.accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: ui.accent == accent
+                                  ? palette.textPrimary
+                                  : palette.glassBorder,
+                              width: ui.accent == accent ? 2 : 1,
+                            ),
+                          ),
+                          child: ui.accent == accent
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (ui.isRefresh)
+            SettingsRow(
+              icon: Icons.blur_on_outlined,
+              title: '降低透明效果',
+              subtitle: '关闭玻璃模糊，低端机更流畅',
+              showDivider: false,
+              trailing: Switch(
+                value: !ui.glassEnabled,
+                onChanged: (bool value) => ui.setGlassEnabled(!value),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-/// 界面风格：经典 / 新版、主题色、降低透明效果。
-class InterfaceStyleSettingsPage extends StatelessWidget {
-  const InterfaceStyleSettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SettingsSubPage(
-      title: '界面风格',
-      subtitle: '新版支持 4 套主题色；可选择玻璃质感或无玻璃的简洁风格。',
-      child: AppCard(padding: EdgeInsets.zero, child: InterfaceStyleSection()),
-    );
-  }
-}
-
-class InterfaceStyleSection extends StatelessWidget {
-  const InterfaceStyleSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final UiStyleController ui = context.watch<UiStyleController>();
-    final AppPalette palette = context.palette;
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: StyleChoice(
-                      label: '简洁',
-                      selected: ui.isFlat,
-                      onTap: () => ui.setStyle(AppUiStyle.flat),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: StyleChoice(
-                      label: '新版',
-                      selected: ui.isRefresh,
-                      onTap: () => ui.setStyle(AppUiStyle.refresh),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('主题色', style: context.texts.labelMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: <Widget>[
-                  for (final AppAccentTheme theme in AppAccentTheme.values)
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.md),
-                      child: Tooltip(
-                        message: theme.label,
-                        child: InkWell(
-                          onTap: () => ui.setAccent(theme),
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                          child: Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: theme.accent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ui.accent == theme
-                                    ? palette.textPrimary
-                                    : palette.glassBorder,
-                                width: ui.accent == theme ? 2 : 1,
-                              ),
-                            ),
-                            child: ui.accent == theme
-                                ? Icon(
-                                    Icons.check_rounded,
-                                    size: 15,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (ui.isRefresh) ...<Widget>[
-          const Divider(height: 1),
-          SettingsSwitchRow(
-            title: '降低透明效果',
-            subtitle: '关闭玻璃模糊，低端机更流畅',
-            value: !ui.glassEnabled,
-            onChanged: (bool value) => ui.setGlassEnabled(!value),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
+/// 风格二选一胶囊。
 class StyleChoice extends StatelessWidget {
   const StyleChoice({
     super.key,

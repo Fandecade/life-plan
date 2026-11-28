@@ -50,14 +50,9 @@ class SettingsPage extends StatelessWidget {
       _SettingsEntryData(
         icon: Icons.brightness_6_outlined,
         title: '外观',
-        summary: themeLabel,
+        summary:
+            '$themeLabel · ${ui.isRefresh ? '新版' : '简洁'} · ${ui.accent.label}',
         builder: () => const AppearanceSettingsPage(),
-      ),
-      _SettingsEntryData(
-        icon: Icons.palette_outlined,
-        title: '界面风格',
-        summary: '${ui.isRefresh ? '新版' : '简洁'} · ${ui.accent.label}',
-        builder: () => const InterfaceStyleSettingsPage(),
       ),
       _SettingsEntryData(
         icon: Icons.home_outlined,

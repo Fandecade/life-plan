@@ -19,6 +19,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
+import 'settings_rows.dart';
 import 'settings_sub_page.dart';
 
 /// 模块管理：关闭后仅隐藏入口与扩展槽位。
@@ -61,7 +62,7 @@ class LocalDataSettingsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          AppCard(child: LocalDataSection()),
+          const LocalDataSection(),
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: <Widget>[
@@ -137,11 +138,7 @@ class ModuleRow extends StatelessWidget {
                         ),
                         if (module.isCore) ...<Widget>[
                           const SizedBox(width: 6),
-                          const AppChip(
-                            label: '核心',
-                            dense: true,
-                            filled: true,
-                          ),
+                          const AppChip(label: '核心', dense: true, filled: true),
                         ],
                       ],
                     ),
@@ -155,9 +152,10 @@ class ModuleRow extends StatelessWidget {
                 value: enabled,
                 onChanged: module.isCore
                     ? null
-                    : (bool value) => context
-                        .read<ModuleRegistry>()
-                        .setEnabled(module.id, value),
+                    : (bool value) => context.read<ModuleRegistry>().setEnabled(
+                        module.id,
+                        value,
+                      ),
               ),
             ],
           ),
@@ -173,50 +171,44 @@ class LocalDataSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
     final int actionCount = context.watch<ActionItemRepository>().count;
     final int blockCount = context.watch<TimeBlockRepository>().count;
     final int visionCount = context.watch<VisionRepository>().count;
     final int capabilityCount = context.watch<CapabilityRepository>().count;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return SettingsCardGroup(
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            LocalStat(label: '愿景', value: visionCount),
-            LocalStat(label: '能力', value: capabilityCount),
-            LocalStat(label: '行动单元', value: actionCount),
-            LocalStat(label: '时间块', value: blockCount),
-          ],
+        SettingsRow(
+          icon: Icons.insights_outlined,
+          title: '数据统计',
+          subtitle:
+              '愿景 $visionCount · 能力 $capabilityCount · 行动单元 $actionCount · 时间块 $blockCount',
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: <Widget>[
-            AppGhostButton(
-              label: '重新载入示例数据',
-              icon: Icons.refresh_rounded,
-              onPressed: () => _reloadSeed(context),
-            ),
-            AppGhostButton(
-              label: '导出备份',
-              icon: Icons.download_rounded,
-              onPressed: () => _exportBackup(context),
-            ),
-            AppGhostButton(
-              label: '从文件恢复',
-              icon: Icons.upload_rounded,
-              onPressed: () => _confirmImportBackup(context),
-            ),
-            AppGhostButton(
-              label: '清空全部数据',
-              icon: Icons.delete_outline_rounded,
-              tone: palette.danger,
-              onPressed: () => _confirmWipe(context),
-            ),
-          ],
+        SettingsRow(
+          icon: Icons.refresh_rounded,
+          title: '重新载入示例数据',
+          subtitle: '覆盖当前演示数据，便于快速体验',
+          onTap: () => _reloadSeed(context),
+        ),
+        SettingsRow(
+          icon: Icons.download_rounded,
+          title: '导出备份',
+          subtitle: '生成 JSON 备份文件',
+          onTap: () => _exportBackup(context),
+        ),
+        SettingsRow(
+          icon: Icons.upload_rounded,
+          title: '从文件恢复',
+          subtitle: '选择 .json 备份并覆盖当前数据',
+          onTap: () => _confirmImportBackup(context),
+        ),
+        SettingsRow(
+          icon: Icons.delete_outline_rounded,
+          title: '清空全部数据',
+          subtitle: '不可撤销，建议先导出备份',
+          danger: true,
+          showDivider: false,
+          onTap: () => _confirmWipe(context),
         ),
       ],
     );
@@ -238,8 +230,8 @@ class LocalDataSection extends StatelessWidget {
 
   Future<void> _exportBackup(BuildContext context) async {
     final AppBootstrap bootstrap = context.read<AppBootstrap>();
-    final String raw =
-        const JsonEncoder.withIndent('  ').convert(bootstrap.db.exportData());
+    final String raw = const JsonEncoder.withIndent('  ')
+        .convert(bootstrap.db.exportData());
     final Uint8List bytes = Uint8List.fromList(utf8.encode(raw));
     final String fileName =
         'life-plan-backup-${AppDate.dateKey(DateTime.now())}.json';
@@ -324,8 +316,9 @@ class LocalDataSection extends StatelessWidget {
           ),
           content: Text(
             '当前全部业务数据会被覆盖，设置项保持不变。恢复后建议重启应用以刷新所有页面。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
+            style: dialogContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
           ),
           actions: <Widget>[
             AppGhostButton(
@@ -367,8 +360,9 @@ class LocalDataSection extends StatelessWidget {
           title: Text('清空全部本地数据？', style: dialogContext.texts.titleLarge),
           content: Text(
             '将删除愿景、能力、行动单元、时间块与复盘记录，且无法撤销。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
+            style: dialogContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
           ),
           actions: <Widget>[
             AppGhostButton(
@@ -398,8 +392,7 @@ class LocalDataSection extends StatelessWidget {
       SnackBar(
         content: Text(
           message,
-          style:
-              context.texts.bodyMedium?.copyWith(color: palette.background),
+          style: context.texts.bodyMedium?.copyWith(color: palette.background),
         ),
         backgroundColor: palette.textPrimary,
         behavior: SnackBarBehavior.floating,

@@ -54,7 +54,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('界面风格').last);
+    await tester.tap(find.text('外观').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
