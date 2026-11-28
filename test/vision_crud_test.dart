@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/app.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
+import 'package:life_planner/core/widgets/app_sheet.dart';
 import 'package:life_planner/core/widgets/state_views.dart';
 
 void main() {
@@ -117,9 +118,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('长按愿景进入抖动编辑模式，显示删除叉号并可完成', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('长按愿景进入抖动编辑模式，显示删除叉号并可完成', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -189,8 +188,9 @@ void main() {
 
     // 前面用例可能切换过愿景：先切回带能力的愿景再操作。
     final Vision withCapabilities = bootstrap.visions.all.firstWhere(
-      (Vision vision) => bootstrap.capabilities.all
-          .any((Capability item) => item.visionId == vision.id),
+      (Vision vision) => bootstrap.capabilities.all.any(
+        (Capability item) => item.visionId == vision.id,
+      ),
     );
     await tester.tap(find.text(withCapabilities.title).first);
     await tester.pump();
@@ -221,16 +221,13 @@ void main() {
     await tester.tap(
       find
           .descendant(
-            of: find.byType(AlertDialog),
+            of: find.byType(AppSheetContent),
             matching: find.byType(AppCheckCircle),
           )
           .first,
     );
     await settle(tester);
-    expect(
-      bootstrap.capabilities.byId(capability.id)!.achievedMilestones,
-      1,
-    );
+    expect(bootstrap.capabilities.byId(capability.id)!.achievedMilestones, 1);
 
     await tester.tap(find.text('完成'));
     await tester.pump();
@@ -268,8 +265,7 @@ void main() {
     expect(bootstrap.visions.all.length, before - 1);
     expect(bootstrap.visions.byId(target.id), isNull);
     expect(
-      bootstrap.capabilities
-          .all
+      bootstrap.capabilities.all
           .where((Capability item) => item.visionId == target.id)
           .toList(),
       isEmpty,

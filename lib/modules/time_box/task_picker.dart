@@ -6,6 +6,7 @@ import '../../core/models/models.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/utils/node_tone.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
 import 'time_box_common.dart';
@@ -18,8 +19,8 @@ Future<ActionItem?> showTaskPicker(
   required DateTime target,
   int? durationMinutes,
 }) {
-  return showDialog<ActionItem>(
-    context: context,
+  return showAppSheet<ActionItem>(
+    context,
     builder: (BuildContext dialogContext) => _TaskPickerDialog(
       tasks: tasks,
       labels: labels,
@@ -67,100 +68,68 @@ class _TaskPickerDialogState extends State<_TaskPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
     final String query = _query.toLowerCase();
 
-    final List<ActionItem> filtered = widget.tasks.where((ActionItem item) {
-      if (query.isEmpty) return true;
-      final String label = widget.labels.labelOf(item)?.toLowerCase() ?? '';
-      return item.title.toLowerCase().contains(query) || label.contains(query);
-    }).toList()
-      ..sort((ActionItem a, ActionItem b) {
-        final int byDone =
-            (a.isCompleted ? 1 : 0).compareTo(b.isCompleted ? 1 : 0);
-        if (byDone != 0) return byDone;
-        return a.createdAt.compareTo(b.createdAt);
-      });
+    final List<ActionItem> filtered =
+        widget.tasks.where((ActionItem item) {
+          if (query.isEmpty) return true;
+          final String label = widget.labels.labelOf(item)?.toLowerCase() ?? '';
+          return item.title.toLowerCase().contains(query) ||
+              label.contains(query);
+        }).toList()..sort((ActionItem a, ActionItem b) {
+          final int byDone = (a.isCompleted ? 1 : 0).compareTo(
+            b.isCompleted ? 1 : 0,
+          );
+          if (byDone != 0) return byDone;
+          return a.createdAt.compareTo(b.createdAt);
+        });
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Row(
-        children: <Widget>[
-          Text('安排任务', style: context.texts.titleLarge),
-          const Spacer(),
-          Text(
-            _targetLabel(),
-            style: context.texts.bodySmall,
-          ),
-        ],
-      ),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 420,
-        height: MediaQuery.sizeOf(context).height * 0.55,
-        child: Column(
-          children: <Widget>[
-            AppTextField(
-              controller: _search,
-              dense: true,
-              hintText: '搜索任务、能力或愿景',
-              prefixIcon: Icons.search_rounded,
-              onChanged: (String value) =>
-                  setState(() => _query = value.trim()),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const EmptyState(
-                      compact: true,
-                      icon: Icons.search_off_rounded,
-                      title: '没有匹配的任务',
-                      description: '换个关键词，或去人生规划里新建任务',
-                    )
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (BuildContext context, int index) =>
-                          _row(context, filtered[index]),
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Row(
-                children: <Widget>[
-                  Text('任务来自人生规划 · 含子任务', style: context.texts.labelSmall),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: '安排任务',
+      subtitle: _targetLabel(),
+      heightFactor: 0.72,
+      maxWidth: 520,
+      scrollable: false,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+      child: Column(
+        children: <Widget>[
+          AppTextField(
+            controller: _search,
+            dense: true,
+            hintText: '搜索任务、能力或愿景',
+            prefixIcon: Icons.search_rounded,
+            onChanged: (String value) => setState(() => _query = value.trim()),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Expanded(
+            child: filtered.isEmpty
+                ? const EmptyState(
+                    compact: true,
+                    icon: Icons.search_off_rounded,
+                    title: '没有匹配的任务',
+                    description: '换个关键词，或去人生规划里新建任务',
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (BuildContext context, int index) =>
+                        _row(context, filtered[index]),
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Row(
+              children: <Widget>[
+                Text('任务来自人生规划 · 含子任务', style: context.texts.labelSmall),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -201,8 +170,9 @@ class _TaskPickerDialogState extends State<_TaskPickerDialog> {
                       color: item.isCompleted
                           ? palette.textTertiary
                           : palette.textPrimary,
-                      decoration:
-                          item.isCompleted ? TextDecoration.lineThrough : null,
+                      decoration: item.isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -247,8 +217,8 @@ class _TaskPickerDialogState extends State<_TaskPickerDialog> {
                     color: item.status == ActionItemStatus.completed
                         ? palette.success
                         : (item.status == ActionItemStatus.scheduled
-                            ? palette.accent
-                            : palette.textTertiary),
+                              ? palette.accent
+                              : palette.textTertiary),
                   ),
                 ),
               ],

@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/services/action_line.dart';
 import '../../core/services/habit_service.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_chip.dart';
 
 /// 行动线诊断与配方推演视图（多习惯散点 + 单习惯参数调节）。
@@ -18,34 +19,22 @@ Future<HabitRecipeVersion?> showHabitActionLineDialog(
   required FoggHabit habit,
   HabitRecipeVersion? compareVersion,
 }) {
-  return showDialog<HabitRecipeVersion>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.18),
-    builder: (BuildContext dialogContext) {
-      final AppPalette palette = dialogContext.palette;
-      return Dialog(
-        backgroundColor: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: palette.border),
-        ),
-        insetPadding: const EdgeInsets.all(AppSpacing.lg),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 860,
-            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.88,
-          ),
-          child: HabitActionLineView(
-            habit: habit,
-            compareVersion: compareVersion,
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            onClose: () => Navigator.of(dialogContext).pop(),
-            onApplied: (HabitRecipeVersion version) =>
-                Navigator.of(dialogContext).pop(version),
-          ),
-        ),
-      );
-    },
+  return showAppSheet<HabitRecipeVersion>(
+    context,
+    builder: (BuildContext sheetContext) => AppSheetContent(
+      title: '行动线诊断与推演',
+      subtitle: 'B = M × A × P · 滑动调参并生成新配方',
+      heightFactor: 0.9,
+      maxWidth: 900,
+      scrollable: false,
+      child: HabitActionLineView(
+        habit: habit,
+        compareVersion: compareVersion,
+        padding: EdgeInsets.zero,
+        onApplied: (HabitRecipeVersion version) =>
+            Navigator.of(sheetContext).pop(version),
+      ),
+    ),
   );
 }
 
@@ -99,14 +88,19 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
   List<FoggHabit> _visibleHabits() {
     final List<FoggHabit> all = context.watch<FoggHabitRepository>().all;
     return all
-        .where((FoggHabit habit) =>
-            habit.isActive || habit.id == widget.habit.id || habit.id == _selectedId)
+        .where(
+          (FoggHabit habit) =>
+              habit.isActive ||
+              habit.id == widget.habit.id ||
+              habit.id == _selectedId,
+        )
         .toList(growable: false);
   }
 
   void _ensurePoints(List<FoggHabit> habits) {
-    final String signature =
-        habits.map((FoggHabit habit) => habit.id).join('|');
+    final String signature = habits
+        .map((FoggHabit habit) => habit.id)
+        .join('|');
     if (signature == _cacheSignature) return;
     _cacheSignature = signature;
     _currentPoints = <String, ActionPoint>{
@@ -139,8 +133,10 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
   Future<void> _apply(FoggHabit habit) async {
     if (_applying) return;
     setState(() => _applying = true);
-    final HabitRecipeVersion version =
-        await _service.applyActionLinePlan(habit, _preview);
+    final HabitRecipeVersion version = await _service.applyActionLinePlan(
+      habit,
+      _preview,
+    );
     if (!mounted) return;
     widget.onApplied?.call(version);
   }
@@ -153,8 +149,10 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
     final FoggHabit selected = _selected(habits);
     final bool above = _line.isAbove(_preview);
     final int done = _service.completedInLastDays(selected, 7);
-    final int versionCount =
-        context.read<HabitRecipeVersionRepository>().forHabit(selected.id).length;
+    final int versionCount = context
+        .read<HabitRecipeVersionRepository>()
+        .forHabit(selected.id)
+        .length;
     final int versionLabel = versionCount < 1 ? 1 : versionCount;
 
     final HabitRecipeVersion? compare = widget.compareVersion;
@@ -177,7 +175,9 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
       for (final FoggHabit habit in habits)
         _ChartPoint(
           habit: habit,
-          ability: habit.id == selected.id ? _ability : _currentOf(habit).ability,
+          ability: habit.id == selected.id
+              ? _ability
+              : _currentOf(habit).ability,
           motivation: habit.id == selected.id
               ? _motivation
               : _currentOf(habit).motivation,
@@ -190,9 +190,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
       children: <Widget>[
         Row(
           children: <Widget>[
-            Expanded(
-              child: Text('行动线诊断与推演', style: context.texts.titleLarge),
-            ),
+            Expanded(child: Text('行动线诊断与推演', style: context.texts.titleLarge)),
             Text(
               'B = M × A × P',
               style: context.texts.labelSmall?.copyWith(color: palette.accent),
@@ -216,13 +214,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
           style: context.texts.bodySmall,
         ),
         const SizedBox(height: AppSpacing.md),
-        _chartPanel(
-          context,
-          palette,
-          points,
-          historical,
-          historyRevision,
-        ),
+        _chartPanel(context, palette, points, historical, historyRevision),
         const SizedBox(height: AppSpacing.md),
         _diagnosisPanel(
           context,
@@ -260,10 +252,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
               if (widget.onClose != null) ...<Widget>[
-                AppGhostButton(
-                  label: '取消',
-                  onPressed: widget.onClose,
-                ),
+                AppGhostButton(label: '取消', onPressed: widget.onClose),
                 const SizedBox(width: 8),
               ],
               AppPrimaryButton(
@@ -302,10 +291,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   child: Center(
                     child: RotatedBox(
                       quarterTurns: 3,
-                      child: Text(
-                        '动机（低 → 高）',
-                        style: context.texts.labelSmall,
-                      ),
+                      child: Text('动机（低 → 高）', style: context.texts.labelSmall),
                     ),
                   ),
                 ),
@@ -314,58 +300,67 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   child: LayoutBuilder(
                     builder:
                         (BuildContext context, BoxConstraints constraints) {
-                      final Size size =
-                          Size(constraints.maxWidth, constraints.maxHeight);
-                      final Rect plot = Rect.fromLTRB(
-                        10,
-                        10,
-                        size.width - 10,
-                        size.height - 10,
-                      );
-                      return Listener(
-                        behavior: HitTestBehavior.opaque,
-                        onPointerDown: (PointerDownEvent event) =>
-                            _handlePointerDown(event.localPosition, plot, points),
-                        onPointerMove: (PointerMoveEvent event) {
-                          if (!_chartDragging) return;
-                          _setPreview(event.localPosition, plot);
+                          final Size size = Size(
+                            constraints.maxWidth,
+                            constraints.maxHeight,
+                          );
+                          final Rect plot = Rect.fromLTRB(
+                            10,
+                            10,
+                            size.width - 10,
+                            size.height - 10,
+                          );
+                          return Listener(
+                            behavior: HitTestBehavior.opaque,
+                            onPointerDown: (PointerDownEvent event) =>
+                                _handlePointerDown(
+                                  event.localPosition,
+                                  plot,
+                                  points,
+                                ),
+                            onPointerMove: (PointerMoveEvent event) {
+                              if (!_chartDragging) return;
+                              _setPreview(event.localPosition, plot);
+                            },
+                            onPointerUp: (_) {
+                              if (_chartDragging) {
+                                setState(() => _chartDragging = false);
+                              }
+                            },
+                            onPointerCancel: (_) {
+                              if (_chartDragging) {
+                                setState(() => _chartDragging = false);
+                              }
+                            },
+                            child: CustomPaint(
+                              key: const ValueKey<String>('action-line-canvas'),
+                              painter: _ActionLineChartPainter(
+                                plot: plot,
+                                line: _line,
+                                points: points,
+                                historical: historical,
+                                historicalLabel: historyRevision == null
+                                    ? null
+                                    : 'v$historyRevision',
+                                accent: palette.accent,
+                                success: palette.success,
+                                danger: palette.danger,
+                                axis: palette.border,
+                                surface: palette.surface,
+                                muted: palette.textTertiary,
+                                labelStyle:
+                                    context.texts.labelSmall ??
+                                    const TextStyle(),
+                                regionStyle:
+                                    context.texts.labelSmall?.copyWith(
+                                      fontSize: 9,
+                                    ) ??
+                                    const TextStyle(fontSize: 9),
+                              ),
+                              child: const SizedBox.expand(),
+                            ),
+                          );
                         },
-                        onPointerUp: (_) {
-                          if (_chartDragging) {
-                            setState(() => _chartDragging = false);
-                          }
-                        },
-                        onPointerCancel: (_) {
-                          if (_chartDragging) {
-                            setState(() => _chartDragging = false);
-                          }
-                        },
-                        child: CustomPaint(
-                          key: const ValueKey<String>('action-line-canvas'),
-                          painter: _ActionLineChartPainter(
-                            plot: plot,
-                            line: _line,
-                            points: points,
-                            historical: historical,
-                            historicalLabel: historyRevision == null
-                                ? null
-                                : 'v$historyRevision',
-                            accent: palette.accent,
-                            success: palette.success,
-                            danger: palette.danger,
-                            axis: palette.border,
-                            surface: palette.surface,
-                            muted: palette.textTertiary,
-                            labelStyle:
-                                context.texts.labelSmall ?? const TextStyle(),
-                            regionStyle: context.texts.labelSmall
-                                    ?.copyWith(fontSize: 9) ??
-                                const TextStyle(fontSize: 9),
-                          ),
-                          child: const SizedBox.expand(),
-                        ),
-                      );
-                    },
                   ),
                 ),
               ],
@@ -409,10 +404,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
             children: <Widget>[
               Text('选择诊断习惯', style: context.texts.titleSmall),
               const SizedBox(width: 8),
-              Text(
-                '点击节点或下方标签进行配方调整',
-                style: context.texts.labelSmall,
-              ),
+              Text('点击节点或下方标签进行配方调整', style: context.texts.labelSmall),
             ],
           ),
           const SizedBox(height: 8),
@@ -472,7 +464,8 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   Row(
                     children: <Widget>[
                       AppChip(
-                        label: '历史 v$historyRevision：'
+                        label:
+                            '历史 v$historyRevision：'
                             '${_line.isAbove(historical) ? '线上' : '线下'}',
                         dense: true,
                         color: palette.textTertiary,
@@ -486,10 +479,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   ),
                 ],
                 const SizedBox(height: 8),
-                Text(
-                  _formula(selected),
-                  style: context.texts.bodyMedium,
-                ),
+                Text(_formula(selected), style: context.texts.bodyMedium),
                 const SizedBox(height: 6),
                 Text(
                   _diagnosis(selected, done),
@@ -500,7 +490,11 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   children: <Widget>[
                     Text('COM-B', style: context.texts.labelSmall),
                     const SizedBox(width: 6),
-                    for (final String dimension in const <String>['能力', '机会', '动机'])
+                    for (final String dimension in const <String>[
+                      '能力',
+                      '机会',
+                      '动机',
+                    ])
                       Padding(
                         padding: const EdgeInsets.only(right: 4),
                         child: AppChip(
@@ -513,10 +507,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  _combHint(selected),
-                  style: context.texts.labelSmall,
-                ),
+                Text(_combHint(selected), style: context.texts.labelSmall),
                 const SizedBox(height: AppSpacing.sm),
                 _sliders(context, palette),
               ],
@@ -682,11 +673,7 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
     );
   }
 
-  void _handlePointerDown(
-    Offset local,
-    Rect plot,
-    List<_ChartPoint> points,
-  ) {
+  void _handlePointerDown(Offset local, Rect plot, List<_ChartPoint> points) {
     for (final _ChartPoint point in points) {
       final Offset offset = _offsetOf(plot, point.ability, point.motivation);
       if ((offset - local).distance >= 20) continue;
@@ -713,10 +700,12 @@ class _HabitActionLineViewState extends State<HabitActionLineView> {
   }
 
   String _formula(FoggHabit habit) {
-    final String anchor =
-        habit.anchorPrompt.isEmpty ? '日常锚点' : habit.anchorPrompt;
-    final String celebration =
-        habit.celebration.isEmpty ? '给自己一个即时庆祝' : habit.celebration;
+    final String anchor = habit.anchorPrompt.isEmpty
+        ? '日常锚点'
+        : habit.anchorPrompt;
+    final String celebration = habit.celebration.isEmpty
+        ? '给自己一个即时庆祝'
+        : habit.celebration;
     return '在「$anchor」之后，我将「${habit.tinyBehavior}」。'
         '随后，我「$celebration」！';
   }
@@ -757,9 +746,9 @@ class _ChartPoint {
 }
 
 Offset _offsetOf(Rect plot, double ability, double motivation) => Offset(
-      plot.left + ability / 10 * plot.width,
-      plot.bottom - motivation / 10 * plot.height,
-    );
+  plot.left + ability / 10 * plot.width,
+  plot.bottom - motivation / 10 * plot.height,
+);
 
 class _ActionLineChartPainter extends CustomPainter {
   const _ActionLineChartPainter({
@@ -798,10 +787,7 @@ class _ActionLineChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // 分区：线下（卡阻）→ 浅粉，线上（易触发）→ 浅绿
-    canvas.drawRect(
-      plot,
-      Paint()..color = danger.withValues(alpha: 0.045),
-    );
+    canvas.drawRect(plot, Paint()..color = danger.withValues(alpha: 0.045));
 
     final Path curve = Path();
     for (int i = 0; i <= 48; i++) {
@@ -862,8 +848,12 @@ class _ActionLineChartPainter extends CustomPainter {
         ..style = PaintingStyle.stroke,
     );
 
-    _text(canvas, '易触发区', Offset(plot.left + 8, plot.top + 6),
-        regionStyle.copyWith(color: success.withValues(alpha: 0.85)));
+    _text(
+      canvas,
+      '易触发区',
+      Offset(plot.left + 8, plot.top + 6),
+      regionStyle.copyWith(color: success.withValues(alpha: 0.85)),
+    );
     _text(
       canvas,
       '卡阻区',
@@ -875,7 +865,11 @@ class _ActionLineChartPainter extends CustomPainter {
     final ActionPoint? historic = historical;
     if (historic != null) {
       final Offset point = _offset(historic);
-      canvas.drawCircle(point, 5, Paint()..color = muted.withValues(alpha: 0.14));
+      canvas.drawCircle(
+        point,
+        5,
+        Paint()..color = muted.withValues(alpha: 0.14),
+      );
       canvas.drawCircle(
         point,
         5,
@@ -904,7 +898,11 @@ class _ActionLineChartPainter extends CustomPainter {
       final Color tone = point.selected
           ? (above ? success : danger)
           : accent.withValues(alpha: 0.5);
-      canvas.drawCircle(offset, point.selected ? 6 : 4.5, Paint()..color = tone);
+      canvas.drawCircle(
+        offset,
+        point.selected ? 6 : 4.5,
+        Paint()..color = tone,
+      );
       if (point.selected) {
         canvas.drawCircle(
           offset,
@@ -945,8 +943,7 @@ class _ActionLineChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: 96);
 
-    double left =
-        offset.dx - painter.width / 2;
+    double left = offset.dx - painter.width / 2;
     left = left.clamp(plot.left + 2, plot.right - painter.width - 2);
     double top = offset.dy - painter.height - 10;
     if (top < plot.top + 2) {

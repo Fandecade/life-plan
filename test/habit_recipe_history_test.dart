@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/app.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
+import 'package:life_planner/core/widgets/app_sheet.dart';
 
 void main() {
   late AppBootstrap bootstrap;
@@ -21,7 +22,9 @@ void main() {
   }
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('life_planner_recipe_history');
+    tempDir = await Directory.systemTemp.createTemp(
+      'life_planner_recipe_history',
+    );
     bootstrap = await AppBootstrap.create(storagePath: tempDir.path);
     habit = await bootstrap.foggHabits.create(
       anchorPrompt: '晚饭后',
@@ -42,9 +45,7 @@ void main() {
     }
   });
 
-  testWidgets('配方调整记录点开后展示历史版本落点对比', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('配方调整记录点开后展示历史版本落点对比', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -71,7 +72,14 @@ void main() {
     expect(find.textContaining('历史 v2：'), findsOneWidget);
     expect(find.textContaining('灰色 = 历史 v2'), findsOneWidget);
 
-    await tester.tap(find.text('取消'));
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(AppSheetContent),
+            matching: find.byTooltip('关闭'),
+          )
+          .first,
+    );
     await settle(tester);
     expect(find.textContaining('行动线门槛'), findsNothing);
   });

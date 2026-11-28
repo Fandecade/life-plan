@@ -4,6 +4,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_chip.dart';
 
 /// 安排结果：起始时间与时长（都可随手改，不写死）。
@@ -31,8 +32,8 @@ Future<ReviewScheduleResult?> showReviewScheduleDialog(
   bool showDuration = true,
   bool allowDateOnly = false,
 }) {
-  return showDialog<ReviewScheduleResult>(
-    context: context,
+  return showAppSheet<ReviewScheduleResult>(
+    context,
     builder: (BuildContext dialogContext) => _ReviewScheduleDialog(
       initial: initial,
       initialMinutes: initialMinutes,
@@ -77,8 +78,7 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
   void initState() {
     super.initState();
     _day = AppDate.startOfDay(widget.initial);
-    final int rounded =
-        ((widget.initial.minute + 29) ~/ 30) * 30;
+    final int rounded = ((widget.initial.minute + 29) ~/ 30) * 30;
     int hour = widget.initial.hour;
     int minute = rounded;
     if (minute >= 60) {
@@ -124,82 +124,87 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
         '${AppDate.two(minutes ~/ 60)}:${AppDate.two(minutes % 60)}',
     ];
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text(widget.title, style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                AppIconButton(
-                  icon: Icons.chevron_left_rounded,
-                  iconSize: 18,
-                  size: 26,
-                  tooltip: '前一天',
-                  onPressed: () => _shiftDay(-1),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      AppDate.monthDayWithWeekday(_day),
-                      style: context.texts.titleSmall,
-                    ),
+    return AppSheetContent(
+      title: widget.title,
+      heightFactor: 0.72,
+      maxWidth: 520,
+      actions: <Widget>[
+        AppGhostButton(
+          label: '取消',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPrimaryButton(
+          label: '确认安排',
+          onPressed: () => Navigator.of(context).pop(
+            ReviewScheduleResult(
+              start: DateTime(
+                _day.year,
+                _day.month,
+                _day.day,
+                _dateOnly ? 0 : _hour,
+                _dateOnly ? 0 : _minute,
+              ),
+              minutes: _dateOnly ? 0 : _minutes,
+              dateOnly: _dateOnly,
+            ),
+          ),
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              AppIconButton(
+                icon: Icons.chevron_left_rounded,
+                iconSize: 18,
+                size: 26,
+                tooltip: '前一天',
+                onPressed: () => _shiftDay(-1),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    AppDate.monthDayWithWeekday(_day),
+                    style: context.texts.titleSmall,
                   ),
                 ),
-                AppIconButton(
-                  icon: Icons.chevron_right_rounded,
-                  iconSize: 18,
-                  size: 26,
-                  tooltip: '后一天',
-                  onPressed: () => _shiftDay(1),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: 6,
-              children: <Widget>[
-                for (int i = 0; i < _quickDays.length; i++)
-                  AppChip(
-                    label: _quickLabels[i],
-                    dense: true,
-                    filled: AppDate.isSameDay(_quickDays[i], _day),
-                    color: palette.accent,
-                    onTap: () => setState(() => _day = _quickDays[i]),
-                  ),
-              ],
-            ),
-            if (widget.allowDateOnly) ...<Widget>[
-              const SizedBox(height: AppSpacing.sm),
-              AppChip(
-                label: _dateOnly ? '只定日期（不选时段）' : '只安排到这一天',
-                dense: true,
-                filled: _dateOnly,
-                color: palette.accent,
-                onTap: () => setState(() => _dateOnly = !_dateOnly),
+              ),
+              AppIconButton(
+                icon: Icons.chevron_right_rounded,
+                iconSize: 18,
+                size: 26,
+                tooltip: '后一天',
+                onPressed: () => _shiftDay(1),
               ),
             ],
-            if (!_dateOnly) ...<Widget>[
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 6,
+            children: <Widget>[
+              for (int i = 0; i < _quickDays.length; i++)
+                AppChip(
+                  label: _quickLabels[i],
+                  dense: true,
+                  filled: AppDate.isSameDay(_quickDays[i], _day),
+                  color: palette.accent,
+                  onTap: () => setState(() => _day = _quickDays[i]),
+                ),
+            ],
+          ),
+          if (widget.allowDateOnly) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            AppChip(
+              label: _dateOnly ? '只定日期（不选时段）' : '只安排到这一天',
+              dense: true,
+              filled: _dateOnly,
+              color: palette.accent,
+              onTap: () => setState(() => _dateOnly = !_dateOnly),
+            ),
+          ],
+          if (!_dateOnly) ...<Widget>[
             const SizedBox(height: AppSpacing.md),
             Text('时间', style: context.texts.labelSmall),
             const SizedBox(height: 6),
@@ -215,7 +220,8 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
                         child: AppChip(
                           label: time,
                           dense: true,
-                          filled: time ==
+                          filled:
+                              time ==
                               '${AppDate.two(_hour)}:${AppDate.two(_minute)}',
                           color: palette.accent,
                           onTap: () => setState(() {
@@ -248,43 +254,14 @@ class _ReviewScheduleDialogState extends State<_ReviewScheduleDialog> {
                 ],
               ),
             ],
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              _dateOnly ? '不生成时间块，任务进入当天的「今日待办」。' : widget.hint,
-              style: context.texts.labelSmall,
-            ),
           ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
-      actions: <Widget>[
-        AppGhostButton(
-          label: '取消',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        AppPrimaryButton(
-          label: '确认安排',
-          onPressed: () => Navigator.of(context).pop(
-            ReviewScheduleResult(
-              start: DateTime(
-                _day.year,
-                _day.month,
-                _day.day,
-                _dateOnly ? 0 : _hour,
-                _dateOnly ? 0 : _minute,
-              ),
-              minutes: _dateOnly ? 0 : _minutes,
-              dateOnly: _dateOnly,
-            ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _dateOnly ? '不生成时间块，任务进入当天的「今日待办」。' : widget.hint,
+            style: context.texts.labelSmall,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
