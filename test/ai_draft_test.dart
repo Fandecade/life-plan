@@ -206,4 +206,148 @@ void main() {
     expect(bootstrap.timeBlocks.forActionItem(task.id), isNull);
     expect(applier.canUndo, isFalse);
   });
+
+  test('更新与取消排期草稿可执行并可撤销', () async {
+    final AiDraftApplier applier = AiDraftApplier(
+      visions: bootstrap.visions,
+      capabilities: bootstrap.capabilities,
+      actions: bootstrap.actions,
+      projects: bootstrap.projects,
+      routines: bootstrap.weeklyRoutines,
+      schedules: bootstrap.schedules,
+      habits: bootstrap.foggHabits,
+      reviewLogs: bootstrap.reviewLogs,
+    );
+    final AiApplyResult base = await applier.apply(<AiDraft>[
+      const AiDraft(
+        id: 'b1',
+        tool: 'create_vision',
+        args: <String, dynamic>{'title': 'UI 愿景'},
+        summary: '创建愿景',
+      ),
+      const AiDraft(
+        id: 'b2',
+        tool: 'create_capability',
+        args: <String, dynamic>{'visionTitle': 'UI 愿景', 'title': 'UI 能力'},
+        summary: '创建能力',
+      ),
+      const AiDraft(
+        id: 'b3',
+        tool: 'create_project',
+        args: <String, dynamic>{'title': 'UI 项目'},
+        summary: '创建项目',
+      ),
+      const AiDraft(
+        id: 'b4',
+        tool: 'create_task',
+        args: <String, dynamic>{'title': 'UI 任务', 'capabilityTitle': 'UI 能力'},
+        summary: '创建任务',
+      ),
+      const AiDraft(
+        id: 'b5',
+        tool: 'schedule_task',
+        args: <String, dynamic>{
+          'taskTitle': 'UI 任务',
+          'date': '2026-12-03',
+          'startTime': '10:00',
+          'durationMinutes': 30,
+        },
+        summary: '排期任务',
+      ),
+    ]);
+    expect(base.created, 5);
+    expect(base.errors, isEmpty);
+
+    final Vision vision = bootstrap.visions.all.firstWhere(
+      (Vision item) => item.title == 'UI 愿景',
+    );
+    final Capability capability = bootstrap.capabilities.all.firstWhere(
+      (Capability item) => item.title == 'UI 能力',
+    );
+    final Project project = bootstrap.projects.all.firstWhere(
+      (Project item) => item.title == 'UI 项目',
+    );
+    final ActionItem task = bootstrap.actions.all.firstWhere(
+      (ActionItem item) => item.title == 'UI 任务',
+    );
+    expect(capability.targetLevel, '');
+    expect(task.note, '');
+    expect(project.status, ProjectStatus.active);
+    expect(project.stages, isEmpty);
+    expect(bootstrap.timeBlocks.forActionItem(task.id), isNotNull);
+
+    final AiApplyResult update = await applier.apply(<AiDraft>[
+      const AiDraft(
+        id: 'u1',
+        tool: 'update_vision',
+        args: <String, dynamic>{
+          'visionTitle': 'UI 愿景',
+          'title': 'UI 愿景 2',
+          'description': '新描述',
+        },
+        summary: '更新愿景',
+      ),
+      const AiDraft(
+        id: 'u2',
+        tool: 'update_capability',
+        args: <String, dynamic>{
+          'capabilityTitle': 'UI 能力',
+          'targetLevel': '进阶',
+        },
+        summary: '更新能力',
+      ),
+      const AiDraft(
+        id: 'u3',
+        tool: 'update_task_fields',
+        args: <String, dynamic>{
+          'taskTitle': 'UI 任务',
+          'note': '补充说明',
+          'estimatedMinutes': 45,
+        },
+        summary: '更新任务',
+      ),
+      const AiDraft(
+        id: 'u4',
+        tool: 'update_project',
+        args: <String, dynamic>{
+          'projectTitle': 'UI 项目',
+          'goal': '新目标',
+          'status': 'paused',
+        },
+        summary: '更新项目',
+      ),
+      const AiDraft(
+        id: 'u5',
+        tool: 'add_project_stage',
+        args: <String, dynamic>{'projectTitle': 'UI 项目', 'title': '阶段一'},
+        summary: '添加项目阶段',
+      ),
+      const AiDraft(
+        id: 'u6',
+        tool: 'cancel_schedule',
+        args: <String, dynamic>{'taskTitle': 'UI 任务'},
+        summary: '取消排期',
+      ),
+    ]);
+    expect(update.created, 6);
+    expect(update.errors, isEmpty);
+
+    expect(bootstrap.visions.byId(vision.id)!.title, 'UI 愿景 2');
+    expect(bootstrap.capabilities.byId(capability.id)!.targetLevel, '进阶');
+    expect(bootstrap.actions.byId(task.id)!.note, '补充说明');
+    expect(bootstrap.actions.byId(task.id)!.estimatedMinutes, 45);
+    expect(bootstrap.projects.byId(project.id)!.status, ProjectStatus.paused);
+    expect(bootstrap.projects.byId(project.id)!.stages.single.title, '阶段一');
+    expect(bootstrap.timeBlocks.forActionItem(task.id), isNull);
+
+    await applier.undoLast();
+    expect(bootstrap.visions.byId(vision.id)!.title, 'UI 愿景');
+    expect(bootstrap.capabilities.byId(capability.id)!.targetLevel, '');
+    expect(bootstrap.actions.byId(task.id)!.note, '');
+    expect(bootstrap.projects.byId(project.id)!.status, ProjectStatus.active);
+    expect(bootstrap.projects.byId(project.id)!.stages, isEmpty);
+    final TimeBlock restored = bootstrap.timeBlocks.forActionItem(task.id)!;
+    expect(restored.startAt.hour, 10);
+    expect(applier.canUndo, isFalse);
+  });
 }

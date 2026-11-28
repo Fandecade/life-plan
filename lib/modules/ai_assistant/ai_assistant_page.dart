@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -359,12 +360,55 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
           constraints: const BoxConstraints(maxWidth: 720),
           child: AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: SelectableText(
-              message.content,
-              style: context.texts.bodyMedium,
-            ),
+            child: user
+                ? SelectableText(
+                    message.content,
+                    style: context.texts.bodyMedium,
+                  )
+                : MarkdownBody(
+                    data: message.content,
+                    selectable: true,
+                    styleSheet: _markdownStyle(context, palette),
+                  ),
           ),
         ),
+      ),
+    );
+  }
+
+  MarkdownStyleSheet _markdownStyle(BuildContext context, AppPalette palette) {
+    final MarkdownStyleSheet base = MarkdownStyleSheet.fromTheme(
+      Theme.of(context),
+    );
+    return base.copyWith(
+      p: context.texts.bodyMedium,
+      h1: context.texts.titleLarge,
+      h2: context.texts.titleMedium,
+      h3: context.texts.titleSmall,
+      listBullet: context.texts.bodyMedium,
+      a: context.texts.bodyMedium?.copyWith(
+        color: palette.accent,
+        decoration: TextDecoration.underline,
+      ),
+      code: context.texts.bodySmall?.copyWith(
+        fontFamily: 'monospace',
+        color: palette.accent,
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: palette.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      codeblockPadding: const EdgeInsets.all(10),
+      blockquoteDecoration: BoxDecoration(
+        color: palette.surfaceMuted,
+        border: Border(left: BorderSide(color: palette.accent, width: 3)),
+      ),
+      blockquotePadding: const EdgeInsets.all(10),
+      tableBorder: TableBorder.all(color: palette.hairline),
+      tableHead: context.texts.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      tableBody: context.texts.bodySmall,
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(top: BorderSide(color: palette.hairline)),
       ),
     );
   }

@@ -262,6 +262,94 @@ class AiToolRegistry {
         'required': <String>['adjustments'],
       },
     ),
+    AiToolSpec(
+      name: 'update_vision',
+      description: '更新愿景草稿（按标题定位）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'visionTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'description': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['visionTitle'],
+      },
+    ),
+    AiToolSpec(
+      name: 'update_capability',
+      description: '更新能力草稿（按标题定位）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'capabilityTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'targetLevel': <String, dynamic>{'type': 'string'},
+          'visionTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['capabilityTitle'],
+      },
+    ),
+    AiToolSpec(
+      name: 'update_task_fields',
+      description: '更新任务字段草稿（不改完成状态；空值表示不修改）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'taskTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'note': <String, dynamic>{'type': 'string'},
+          'estimatedMinutes': <String, dynamic>{'type': 'integer'},
+          'dueDate': <String, dynamic>{
+            'type': 'string',
+            'description': 'yyyy-MM-dd',
+          },
+          'capabilityTitle': <String, dynamic>{'type': 'string'},
+          'projectTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['taskTitle'],
+      },
+    ),
+    AiToolSpec(
+      name: 'update_project',
+      description: '更新项目草稿（标题/目标/验收/状态）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'projectTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'goal': <String, dynamic>{'type': 'string'},
+          'acceptance': <String, dynamic>{'type': 'string'},
+          'status': <String, dynamic>{
+            'type': 'string',
+            'enum': <String>['active', 'paused', 'completed', 'archived'],
+          },
+        },
+        'required': <String>['projectTitle'],
+      },
+    ),
+    AiToolSpec(
+      name: 'add_project_stage',
+      description: '为项目添加阶段草稿。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'projectTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['projectTitle', 'title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'cancel_schedule',
+      description: '取消任务排期草稿（任务保留，回到待安排）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'taskTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['taskTitle'],
+      },
+    ),
   ];
 
   Future<Map<String, dynamic>> execute(
@@ -401,6 +489,42 @@ class AiToolRegistry {
           'propose_review_adjustments',
           arguments,
           '复盘调整建议（${_text(arguments['periodType'])}）',
+        );
+      case 'update_vision':
+        return _draft(
+          'update_vision',
+          arguments,
+          '更新愿景「${_text(arguments['visionTitle'])}」',
+        );
+      case 'update_capability':
+        return _draft(
+          'update_capability',
+          arguments,
+          '更新能力「${_text(arguments['capabilityTitle'])}」',
+        );
+      case 'update_task_fields':
+        return _draft(
+          'update_task_fields',
+          arguments,
+          '更新任务「${_text(arguments['taskTitle'])}」',
+        );
+      case 'update_project':
+        return _draft(
+          'update_project',
+          arguments,
+          '更新项目「${_text(arguments['projectTitle'])}」',
+        );
+      case 'add_project_stage':
+        return _draft(
+          'add_project_stage',
+          arguments,
+          '为项目「${_text(arguments['projectTitle'])}」添加阶段「${_text(arguments['title'])}」',
+        );
+      case 'cancel_schedule':
+        return _draft(
+          'cancel_schedule',
+          arguments,
+          '取消任务「${_text(arguments['taskTitle'])}」的排期',
         );
       default:
         return <String, dynamic>{'error': '未知工具：$name'};

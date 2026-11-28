@@ -41,6 +41,7 @@ class AiDraftApplier {
   bool get canUndo => _undo.isNotEmpty;
 
   Future<AiApplyResult> apply(List<AiDraft> drafts) async {
+    _undo.clear();
     final List<AiDraft> ordered = drafts.toList(growable: false)
       ..sort((AiDraft a, AiDraft b) => _order(a.tool) - _order(b.tool));
     final Map<String, String> visionIds = <String, String>{};
@@ -269,6 +270,142 @@ class AiDraftApplier {
               ),
             );
             created++;
+          case 'update_vision':
+            final String title = _text(draft.args['visionTitle']);
+            final Vision? vision = _findVisionEntity(title);
+            if (vision == null) throw const _DraftError('找不到该愿景');
+            final String original = jsonEncode(vision.toJson());
+            final String nextTitle = _text(draft.args['title']);
+            await visions.save(
+              vision.copyWith(
+                title: nextTitle.isEmpty ? null : nextTitle,
+                description: draft.args['description'] == null
+                    ? null
+                    : _text(draft.args['description']),
+              ),
+            );
+            _undo.add(
+              _UndoOp(_UndoKind.visionUpdate, vision.id, extra: original),
+            );
+            created++;
+          case 'update_capability':
+            final String title = _text(draft.args['capabilityTitle']);
+            final Capability? capability = _findCapabilityEntity(title);
+            if (capability == null) throw const _DraftError('找不到该能力');
+            final String original = jsonEncode(capability.toJson());
+            final String nextTitle = _text(draft.args['title']);
+            final String visionTitle = _text(draft.args['visionTitle']);
+            final String? visionId = visionTitle.isEmpty
+                ? null
+                : (visionIds[_key(visionTitle)] ?? _findVision(visionTitle));
+            await capabilities.save(
+              capability.copyWith(
+                title: nextTitle.isEmpty ? null : nextTitle,
+                targetLevel: draft.args['targetLevel'] == null
+                    ? null
+                    : _text(draft.args['targetLevel']),
+                visionId: visionId,
+              ),
+            );
+            _undo.add(
+              _UndoOp(
+                _UndoKind.capabilityUpdate,
+                capability.id,
+                extra: original,
+              ),
+            );
+            created++;
+          case 'update_task_fields':
+            final String taskTitle = _text(draft.args['taskTitle']);
+            final ActionItem? task = _findTaskEntity(taskTitle);
+            if (task == null) throw const _DraftError('找不到该任务');
+            final String original = jsonEncode(task.toJson());
+            final String nextTitle = _text(draft.args['title']);
+            final String capTitle = _text(draft.args['capabilityTitle']);
+            final String projTitle = _text(draft.args['projectTitle']);
+            await actions.save(
+              task.copyWith(
+                title: nextTitle.isEmpty ? null : nextTitle,
+                note: draft.args['note'] == null
+                    ? null
+                    : _text(draft.args['note']),
+                estimatedMinutes: _minutes(draft.args['estimatedMinutes']),
+                dueDate: _date(draft.args['dueDate']),
+                capabilityId: capTitle.isEmpty
+                    ? null
+                    : (capabilityIds[_key(capTitle)] ??
+                          _findCapability(capTitle)),
+                projectId: projTitle.isEmpty
+                    ? null
+                    : (projectIds[_key(projTitle)] ?? _findProject(projTitle)),
+              ),
+            );
+            _undo.add(_UndoOp(_UndoKind.taskUpdate, task.id, extra: original));
+            created++;
+          case 'update_project':
+            final String projectTitle = _text(draft.args['projectTitle']);
+            final Project? project = _findProjectEntity(projectTitle);
+            if (project == null) throw const _DraftError('找不到该项目');
+            final String original = jsonEncode(project.toJson());
+            final String nextTitle = _text(draft.args['title']);
+            final String statusName = _text(draft.args['status']);
+            await projects.save(
+              project.copyWith(
+                title: nextTitle.isEmpty ? null : nextTitle,
+                goal: draft.args['goal'] == null
+                    ? null
+                    : _text(draft.args['goal']),
+                acceptance: draft.args['acceptance'] == null
+                    ? null
+                    : _text(draft.args['acceptance']),
+                status: statusName.isEmpty
+                    ? null
+                    : ProjectStatus.fromName(statusName),
+              ),
+            );
+            _undo.add(
+              _UndoOp(_UndoKind.projectUpdate, project.id, extra: original),
+            );
+            created++;
+          case 'add_project_stage':
+            final String projectTitle = _text(draft.args['projectTitle']);
+            final Project? project = _findProjectEntity(projectTitle);
+            if (project == null) throw const _DraftError('找不到该项目');
+            final String title = _text(draft.args['title']);
+            if (title.isEmpty) throw const _DraftError('阶段标题为空');
+            final String original = project.stagesJson;
+            final List<ProjectStage> stages = <ProjectStage>[
+              ...project.stages,
+              ProjectStage(id: const Uuid().v4(), title: title),
+            ];
+            await projects.save(
+              project.copyWith(
+                stagesJson: jsonEncode(
+                  stages
+                      .map((ProjectStage item) => item.toJson())
+                      .toList(growable: false),
+                ),
+              ),
+            );
+            _undo.add(
+              _UndoOp(_UndoKind.projectStage, project.id, extra: original),
+            );
+            created++;
+          case 'cancel_schedule':
+            final String taskTitle = _text(draft.args['taskTitle']);
+            final ActionItem? task = _findTaskEntity(taskTitle);
+            if (task == null) throw const _DraftError('找不到该任务');
+            final TimeBlock? block = schedules.blocks.forActionItem(task.id);
+            if (block == null) throw const _DraftError('该任务没有排期');
+            final String restore = jsonEncode(<String, dynamic>{
+              'startAt': block.startAt.toIso8601String(),
+              'minutes': block.plannedMinutes,
+            });
+            await schedules.unschedule(task.id);
+            _undo.add(
+              _UndoOp(_UndoKind.scheduleRestore, task.id, extra: restore),
+            );
+            created++;
           default:
             errors.add('未知草稿类型：${draft.tool}');
         }
@@ -315,6 +452,59 @@ class AiDraftApplier {
               (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
             );
             await reviewLogs.save(old);
+          }
+        case _UndoKind.visionUpdate:
+          if (op.extra != null) {
+            await visions.save(
+              Vision.fromJson(
+                (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
+              ),
+            );
+          }
+        case _UndoKind.capabilityUpdate:
+          if (op.extra != null) {
+            await capabilities.save(
+              Capability.fromJson(
+                (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
+              ),
+            );
+          }
+        case _UndoKind.taskUpdate:
+          if (op.extra != null) {
+            await actions.save(
+              ActionItem.fromJson(
+                (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
+              ),
+            );
+          }
+        case _UndoKind.projectUpdate:
+          if (op.extra != null) {
+            await projects.save(
+              Project.fromJson(
+                (jsonDecode(op.extra!) as Map).cast<String, dynamic>(),
+              ),
+            );
+          }
+        case _UndoKind.projectStage:
+          final Project? project = projects.byId(op.id);
+          if (project != null) {
+            await projects.save(project.copyWith(stagesJson: op.extra ?? '[]'));
+          }
+        case _UndoKind.scheduleRestore:
+          if (op.extra != null) {
+            final Map<String, dynamic> data = (jsonDecode(op.extra!) as Map)
+                .cast<String, dynamic>();
+            final ActionItem? task = actions.byId(op.id);
+            final DateTime? start = DateTime.tryParse(
+              '${data['startAt'] ?? ''}',
+            );
+            if (task != null && start != null) {
+              await schedules.scheduleAction(
+                task,
+                start,
+                durationMinutes: (data['minutes'] as num?)?.toInt(),
+              );
+            }
           }
       }
     }
@@ -364,6 +554,34 @@ class AiDraftApplier {
   _UndoKind? _kindFromName(String name) {
     for (final _UndoKind kind in _UndoKind.values) {
       if (kind.name == name) return kind;
+    }
+    return null;
+  }
+
+  Vision? _findVisionEntity(String title) {
+    for (final Vision vision in visions.all) {
+      if (_key(vision.title) == _key(title)) return vision;
+    }
+    return null;
+  }
+
+  Capability? _findCapabilityEntity(String title) {
+    for (final Capability capability in capabilities.all) {
+      if (_key(capability.title) == _key(title)) return capability;
+    }
+    return null;
+  }
+
+  Project? _findProjectEntity(String title) {
+    for (final Project project in projects.all) {
+      if (_key(project.title) == _key(title)) return project;
+    }
+    return null;
+  }
+
+  ActionItem? _findTaskEntity(String title) {
+    for (final ActionItem item in actions.all) {
+      if (_key(item.title) == _key(title)) return item;
     }
     return null;
   }
@@ -430,12 +648,18 @@ class AiDraftApplier {
 
   int _order(String tool) => switch (tool) {
     'create_vision' => 0,
+    'update_vision' => 10,
     'create_capability' => 1,
+    'update_capability' => 11,
     'add_milestone' => 2,
     'create_project' => 3,
+    'update_project' => 12,
+    'add_project_stage' => 13,
     'create_task' => 4,
     'plan_learning' => 4,
+    'update_task_fields' => 14,
     'schedule_task' => 5,
+    'cancel_schedule' => 15,
     'create_weekly_routine' => 6,
     'create_habit_recipe' => 7,
     'propose_review_adjustments' => 8,
@@ -462,6 +686,12 @@ enum _UndoKind {
   routine,
   habit,
   review,
+  visionUpdate,
+  capabilityUpdate,
+  taskUpdate,
+  projectUpdate,
+  projectStage,
+  scheduleRestore,
 }
 
 class _UndoOp {
