@@ -157,11 +157,11 @@ class _DayViewState extends State<DayView>
     int todoPending = widget.blocks
         .where((TimeBlock block) => !block.isCompleted)
         .length;
+    final DateTime dayStart = AppDate.startOfDay(widget.day);
     for (final ActionItem item in context.watch<ActionItemRepository>().all) {
-      if (item.isCompleted) continue;
-      if (item.scheduledDate != null &&
-          AppDate.isSameDay(item.scheduledDate!, widget.day) &&
-          !blockTaskIds.contains(item.id)) {
+      if (item.isCompleted || item.scheduledDate == null) continue;
+      if (!blockTaskIds.contains(item.id) &&
+          !AppDate.startOfDay(item.scheduledDate!).isAfter(dayStart)) {
         todoPending++;
       }
     }

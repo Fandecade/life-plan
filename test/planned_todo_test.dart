@@ -116,10 +116,17 @@ void main() {
     final ActionItem? b = bootstrap.actions.byId(todoB.id);
     expect((a?.isCompleted ?? false) || (b?.isCompleted ?? false), isTrue);
 
-    // 已完成项保留在今日待办（划线），已定时间区包含已完成块。
-    expect(find.text('待办甲'), findsWidgets);
+    // 未完成分组仍在；已完成项收进默认收起的「已完成」组。
     expect(find.textContaining('未定时间 ·'), findsOneWidget);
-    expect(find.textContaining('已定时间 ·'), findsOneWidget);
+    expect(find.textContaining('已定时间 ·'), findsNothing);
+    final Finder doneHeader = find.descendant(
+      of: find.byType(DayTodoView),
+      matching: find.textContaining('已完成 ·'),
+    );
+    expect(doneHeader, findsOneWidget);
+
+    await tester.tap(doneHeader);
+    await tester.pump();
     expect(find.text('待办丁'), findsWidgets);
   });
 

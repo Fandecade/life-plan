@@ -80,6 +80,14 @@ void main() {
     await settle(tester);
     expect(bootstrap.actions.byId(task.id)!.isCompleted, isTrue);
 
+    // 已完成项收进默认收起的「已完成」组，先展开再操作。
+    final Finder doneHeader = find.descendant(
+      of: find.byType(DayTodoView),
+      matching: find.textContaining('已完成 ·'),
+    );
+    await tester.tap(doneHeader);
+    await tester.pump();
+
     // 再次点击不等于直接回退，而是先确认。
     await tester.tap(rowCheck());
     await tester.pump();

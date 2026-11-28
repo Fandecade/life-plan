@@ -56,6 +56,7 @@ Future<bool> confirmCancelCompletion(BuildContext context) {
   );
 }
 
+
 /// 微习惯取消今日打卡。
 Future<bool> confirmCancelHabitCheckIn(BuildContext context) {
   return showRollbackConfirm(
