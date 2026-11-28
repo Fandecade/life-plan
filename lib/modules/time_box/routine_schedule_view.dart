@@ -9,6 +9,7 @@ import '../../core/services/routine_service.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_text_field.dart';
 
 import 'time_box_common.dart';
@@ -81,9 +82,9 @@ Color routineToneFor(WeeklyRoutine routine, AppPalette palette) {
 
 /// 打开「一周固定安排」编辑视图。
 Future<bool> showRoutineSchedule(BuildContext context) async {
-  final bool? changed = await showDialog<bool>(
-    context: context,
-    builder: (BuildContext dialogContext) => const RoutineScheduleDialog(),
+  final bool? changed = await showAppSheet<bool>(
+    context,
+    builder: (BuildContext sheetContext) => const RoutineScheduleDialog(),
   );
   return changed ?? false;
 }
@@ -93,47 +94,34 @@ class RoutineScheduleDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    final List<WeeklyRoutine> routines =
-        context.watch<WeeklyRoutineRepository>().all;
+    final List<WeeklyRoutine> routines = context
+        .watch<WeeklyRoutineRepository>()
+        .all;
     final List<ActionItem> actions = context.watch<ActionItemRepository>().all;
-    final List<Capability> capabilities =
-        context.watch<CapabilityRepository>().all;
+    final List<Capability> capabilities = context
+        .watch<CapabilityRepository>()
+        .all;
     final List<Vision> visions = context.watch<VisionRepository>().all;
     final TaskLabelResolver labels = TaskLabelResolver(
       capabilities: <String, Capability>{
-        for (final Capability capability in capabilities) capability.id: capability,
+        for (final Capability capability in capabilities)
+          capability.id: capability,
       },
       visions: <String, Vision>{
         for (final Vision vision in visions) vision.id: vision,
       },
     );
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.md,
-        0,
-      ),
-      title: Row(
+    return AppSheetContent(
+      title: '固定安排',
+      subtitle: '每周规律占位 · 修改某一周不影响其他周',
+      heightFactor: 0.9,
+      maxWidth: 1040,
+      scrollable: false,
+      showClose: false,
+      titleTrailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text('固定安排', style: context.texts.titleLarge),
-          const SizedBox(width: AppSpacing.sm),
-          Flexible(
-            child: Text(
-              '每周规律占位 · 修改某一周不影射其他周',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: context.texts.bodySmall,
-            ),
-          ),
-          const Spacer(),
           AppGhostButton(
             label: '新建',
             icon: Icons.add_rounded,
@@ -148,17 +136,7 @@ class RoutineScheduleDialog extends StatelessWidget {
           ),
         ],
       ),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.md,
-      ),
-      content: SizedBox(
-        width: 980,
-        height: MediaQuery.sizeOf(context).height * 0.7,
-        child: _RoutineGrid(routines: routines, actions: actions, labels: labels),
-      ),
+      child: _RoutineGrid(routines: routines, actions: actions, labels: labels),
     );
   }
 }
@@ -252,8 +230,10 @@ class _RoutineGridState extends State<_RoutineGrid> {
                           context,
                           weekday,
                           widget.routines
-                              .where((WeeklyRoutine routine) =>
-                                  routine.weekday == weekday)
+                              .where(
+                                (WeeklyRoutine routine) =>
+                                    routine.weekday == weekday,
+                              )
                               .toList(growable: false),
                           contentHeight,
                         ),
@@ -265,16 +245,26 @@ class _RoutineGridState extends State<_RoutineGrid> {
               Row(
                 children: <Widget>[
                   const SizedBox(width: labelWidth),
-                  Icon(Icons.repeat_rounded, size: 11, color: palette.textTertiary),
+                  Icon(
+                    Icons.repeat_rounded,
+                    size: 11,
+                    color: palette.textTertiary,
+                  ),
                   const SizedBox(width: 4),
                   Text('固定事项（常规占用）', style: context.texts.labelSmall),
                   const SizedBox(width: 14),
-                  Icon(Icons.link_rounded, size: 11, color: palette.textTertiary),
+                  Icon(
+                    Icons.link_rounded,
+                    size: 11,
+                    color: palette.textTertiary,
+                  ),
                   const SizedBox(width: 4),
                   Text('关联任务（可跳转）', style: context.texts.labelSmall),
                   const SizedBox(width: 14),
-                  Text('点击空白新建 · 上下拖动改时间 · 左右拖动换天 · 点击块编辑',
-                      style: context.texts.labelSmall),
+                  Text(
+                    '点击空白新建 · 上下拖动改时间 · 左右拖动换天 · 点击块编辑',
+                    style: context.texts.labelSmall,
+                  ),
                 ],
               ),
             ],
@@ -305,13 +295,16 @@ class _RoutineGridState extends State<_RoutineGrid> {
               behavior: HitTestBehavior.opaque,
               onTapUp: (TapUpDetails details) {
                 final int raw =
-                    startHour * 60 + (details.localPosition.dy / hourHeight * 60).round();
-                final int snapped =
-                    (raw / 30).round() * 30;
+                    startHour * 60 +
+                    (details.localPosition.dy / hourHeight * 60).round();
+                final int snapped = (raw / 30).round() * 30;
                 _openEditor(
                   context,
                   weekday: weekday,
-                  startMinutes: snapped.clamp(startHour * 60, endHour * 60 - 30),
+                  startMinutes: snapped.clamp(
+                    startHour * 60,
+                    endHour * 60 - 30,
+                  ),
                 );
               },
               child: CustomPaint(
@@ -327,18 +320,21 @@ class _RoutineGridState extends State<_RoutineGrid> {
           ),
           for (final WeeklyRoutine routine in items)
             Positioned(
-              top: (routine.startMinutes - startHour * 60) / 60 * hourHeight +
+              top:
+                  (routine.startMinutes - startHour * 60) / 60 * hourHeight +
                   (_dragId == routine.id && _dragAxis == Axis.vertical
                       ? _dragDelta.dy
                       : 0),
-              left: 3 +
+              left:
+                  3 +
                   (_dragId == routine.id && _dragAxis == Axis.horizontal
                       ? _dragDelta.dx
                       : 0),
               width: columnWidth - 6,
-              height: ((routine.durationMinutes / 60 * hourHeight) +
-                      (_resizeId == routine.id ? _resizeDeltaPx : 0))
-                  .clamp(20.0, contentHeight),
+              height:
+                  ((routine.durationMinutes / 60 * hourHeight) +
+                          (_resizeId == routine.id ? _resizeDeltaPx : 0))
+                      .clamp(20.0, contentHeight),
               child: _chip(context, routine),
             ),
         ],
@@ -486,24 +482,27 @@ class _RoutineGridState extends State<_RoutineGrid> {
       final int? targetWeekday = _weekdayAt(global);
       if (targetWeekday == null || targetWeekday == routine.weekday) return;
       await context.read<WeeklyRoutineRepository>().save(
-            routine.copyWith(weekday: targetWeekday),
-          );
+        routine.copyWith(weekday: targetWeekday),
+      );
       return;
     }
 
     final int snapped = (delta.dy / hourHeight * 60 / 30).round() * 30;
     if (snapped == 0) return;
-    final int nextStart = (routine.startMinutes + snapped)
-        .clamp(startHour * 60, endHour * 60 - routine.durationMinutes);
+    final int nextStart = (routine.startMinutes + snapped).clamp(
+      startHour * 60,
+      endHour * 60 - routine.durationMinutes,
+    );
     await context.read<WeeklyRoutineRepository>().save(
-          routine.copyWith(startMinutes: nextStart),
-        );
+      routine.copyWith(startMinutes: nextStart),
+    );
   }
 
   int? _weekdayAt(Offset global) {
     for (int weekday = 1; weekday <= 7; weekday++) {
       final RenderBox? box =
-          _columnKeys[weekday]?.currentContext?.findRenderObject() as RenderBox?;
+          _columnKeys[weekday]?.currentContext?.findRenderObject()
+              as RenderBox?;
       if (box == null) continue;
       final Rect rect = box.localToGlobal(Offset.zero) & box.size;
       if (rect.contains(global)) return weekday;
@@ -521,11 +520,13 @@ class _RoutineGridState extends State<_RoutineGrid> {
     final int snapped = (delta / hourHeight * 60 / 15).round() * 15;
     if (snapped == 0) return;
     final int maxDuration = endHour * 60 - routine.startMinutes;
-    final int nextDuration =
-        (routine.durationMinutes + snapped).clamp(15, maxDuration);
+    final int nextDuration = (routine.durationMinutes + snapped).clamp(
+      15,
+      maxDuration,
+    );
     await context.read<WeeklyRoutineRepository>().save(
-          routine.copyWith(durationMinutes: nextDuration),
-        );
+      routine.copyWith(durationMinutes: nextDuration),
+    );
   }
 
   void _openEditor(
@@ -533,11 +534,7 @@ class _RoutineGridState extends State<_RoutineGrid> {
     required int weekday,
     required int startMinutes,
   }) {
-    showRoutineEditor(
-      context,
-      weekday: weekday,
-      startMinutes: startMinutes,
-    );
+    showRoutineEditor(context, weekday: weekday, startMinutes: startMinutes);
   }
 }
 
@@ -580,8 +577,8 @@ Future<bool> showRoutineEditor(
   int? weekday,
   int? startMinutes,
 }) async {
-  final bool? changed = await showDialog<bool>(
-    context: context,
+  final bool? changed = await showAppSheet<bool>(
+    context,
     builder: (BuildContext dialogContext) => _RoutineEditorDialog(
       routine: routine,
       weekday: weekday,
@@ -592,11 +589,7 @@ Future<bool> showRoutineEditor(
 }
 
 class _RoutineEditorDialog extends StatefulWidget {
-  const _RoutineEditorDialog({
-    this.routine,
-    this.weekday,
-    this.startMinutes,
-  });
+  const _RoutineEditorDialog({this.routine, this.weekday, this.startMinutes});
 
   final WeeklyRoutine? routine;
   final int? weekday;
@@ -657,8 +650,8 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
     if (_kind == RoutineKind.linkedTask && _actionItemId == null) return;
 
     setState(() => _saving = true);
-    final WeeklyRoutineRepository repo =
-        context.read<WeeklyRoutineRepository>();
+    final WeeklyRoutineRepository repo = context
+        .read<WeeklyRoutineRepository>();
     final WeeklyRoutine? existing = widget.routine;
 
     if (existing != null) {
@@ -705,22 +698,13 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
   Future<void> _delete() async {
     final WeeklyRoutine? routine = widget.routine;
     if (routine == null) return;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
       builder: (BuildContext dialogContext) {
         final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('删除固定项？', style: dialogContext.texts.titleLarge),
-          content: Text(
-            '将同时移除它尚未完成的生成块；已完成的记录会保留。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
-          ),
+        return AppSheetContent(
+          title: '删除固定项？',
+          heightFactor: null,
           actions: <Widget>[
             AppGhostButton(
               label: '取消',
@@ -731,6 +715,12 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
               onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
+          child: Text(
+            '将同时移除它尚未完成的生成块；已完成的记录会保留。',
+            style: dialogContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
         );
       },
     );
@@ -744,8 +734,9 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final List<ActionItem> actions = context.watch<ActionItemRepository>().all;
-    final List<Capability> capabilities =
-        context.watch<CapabilityRepository>().all;
+    final List<Capability> capabilities = context
+        .watch<CapabilityRepository>()
+        .all;
     final List<Vision> visions = context.watch<VisionRepository>().all;
 
     String taskLabel = '选择任务';
@@ -759,205 +750,21 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
     }
     final TaskLabelResolver labels = TaskLabelResolver(
       capabilities: <String, Capability>{
-        for (final Capability capability in capabilities) capability.id: capability,
+        for (final Capability capability in capabilities)
+          capability.id: capability,
       },
       visions: <String, Vision>{
         for (final Vision vision in visions) vision.id: vision,
       },
     );
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text(_isEditing ? '编辑固定项' : '新建固定项', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              AppTextField(
-                key: const ValueKey<String>('routine-title'),
-                controller: _title,
-                autofocus: true,
-                hintText: '例如：午饭与午休 / 周二晚项目推进',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('类型', style: context.texts.labelMedium),
-              const SizedBox(height: 5),
-              SegmentBar<RoutineKind>(
-                expand: true,
-                dense: true,
-                options: RoutineKind.values
-                    .map((RoutineKind kind) =>
-                        SegmentOption<RoutineKind>(value: kind, label: kind.label))
-                    .toList(growable: false),
-                value: _kind,
-                onChanged: (RoutineKind kind) => setState(() => _kind = kind),
-              ),
-              if (_kind == RoutineKind.linkedTask) ...<Widget>[
-                const SizedBox(height: AppSpacing.md),
-                Text('关联任务', style: context.texts.labelMedium),
-                const SizedBox(height: 5),
-                PopupMenuButton<String>(
-                  position: PopupMenuPosition.under,
-                  color: palette.surface,
-                  onSelected: (String id) => setState(() => _actionItemId = id),
-                  itemBuilder: (BuildContext menuContext) => actions
-                      .where((ActionItem action) => !action.isCompleted)
-                      .take(40)
-                      .map(
-                        (ActionItem action) => PopupMenuItem<String>(
-                          value: action.id,
-                          height: 40,
-                          child: Text(
-                            action.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: menuContext.texts.bodyMedium,
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: palette.surfaceMuted,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: palette.hairline),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Icon(Icons.link_rounded, size: 14, color: palette.textTertiary),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            taskLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.texts.bodyMedium,
-                          ),
-                        ),
-                        Icon(Icons.expand_more_rounded, size: 16, color: palette.textTertiary),
-                      ],
-                    ),
-                  ),
-                ),
-                if (selectedAction != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      labels.labelOf(selectedAction) ?? '',
-                      style: context.texts.labelSmall,
-                    ),
-                  ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              Text('生效星期', style: context.texts.labelMedium),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: <Widget>[
-                  for (int weekday = 1; weekday <= 7; weekday++)
-                    AppChip(
-                      label: '周${weekdayShortLabels[weekday - 1]}',
-                      dense: true,
-                      filled: _weekday == weekday,
-                      color: palette.accent,
-                      onTap: () => setState(() => _weekday = weekday),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: <Widget>[
-                  Text('开始时间', style: context.texts.labelMedium),
-                  const Spacer(),
-                  AppGhostButton(
-                    label: AppDate.timeLabel(
-                      DateTime(2026, 1, 1, _startMinutes ~/ 60, _startMinutes % 60),
-                    ),
-                    icon: Icons.schedule_rounded,
-                    dense: true,
-                    onPressed: _pickStartTime,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text('时长', style: context.texts.labelMedium),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: <Widget>[
-                  for (final double minutes in _routineDurations)
-                    AppChip(
-                      label: AppDate.durationLabel(minutes.round()),
-                      dense: true,
-                      filled: _duration == minutes.round(),
-                      color: palette.accent,
-                      onTap: () =>
-                          setState(() => _duration = minutes.round()),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('同时复制到（可选）', style: context.texts.labelMedium),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: <Widget>[
-                  for (int weekday = 1; weekday <= 7; weekday++)
-                    if (weekday != _weekday)
-                      AppChip(
-                        label: '周${weekdayShortLabels[weekday - 1]}',
-                        dense: true,
-                        filled: _copyTo.contains(weekday),
-                        color: palette.success,
-                        onTap: () => setState(() {
-                          if (!_copyTo.add(weekday)) _copyTo.remove(weekday);
-                        }),
-                      ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: _isEditing ? '编辑固定项' : '新建固定项',
+      heightFactor: 0.72,
+      maxWidth: 520,
       actions: <Widget>[
         if (_isEditing)
-          AppGhostButton(
-            label: '删除',
-            tone: palette.danger,
-            onPressed: _delete,
-          ),
+          AppGhostButton(label: '删除', tone: palette.danger, onPressed: _delete),
         AppGhostButton(
           label: '取消',
           onPressed: () => Navigator.of(context).pop(),
@@ -967,6 +774,172 @@ class _RoutineEditorDialogState extends State<_RoutineEditorDialog> {
           onPressed: _saving ? null : _save,
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          AppTextField(
+            key: const ValueKey<String>('routine-title'),
+            controller: _title,
+            autofocus: true,
+            hintText: '例如：午饭与午休 / 周二晚项目推进',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text('类型', style: context.texts.labelMedium),
+          const SizedBox(height: 5),
+          SegmentBar<RoutineKind>(
+            expand: true,
+            dense: true,
+            options: RoutineKind.values
+                .map(
+                  (RoutineKind kind) => SegmentOption<RoutineKind>(
+                    value: kind,
+                    label: kind.label,
+                  ),
+                )
+                .toList(growable: false),
+            value: _kind,
+            onChanged: (RoutineKind kind) => setState(() => _kind = kind),
+          ),
+          if (_kind == RoutineKind.linkedTask) ...<Widget>[
+            const SizedBox(height: AppSpacing.md),
+            Text('关联任务', style: context.texts.labelMedium),
+            const SizedBox(height: 5),
+            PopupMenuButton<String>(
+              position: PopupMenuPosition.under,
+              color: palette.surface,
+              onSelected: (String id) => setState(() => _actionItemId = id),
+              itemBuilder: (BuildContext menuContext) => actions
+                  .where((ActionItem action) => !action.isCompleted)
+                  .take(40)
+                  .map(
+                    (ActionItem action) => PopupMenuItem<String>(
+                      value: action.id,
+                      height: 40,
+                      child: Text(
+                        action.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: menuContext.texts.bodyMedium,
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: palette.surfaceMuted,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: palette.hairline),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.link_rounded,
+                      size: 14,
+                      color: palette.textTertiary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        taskLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.texts.bodyMedium,
+                      ),
+                    ),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 16,
+                      color: palette.textTertiary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (selectedAction != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  labels.labelOf(selectedAction) ?? '',
+                  style: context.texts.labelSmall,
+                ),
+              ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Text('生效星期', style: context.texts.labelMedium),
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              for (int weekday = 1; weekday <= 7; weekday++)
+                AppChip(
+                  label: '周${weekdayShortLabels[weekday - 1]}',
+                  dense: true,
+                  filled: _weekday == weekday,
+                  color: palette.accent,
+                  onTap: () => setState(() => _weekday = weekday),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: <Widget>[
+              Text('开始时间', style: context.texts.labelMedium),
+              const Spacer(),
+              AppGhostButton(
+                label: AppDate.timeLabel(
+                  DateTime(2026, 1, 1, _startMinutes ~/ 60, _startMinutes % 60),
+                ),
+                icon: Icons.schedule_rounded,
+                dense: true,
+                onPressed: _pickStartTime,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('时长', style: context.texts.labelMedium),
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              for (final double minutes in _routineDurations)
+                AppChip(
+                  label: AppDate.durationLabel(minutes.round()),
+                  dense: true,
+                  filled: _duration == minutes.round(),
+                  color: palette.accent,
+                  onTap: () => setState(() => _duration = minutes.round()),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text('同时复制到（可选）', style: context.texts.labelMedium),
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              for (int weekday = 1; weekday <= 7; weekday++)
+                if (weekday != _weekday)
+                  AppChip(
+                    label: '周${weekdayShortLabels[weekday - 1]}',
+                    dense: true,
+                    filled: _copyTo.contains(weekday),
+                    color: palette.success,
+                    onTap: () => setState(() {
+                      if (!_copyTo.add(weekday)) _copyTo.remove(weekday);
+                    }),
+                  ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

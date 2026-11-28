@@ -58,6 +58,7 @@ class AppSheetContent extends StatelessWidget {
   const AppSheetContent({
     super.key,
     required this.title,
+    this.subtitle,
     required this.child,
     this.actions = const <Widget>[],
     this.heightFactor = 0.68,
@@ -69,6 +70,7 @@ class AppSheetContent extends StatelessWidget {
   });
 
   final String title;
+  final String? subtitle;
   final Widget child;
   final List<Widget> actions;
 
@@ -126,15 +128,25 @@ class AppSheetContent extends StatelessWidget {
             AppSpacing.sm,
             0,
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(child: Text(title, style: context.texts.titleLarge)),
-              ?titleTrailing,
-              if (showClose)
-                AppIconButton(
-                  icon: Icons.close_rounded,
-                  tooltip: '关闭',
-                  onPressed: () => Navigator.of(context).maybePop(),
+              Row(
+                children: <Widget>[
+                  Expanded(child: Text(title, style: context.texts.titleLarge)),
+                  ?titleTrailing,
+                  if (showClose)
+                    AppIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: '关闭',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                ],
+              ),
+              if (subtitle != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 40),
+                  child: Text(subtitle!, style: context.texts.bodySmall),
                 ),
             ],
           ),
