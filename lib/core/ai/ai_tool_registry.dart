@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:uuid/uuid.dart';
+
 import '../database/repositories.dart';
 import '../models/models.dart';
 import 'ai_context_builder.dart';
@@ -92,6 +94,90 @@ class AiToolRegistry {
         'properties': <String, dynamic>{},
       },
     ),
+    AiToolSpec(
+      name: 'create_vision',
+      description: '生成愿景草稿（用户确认后才创建）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'description': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'create_capability',
+      description: '在愿景下生成能力草稿；visionTitle 为空时挂到第一个愿景。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'visionTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'targetLevel': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'add_milestone',
+      description: '为能力添加阶段成果草稿（按能力标题定位）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'capabilityTitle': <String, dynamic>{'type': 'string'},
+          'title': <String, dynamic>{'type': 'string'},
+          'evidence': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['capabilityTitle', 'title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'create_project',
+      description: '生成项目草稿。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'goal': <String, dynamic>{'type': 'string'},
+          'acceptance': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'create_task',
+      description: '生成任务草稿；可按标题挂到能力或项目。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{'type': 'string'},
+          'note': <String, dynamic>{'type': 'string'},
+          'estimatedMinutes': <String, dynamic>{'type': 'integer'},
+          'dueDate': <String, dynamic>{
+            'type': 'string',
+            'description': 'yyyy-MM-dd',
+          },
+          'capabilityTitle': <String, dynamic>{'type': 'string'},
+          'projectTitle': <String, dynamic>{'type': 'string'},
+        },
+        'required': <String>['title'],
+      },
+    ),
+    AiToolSpec(
+      name: 'schedule_task',
+      description: '生成排期草稿（date=yyyy-MM-dd，startTime=HH:mm）。',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'taskTitle': <String, dynamic>{'type': 'string'},
+          'date': <String, dynamic>{'type': 'string'},
+          'startTime': <String, dynamic>{'type': 'string'},
+          'durationMinutes': <String, dynamic>{'type': 'integer'},
+        },
+        'required': <String>['taskTitle', 'date'],
+      },
+    ),
   ];
 
   Future<Map<String, dynamic>> execute(
@@ -172,9 +258,64 @@ class AiToolRegistry {
               )
               .toList(growable: false),
         };
+      case 'create_vision':
+        return _draft(
+          'create_vision',
+          arguments,
+          '创建愿景「${_text(arguments['title'])}」',
+        );
+      case 'create_capability':
+        return _draft(
+          'create_capability',
+          arguments,
+          '创建能力「${_text(arguments['title'])}」',
+        );
+      case 'add_milestone':
+        return _draft(
+          'add_milestone',
+          arguments,
+          '为能力「${_text(arguments['capabilityTitle'])}」添加成果「${_text(arguments['title'])}」',
+        );
+      case 'create_project':
+        return _draft(
+          'create_project',
+          arguments,
+          '创建项目「${_text(arguments['title'])}」',
+        );
+      case 'create_task':
+        return _draft(
+          'create_task',
+          arguments,
+          '创建任务「${_text(arguments['title'])}」',
+        );
+      case 'schedule_task':
+        return _draft(
+          'schedule_task',
+          arguments,
+          '排期「${_text(arguments['taskTitle'])}」到 ${_text(arguments['date'])} ${_text(arguments['startTime'])}',
+        );
       default:
         return <String, dynamic>{'error': '未知工具：$name'};
     }
+  }
+
+  String _text(Object? value) => '${value ?? ''}'.trim();
+
+  Map<String, dynamic> _draft(
+    String tool,
+    Map<String, dynamic> args,
+    String summary,
+  ) {
+    final AiDraft draft = AiDraft(
+      id: const Uuid().v4(),
+      tool: tool,
+      args: args,
+      summary: summary,
+    );
+    return <String, dynamic>{
+      'draft': draft.toJson(),
+      'note': '已生成草稿，等待用户确认；不要重复生成同一项。',
+    };
   }
 
   Map<String, dynamic> _listTasks(Map<String, dynamic> arguments) {

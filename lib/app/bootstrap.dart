@@ -1,5 +1,6 @@
 import '../core/ai/ai_assistant_service.dart';
 import '../core/ai/ai_context_builder.dart';
+import '../core/ai/ai_draft_applier.dart';
 import '../core/ai/ai_key_store.dart';
 import '../core/ai/ai_settings_controller.dart';
 import '../core/ai/ai_tool_registry.dart';
@@ -208,10 +209,18 @@ class AppBootstrap {
       habits: foggHabits,
       reviewLogs: reviewLogs,
     );
+    final AiDraftApplier aiDraftApplier = AiDraftApplier(
+      visions: visions,
+      capabilities: capabilities,
+      actions: actions,
+      projects: projects,
+      schedules: schedules,
+    );
     final AiAssistantService aiAssistant = AiAssistantService(
       settings: aiSettings,
       tools: aiTools,
       provider: aiProvider,
+      applier: aiDraftApplier,
     );
 
     await SeedData.seedIfNeeded(

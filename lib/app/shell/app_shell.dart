@@ -12,6 +12,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_service.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/state/ui_controller.dart';
+import '../../modules/ai_assistant/ai_assistant_page.dart';
 import '../../modules/home/home_page.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
@@ -248,6 +249,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             ? const SizedBox.shrink()
             : current.pageBuilder(context);
 
+        void selectRoute(String route) {
+          if (isDesktop && route == AppRoutes.aiAssistant) {
+            ui.openAi();
+            return;
+          }
+          ui.setRoute(route);
+        }
+
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
@@ -272,7 +281,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     : AppDrawer(
                         modules: modules,
                         currentRoute: ui.currentRoute,
-                        onSelect: ui.setRoute,
+                        onSelect: selectRoute,
                       ),
                 // 手机端扩大抽屉拉出热区：左半屏任意位置向右滑都能拉出菜单（不支持桌面端）。
                 drawerEdgeDragWidth: isDesktop
@@ -293,7 +302,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                               currentRoute: ui.currentRoute,
                               collapsed: ui.navCollapsed,
                               onToggle: ui.toggleNav,
-                              onSelect: ui.setRoute,
+                              onSelect: selectRoute,
                             ),
                           Expanded(
                             child: Column(
@@ -351,6 +360,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         onClose: ui.closeSchedule,
                         child: const SchedulePanel(),
                       ),
+                      SlideOverPanel(
+                        open: ui.aiOpen,
+                        side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                        width: 460,
+                        heightFraction: 0.95,
+                        onClose: ui.closeAi,
+                        child: const AiAssistantPage(),
+                      ),
                       if (_currentReminder != null)
                         Positioned(
                           top:
@@ -381,7 +398,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             ? navItems
                             : <AppModuleDescriptor>[homeDescriptor, ...modules],
                         currentRoute: ui.currentRoute,
-                        onSelect: ui.setRoute,
+                        onSelect: selectRoute,
                       ),
               ),
             ),

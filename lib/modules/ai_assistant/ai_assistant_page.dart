@@ -148,6 +148,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                 ],
               ),
             ),
+          if (service.drafts.isNotEmpty) _draftPanel(context, service, palette),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -177,6 +178,103 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _draftPanel(
+    BuildContext context,
+    AiAssistantService service,
+    AppPalette palette,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.edit_note_rounded, size: 16, color: palette.accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '待确认 · ${service.drafts.length} 项变更',
+                    style: context.texts.titleSmall,
+                  ),
+                ),
+                AppGhostButton(
+                  label: '清空',
+                  dense: true,
+                  onPressed: service.clearDrafts,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            for (final AiDraft draft in service.drafts)
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '• ${draft.summary}',
+                      style: context.texts.bodySmall,
+                    ),
+                  ),
+                  AppIconButton(
+                    icon: Icons.close_rounded,
+                    size: 22,
+                    iconSize: 12,
+                    tooltip: '移除此项',
+                    onPressed: () => service.removeDraft(draft.id),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 6),
+            Row(
+              children: <Widget>[
+                AppPrimaryButton(
+                  label: '执行这些变更',
+                  onPressed: () => _applyDrafts(service),
+                ),
+                if (service.canUndo) ...<Widget>[
+                  const SizedBox(width: AppSpacing.sm),
+                  AppGhostButton(
+                    label: '撤销上次',
+                    onPressed: () => _undo(service),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyDrafts(AiAssistantService service) async {
+    final AiApplyResult result = await service.applyDrafts();
+    if (!mounted) return;
+    final String message = result.ok
+        ? '已执行 ${result.created} 项变更，可点「撤销上次」回滚'
+        : '已执行 ${result.created} 项，${result.errors.length} 项失败：${result.errors.first}';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _undo(AiAssistantService service) async {
+    await service.undoLast();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已撤销最近一次执行'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
       ),
     );
   }

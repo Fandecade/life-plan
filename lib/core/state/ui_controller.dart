@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 ///
 /// 只描述「界面处于什么状态」，不承载业务数据，避免与仓储职责混淆。
 class UiController extends ChangeNotifier {
-  UiController({String initialRoute = '/home'})
-      : _currentRoute = initialRoute;
+  UiController({String initialRoute = '/home'}) : _currentRoute = initialRoute;
 
   String _currentRoute;
   bool _navCollapsed = false;
   String? _detailItemId;
   bool _inboxOpen = false;
   bool _scheduleOpen = false;
+  bool _aiOpen = false;
   DateTime? _focusDate;
   String? _focusBlockId;
   String? _learningTaskId;
@@ -32,6 +32,8 @@ class UiController extends ChangeNotifier {
 
   bool get scheduleOpen => _scheduleOpen;
 
+  bool get aiOpen => _aiOpen;
+
   /// 一次性跳转请求：目标日期与要定位的时间块。
   DateTime? get focusDate => _focusDate;
 
@@ -49,7 +51,7 @@ class UiController extends ChangeNotifier {
   /// 「图谱」的一次性聚焦请求：要定位的任务节点（复盘拆解用）。
   String? get focusTaskId => _focusTaskId;
 
-  bool get hasOverlay => detailOpen || inboxOpen || _scheduleOpen;
+  bool get hasOverlay => detailOpen || inboxOpen || _scheduleOpen || _aiOpen;
 
   void setRoute(String route) {
     if (_currentRoute == route) return;
@@ -57,6 +59,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     _focusDate = null;
     _focusBlockId = null;
     _learningTaskId = null;
@@ -82,6 +85,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = actionItemId;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     notifyListeners();
   }
 
@@ -119,6 +123,24 @@ class UiController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 桌面端右侧 AI 面板。
+  void openAi() {
+    if (_aiOpen && _detailItemId == null && !_inboxOpen && !_scheduleOpen) {
+      return;
+    }
+    _aiOpen = true;
+    _detailItemId = null;
+    _inboxOpen = false;
+    _scheduleOpen = false;
+    notifyListeners();
+  }
+
+  void closeAi() {
+    if (!_aiOpen) return;
+    _aiOpen = false;
+    notifyListeners();
+  }
+
   /// 从「已排班」跳到时间盒指定日期的时间块。
   void jumpToSchedule(DateTime date, String blockId) {
     _focusDate = DateTime(date.year, date.month, date.day);
@@ -143,6 +165,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     _currentRoute = '/output-learning';
     notifyListeners();
   }
@@ -159,6 +182,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     _currentRoute = '/output-learning';
     notifyListeners();
   }
@@ -176,6 +200,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     _focusDate = null;
     _focusBlockId = null;
     _learningTaskId = null;
@@ -197,6 +222,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     _focusDate = null;
     _focusBlockId = null;
     _learningTaskId = null;
@@ -215,6 +241,7 @@ class UiController extends ChangeNotifier {
     _detailItemId = null;
     _inboxOpen = false;
     _scheduleOpen = false;
+    _aiOpen = false;
     notifyListeners();
   }
 }

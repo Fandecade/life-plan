@@ -10,6 +10,50 @@ class AiConfig {
   bool get isReady => baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 }
 
+/// 模型提出的写操作草稿：确认前不落库。
+class AiDraft {
+  const AiDraft({
+    required this.id,
+    required this.tool,
+    required this.args,
+    required this.summary,
+  });
+
+  final String id;
+  final String tool;
+  final Map<String, dynamic> args;
+  final String summary;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'id': id,
+    'tool': tool,
+    'args': args,
+    'summary': summary,
+  };
+
+  static AiDraft? fromJson(Map<String, dynamic> json) {
+    final String tool = '${json['tool'] ?? ''}'.trim();
+    if (tool.isEmpty) return null;
+    return AiDraft(
+      id: '${json['id'] ?? ''}',
+      tool: tool,
+      args:
+          (json['args'] as Map?)?.cast<String, dynamic>() ??
+          <String, dynamic>{},
+      summary: '${json['summary'] ?? tool}',
+    );
+  }
+}
+
+class AiApplyResult {
+  const AiApplyResult({required this.created, required this.errors});
+
+  final int created;
+  final List<String> errors;
+
+  bool get ok => errors.isEmpty;
+}
+
 /// OpenAI function calling 的一次工具调用。
 class AiToolCall {
   const AiToolCall({
