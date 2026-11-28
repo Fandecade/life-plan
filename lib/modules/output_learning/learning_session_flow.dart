@@ -10,6 +10,7 @@ import '../../core/models/models.dart';
 import '../../core/services/learning_mastery.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
@@ -90,8 +91,8 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
 
   Future<void> _saveNow() async {
     if (!mounted) return;
-    final LearningSessionRepository repo =
-        context.read<LearningSessionRepository>();
+    final LearningSessionRepository repo = context
+        .read<LearningSessionRepository>();
     final LearningSession current =
         repo.byId(widget.session.id) ?? widget.session;
     await repo.put(
@@ -178,8 +179,9 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
   }
 
   void _toggleMode() {
-    final LearningMode next =
-        _draft.isQuick ? LearningMode.full : LearningMode.quick;
+    final LearningMode next = _draft.isQuick
+        ? LearningMode.full
+        : LearningMode.quick;
     setState(() {
       _draft = _draft.withMode(next);
       _syncText();
@@ -270,8 +272,8 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
     _saveNow();
     if (!mounted) return;
 
-    final GateDecision? decision = await showDialog<GateDecision>(
-      context: context,
+    final GateDecision? decision = await showAppSheet<GateDecision>(
+      context,
       builder: (BuildContext dialogContext) => _GateDialog(type: _draft.type),
     );
     if (decision == null || !mounted) return;
@@ -299,10 +301,10 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
       _busy = true;
     });
 
-    final LearningSessionRepository sessions =
-        context.read<LearningSessionRepository>();
-    final LearningReviewRepository reviews =
-        context.read<LearningReviewRepository>();
+    final LearningSessionRepository sessions = context
+        .read<LearningSessionRepository>();
+    final LearningReviewRepository reviews = context
+        .read<LearningReviewRepository>();
     final ActionItemRepository actions = context.read<ActionItemRepository>();
 
     final LearningSession latest =
@@ -331,8 +333,9 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
         learningReviewId: review.id,
       );
     }
-    final ActionItemStatus targetStatus =
-        LearningMastery.initialStatusFor(_draft.type);
+    final ActionItemStatus targetStatus = LearningMastery.initialStatusFor(
+      _draft.type,
+    );
     await actions.setStatus(widget.task.id, targetStatus);
 
     if (!mounted) return;
@@ -424,9 +427,11 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    for (int index = 0;
-                        index < _pointControllers.length;
-                        index++)
+                    for (
+                      int index = 0;
+                      index < _pointControllers.length;
+                      index++
+                    )
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: Row(
@@ -455,10 +460,7 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
                         ),
                       ),
                     const SizedBox(height: AppSpacing.lg),
-                    SectionHeader(
-                      title: '卡点速记',
-                      subtitle: '1–3 句即可，供日后主动回忆自测',
-                    ),
+                    SectionHeader(title: '卡点速记', subtitle: '1–3 句即可，供日后主动回忆自测'),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _blocker,
@@ -542,14 +544,19 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          AppChip(label: _draft.type.tag, dense: true, filled: true, color: tone),
+          AppChip(
+            label: _draft.type.tag,
+            dense: true,
+            filled: true,
+            color: tone,
+          ),
           const Spacer(),
           AppChip(
             label: _timing
                 ? _clockLabel(_totalSeconds)
                 : (_totalSeconds > 0
-                    ? '计时 ${_clockLabel(_totalSeconds)}'
-                    : '开始计时'),
+                      ? '计时 ${_clockLabel(_totalSeconds)}'
+                      : '开始计时'),
             dense: true,
             icon: Icons.timer_outlined,
             color: _timing ? context.palette.success : null,
@@ -602,7 +609,10 @@ class _LearningSessionFlowState extends State<LearningSessionFlow> {
             children: <Widget>[
               StatusDot(color: tone, size: 5),
               const SizedBox(width: 6),
-              Text(_draft.activeTemplate.title, style: context.texts.titleSmall),
+              Text(
+                _draft.activeTemplate.title,
+                style: context.texts.titleSmall,
+              ),
             ],
           ),
           const SizedBox(height: 5),
@@ -679,93 +689,63 @@ class _GateDialog extends StatefulWidget {
 }
 
 class _GateDialogState extends State<_GateDialog> {
-
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text('完成前的自检', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 430,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              '我能否不看原资料，独立把核心内容输出出来？',
-              style: context.texts.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _option(
-              context,
-              title: '通过 · 已独立输出',
-              note: widget.type == LearningType.project
-                  ? '归档本次学习；项目式以原型交付为完成标准，任务直接完成'
-                  : '归档本次学习，任务转入「待巩固」，并按 ${intervalsOf(widget.type).join(' / ')} 天生成复习提醒',
-              tone: palette.success,
-              onTap: () => Navigator.of(context).pop(
-                const GateDecision(GateChoice.passed),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _option(
-              context,
-              title: '存在盲区 · 卡壳',
-              note: '记录卡点，生成「24h 回炉补盲」与「费曼简化」待办；本次不归档',
-              tone: palette.warning,
-              onTap: () => Navigator.of(context).pop(
-                const GateDecision(GateChoice.blocked),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _option(
-              context,
-              title: '暂未完成',
-              note: '保留草稿，下次从断点继续，不算失败',
-              tone: palette.textSecondary,
-              onTap: () => Navigator.of(context).pop(
-                const GateDecision(GateChoice.later),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              widget.type == LearningType.project
-                  ? '项目式：原型 + 边界复盘交付即视为完成，复习仅作可选回顾。'
-                  : '说明：通过后先进入「待巩固」，完成核心复习节点并顺畅回忆后才算彻底完成。',
-              style: context.texts.bodySmall,
-            ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: '完成前的自检',
+      heightFactor: null,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('我能否不看原资料，独立把核心内容输出出来？', style: context.texts.titleMedium),
+          const SizedBox(height: AppSpacing.md),
+          _option(
+            context,
+            title: '通过 · 已独立输出',
+            note: widget.type == LearningType.project
+                ? '归档本次学习；项目式以原型交付为完成标准，任务直接完成'
+                : '归档本次学习，任务转入「待巩固」，并按 ${intervalsOf(widget.type).join(' / ')} 天生成复习提醒',
+            tone: palette.success,
+            onTap: () =>
+                Navigator.of(context)
+                    .pop(const GateDecision(GateChoice.passed)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _option(
+            context,
+            title: '存在盲区 · 卡壳',
+            note: '记录卡点，生成「24h 回炉补盲」与「费曼简化」待办；本次不归档',
+            tone: palette.warning,
+            onTap: () =>
+                Navigator.of(context)
+                    .pop(const GateDecision(GateChoice.blocked)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _option(
+            context,
+            title: '暂未完成',
+            note: '保留草稿，下次从断点继续，不算失败',
+            tone: palette.textSecondary,
+            onTap: () =>
+                Navigator.of(context).pop(const GateDecision(GateChoice.later)),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            widget.type == LearningType.project
+                ? '项目式：原型 + 边界复盘交付即视为完成，复习仅作可选回顾。'
+                : '说明：通过后先进入「待巩固」，完成核心复习节点并顺畅回忆后才算彻底完成。',
+            style: context.texts.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 
@@ -794,7 +774,10 @@ class _GateDialogState extends State<_GateDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(title, style: context.texts.titleSmall?.copyWith(color: tone)),
+                  Text(
+                    title,
+                    style: context.texts.titleSmall?.copyWith(color: tone),
+                  ),
                   const SizedBox(height: 2),
                   Text(note, style: context.texts.bodySmall),
                 ],

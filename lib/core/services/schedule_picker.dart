@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 
 /// 排期结果：只定日期（dateOnly）或具体开始时间。
 class SchedulePickResult {
@@ -32,19 +31,14 @@ Future<SchedulePickResult?> pickScheduleResult(
   bool allowClearDate = false,
 }) async {
   final DateTime initial = initialDate ?? DateTime.now();
-  final _DateChoice? choice = await showDialog<_DateChoice>(
-    context: context,
-    builder: (BuildContext dialogContext) => _ScheduleDateDialog(
-      initial: initial,
-      allowClearDate: allowClearDate,
-    ),
+  final _DateChoice? choice = await showAppSheet<_DateChoice>(
+    context,
+    builder: (BuildContext dialogContext) =>
+        _ScheduleDateDialog(initial: initial, allowClearDate: allowClearDate),
   );
   if (choice == null || !context.mounted) return null;
   if (choice.clearDate) {
-    return SchedulePickResult(
-      start: DateTime.now(),
-      clearDate: true,
-    );
+    return SchedulePickResult(start: DateTime.now(), clearDate: true);
   }
   if (choice.dateOnly) {
     return SchedulePickResult(
@@ -120,10 +114,8 @@ class _ScheduleDateDialogState extends State<_ScheduleDateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
     final double availableWidth = MediaQuery.sizeOf(context).width - 96;
     final bool narrow = availableWidth < 480;
-    final double width = math.max(320, math.min(560, availableWidth));
 
     final Widget calendar = SizedBox(
       height: 340,
@@ -144,59 +136,14 @@ class _ScheduleDateDialogState extends State<_ScheduleDateDialog> {
           style: context.texts.titleLarge,
         ),
         const SizedBox(height: 4),
-        Text(
-          '可以选择具体开始时间，也可以只安排到这一天。',
-          style: context.texts.bodySmall,
-        ),
+        Text('可以选择具体开始时间，也可以只安排到这一天。', style: context.texts.bodySmall),
       ],
     );
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text('排入时间盒', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: width,
-        child: narrow
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  summary,
-                  const SizedBox(height: AppSpacing.sm),
-                  calendar,
-                ],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  SizedBox(width: 140, child: summary),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: calendar),
-                ],
-              ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: '排入时间盒',
+      heightFactor: 0.8,
+      maxWidth: 620,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
@@ -205,27 +152,40 @@ class _ScheduleDateDialogState extends State<_ScheduleDateDialog> {
         if (widget.allowClearDate)
           AppGhostButton(
             label: '清除日期',
-            onPressed: () => Navigator.of(context).pop(
-              _DateChoice(
-                date: _date,
-                dateOnly: true,
-                clearDate: true,
-              ),
-            ),
+            onPressed: () => Navigator.of(context)
+                .pop(_DateChoice(date: _date, dateOnly: true, clearDate: true)),
           ),
         AppGhostButton(
           label: '只安排到这一天',
-          onPressed: () => Navigator.of(context).pop(
-            _DateChoice(date: _date, dateOnly: true),
-          ),
+          onPressed: () =>
+              Navigator.of(context)
+                  .pop(_DateChoice(date: _date, dateOnly: true)),
         ),
         AppPrimaryButton(
           label: '下一步',
-          onPressed: () => Navigator.of(context).pop(
-            _DateChoice(date: _date, dateOnly: false),
-          ),
+          onPressed: () =>
+              Navigator.of(context)
+                  .pop(_DateChoice(date: _date, dateOnly: false)),
         ),
       ],
+      child: narrow
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                summary,
+                const SizedBox(height: AppSpacing.sm),
+                calendar,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SizedBox(width: 140, child: summary),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: calendar),
+              ],
+            ),
     );
   }
 }

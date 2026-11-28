@@ -140,8 +140,8 @@ class TaskDraft {
 
 /// 新建任务：标题 + 预计时长。
 Future<TaskDraft?> showTaskDialog(BuildContext context) {
-  return showDialog<TaskDraft>(
-    context: context,
+  return showAppSheet<TaskDraft>(
+    context,
     builder: (BuildContext dialogContext) => const _TaskDialog(),
   );
 }

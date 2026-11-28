@@ -14,6 +14,7 @@ import '../../core/services/review_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -89,8 +90,10 @@ class _ReviewPageState extends State<ReviewPage> {
 
   void _syncFromStore() {
     final ReviewWindow window = _window;
-    final ReviewLog? log =
-        context.read<ReviewLogRepository>().forPeriod(window.type, window.periodKey);
+    final ReviewLog? log = context.read<ReviewLogRepository>().forPeriod(
+      window.type,
+      window.periodKey,
+    );
     _wins.text = log?.winsText ?? '';
     _blockers.text = log?.blockersText ?? '';
     _adjustments.text = log?.adjustmentsText ?? '';
@@ -99,8 +102,9 @@ class _ReviewPageState extends State<ReviewPage> {
     _plan.text = log?.adjustmentPlan ?? '';
     _expected.text = log?.expectedOutcome ?? '';
 
-    final ReviewWindow previous =
-        context.read<ReviewService>().previousWindow(window);
+    final ReviewWindow previous = context.read<ReviewService>().previousWindow(
+      window,
+    );
     final ReviewLog? previousLog = context
         .read<ReviewLogRepository>()
         .forPeriod(previous.type, previous.periodKey);
@@ -128,30 +132,25 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Future<void> _confirmReopen() async {
-    final AppPalette palette = context.palette;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        backgroundColor: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: palette.border),
-        ),
-        title: Text('撤销完成标记？', style: dialogContext.texts.titleLarge),
-        content: Text(
-          '撤销后这份复盘会回到「未复盘」，文本与已处理事项都会保留。',
-          style: dialogContext.texts.bodyMedium,
-        ),
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
+      builder: (BuildContext sheetContext) => AppSheetContent(
+        title: '撤销完成标记？',
+        heightFactor: null,
         actions: <Widget>[
           AppGhostButton(
             label: '保留完成',
-            onPressed: () => Navigator.of(dialogContext).pop(false),
+            onPressed: () => Navigator.of(sheetContext).pop(false),
           ),
           AppPrimaryButton(
             label: '撤销完成',
-            onPressed: () => Navigator.of(dialogContext).pop(true),
+            onPressed: () => Navigator.of(sheetContext).pop(true),
           ),
         ],
+        child: Text(
+          '撤销后这份复盘会回到「未复盘」，文本与已处理事项都会保留。',
+          style: sheetContext.texts.bodyMedium,
+        ),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -162,95 +161,90 @@ class _ReviewPageState extends State<ReviewPage> {
 
   Future<void> _openHistory() async {
     final AppPalette palette = context.palette;
-    final List<ReviewLog> logs = context
-        .read<ReviewLogRepository>()
-        .all
-        .where((ReviewLog log) =>
-            log.isCompleted ||
-            log.winsText.isNotEmpty ||
-            log.blockersText.isNotEmpty ||
-            log.adjustmentsText.isNotEmpty ||
-            log.focusText.isNotEmpty)
-        .toList()
-      ..sort((ReviewLog a, ReviewLog b) => b.updatedAt.compareTo(a.updatedAt));
+    final List<ReviewLog> logs =
+        context
+            .read<ReviewLogRepository>()
+            .all
+            .where(
+              (ReviewLog log) =>
+                  log.isCompleted ||
+                  log.winsText.isNotEmpty ||
+                  log.blockersText.isNotEmpty ||
+                  log.adjustmentsText.isNotEmpty ||
+                  log.focusText.isNotEmpty,
+            )
+            .toList()
+          ..sort(
+            (ReviewLog a, ReviewLog b) => b.updatedAt.compareTo(a.updatedAt),
+          );
 
-    final ReviewLog? picked = await showDialog<ReviewLog>(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        backgroundColor: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: palette.border),
-        ),
-        title: Text('历史复盘', style: dialogContext.texts.titleLarge),
-        content: SizedBox(
-          width: 520,
-          child: logs.isEmpty
-              ? Text('还没有历史复盘。', style: dialogContext.texts.bodySmall)
-              : ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 420),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: <Widget>[
-                      for (final ReviewLog log in logs)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          onTap: () => Navigator.of(dialogContext).pop(log),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 4,
-                            ),
-                            child: Row(
-                              children: <Widget>[
-                                AppChip(
-                                  label: '${log.periodType.label}复盘',
-                                  dense: true,
-                                  color: palette.accent,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        ReviewWindow.of(
-                                          log.periodType,
-                                          _anchorOfLog(log),
-                                        ).label,
-                                        style: dialogContext.texts.bodyMedium,
-                                      ),
-                                      if (log.winsText.isNotEmpty)
-                                        Text(
-                                          _firstSentence(log.winsText, 24),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style:
-                                              dialogContext.texts.labelSmall,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                if (log.isCompleted)
-                                  AppChip(
-                                    label: '已完成',
-                                    dense: true,
-                                    color: palette.success,
-                                  ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  AppDate.monthDayLabel(log.updatedAt),
-                                  style: dialogContext.texts.labelSmall,
-                                ),
-                              ],
-                            ),
-                          ),
+    final ReviewLog? picked = await showAppSheet<ReviewLog>(
+      context,
+      builder: (BuildContext sheetContext) => AppSheetContent(
+        title: '历史复盘',
+        heightFactor: 0.72,
+        maxWidth: 560,
+        scrollable: false,
+        child: logs.isEmpty
+            ? Text('还没有历史复盘。', style: sheetContext.texts.bodySmall)
+            : ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  for (final ReviewLog log in logs)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      onTap: () => Navigator.of(sheetContext).pop(log),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 4,
                         ),
-                    ],
-                  ),
-                ),
-        ),
+                        child: Row(
+                          children: <Widget>[
+                            AppChip(
+                              label: '${log.periodType.label}复盘',
+                              dense: true,
+                              color: palette.accent,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    ReviewWindow.of(
+                                      log.periodType,
+                                      _anchorOfLog(log),
+                                    ).label,
+                                    style: sheetContext.texts.bodyMedium,
+                                  ),
+                                  if (log.winsText.isNotEmpty)
+                                    Text(
+                                      _firstSentence(log.winsText, 24),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: sheetContext.texts.labelSmall,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            if (log.isCompleted)
+                              AppChip(
+                                label: '已完成',
+                                dense: true,
+                                color: palette.success,
+                              ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              AppDate.monthDayLabel(log.updatedAt),
+                              style: sheetContext.texts.labelSmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
     if (picked == null || !mounted) return;
@@ -277,11 +271,11 @@ class _ReviewPageState extends State<ReviewPage> {
       case ReviewPeriodType.weekly:
         final List<String> parts = log.periodKey.split('-W');
         final int year = int.tryParse(parts.first) ?? DateTime.now().year;
-        final int week =
-            parts.length > 1 ? int.tryParse(parts[1]) ?? 1 : 1;
+        final int week = parts.length > 1 ? int.tryParse(parts[1]) ?? 1 : 1;
         final DateTime jan4 = DateTime(year, 1, 4);
-        final DateTime firstMonday =
-            jan4.subtract(Duration(days: jan4.weekday - 1));
+        final DateTime firstMonday = jan4.subtract(
+          Duration(days: jan4.weekday - 1),
+        );
         return firstMonday.add(Duration(days: (week - 1) * 7));
     }
   }
@@ -308,12 +302,13 @@ class _ReviewPageState extends State<ReviewPage> {
       return;
     }
     await context.read<ActionItemRepository>().create(
-          title: '学习模板：${_firstSentence(source, 20)}',
-          executionMode: ExecutionMode.outputLearning,
-          estimatedMinutes: 5,
-          note: '复盘沉淀的学习模板：$source\n'
-              '建议先用 5 分钟微输出验证一次，再固化为长期做法。',
-        );
+      title: '学习模板：${_firstSentence(source, 20)}',
+      executionMode: ExecutionMode.outputLearning,
+      estimatedMinutes: 5,
+      note:
+          '复盘沉淀的学习模板：$source\n'
+          '建议先用 5 分钟微输出验证一次，再固化为长期做法。',
+    );
     if (!mounted) return;
     _toast('已存为学习模板任务（任务池）');
   }
@@ -357,27 +352,32 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final ReviewService service = context.read<ReviewService>();
-    final ReviewLog? log =
-        context.watch<ReviewLogRepository>().forPeriod(_type, _window.periodKey);
+    final ReviewLog? log = context.watch<ReviewLogRepository>().forPeriod(
+      _type,
+      _window.periodKey,
+    );
     // 数据看板随任一模块变化刷新
     context.watch<ActionItemRepository>();
     context.watch<TimeBlockRepository>();
     context.watch<HabitLogRepository>();
-    final List<FoggHabit> activeHabits =
-        context.watch<FoggHabitRepository>().active;
+    final List<FoggHabit> activeHabits = context
+        .watch<FoggHabitRepository>()
+        .active;
     context.watch<LearningReviewRepository>();
     context.watch<LearningSessionRepository>();
 
     final ReviewSnapshot snapshot = service.snapshot(_window);
-    final bool deepPeriod = _type == ReviewPeriodType.monthly ||
-        _type == ReviewPeriodType.yearly;
+    final bool deepPeriod =
+        _type == ReviewPeriodType.monthly || _type == ReviewPeriodType.yearly;
     final List<LearningBlindSpot> spots = _type == ReviewPeriodType.daily
         ? const <LearningBlindSpot>[]
         : service.blindSpots(_window);
-    final List<CapabilityProgress> progress =
-        deepPeriod ? service.capabilityProgress(_window) : const <CapabilityProgress>[];
-    final List<FoggHabit> recipeHabits =
-        deepPeriod ? service.habitsWithRecipeHistory() : const <FoggHabit>[];
+    final List<CapabilityProgress> progress = deepPeriod
+        ? service.capabilityProgress(_window)
+        : const <CapabilityProgress>[];
+    final List<FoggHabit> recipeHabits = deepPeriod
+        ? service.habitsWithRecipeHistory()
+        : const <FoggHabit>[];
     final List<HeatCell> heat = switch (_type) {
       ReviewPeriodType.monthly => service.dailyHeat(_window),
       ReviewPeriodType.yearly => service.monthlyHeat(_window.start.year),
@@ -390,8 +390,7 @@ class _ReviewPageState extends State<ReviewPage> {
         ? service.strategyEffects(_window)
         : const <StrategyEffect>[];
     final List<ReviewItem> live = service.pending(_window, snapshot);
-    final Set<String> liveIds =
-        live.map((ReviewItem item) => item.id).toSet();
+    final Set<String> liveIds = live.map((ReviewItem item) => item.id).toSet();
     final List<ReviewItem> items = <ReviewItem>[
       ...live,
       for (final ReviewItem item in _handledItems.values)
@@ -445,8 +444,13 @@ class _ReviewPageState extends State<ReviewPage> {
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
                   final Widget reflection = _reflectionCard(context, palette);
-                  final Widget pending =
-                      _pendingCard(context, palette, items, openItems, handledIds);
+                  final Widget pending = _pendingCard(
+                    context,
+                    palette,
+                    items,
+                    openItems,
+                    handledIds,
+                  );
                   if (constraints.maxWidth >= 940) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,7 +534,8 @@ class _ReviewPageState extends State<ReviewPage> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: <Widget>[
-                      for (final ReviewPeriodType type in ReviewPeriodType.values)
+                      for (final ReviewPeriodType type
+                          in ReviewPeriodType.values)
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: AppChip(
@@ -590,9 +595,11 @@ class _ReviewPageState extends State<ReviewPage> {
         palette,
         label: '时间投入',
         value: '${snapshot.completedHours.toStringAsFixed(1)}h',
-        detail: '计划 ${snapshot.plannedHours.toStringAsFixed(1)}h · '
+        detail:
+            '计划 ${snapshot.plannedHours.toStringAsFixed(1)}h · '
             '完成率 ${(snapshot.blockRate * 100).round()}%',
-        delta: '较上期 ${hourDelta >= 0 ? '+' : ''}'
+        delta:
+            '较上期 ${hourDelta >= 0 ? '+' : ''}'
             '${hourDelta.toStringAsFixed(1)}h',
         deltaPositive: hourDelta >= 0,
         progress: snapshot.blockRate,
@@ -603,15 +610,16 @@ class _ReviewPageState extends State<ReviewPage> {
         palette,
         label: '任务与学习',
         value: '完成 ${snapshot.completedTasks}',
-        detail: '新增巩固 ${snapshot.consolidatingTasks} · '
+        detail:
+            '新增巩固 ${snapshot.consolidatingTasks} · '
             '独立输出 ${snapshot.outputs}',
         delta: '较上期 ${taskDelta >= 0 ? '+' : ''}$taskDelta 项',
         deltaPositive: taskDelta >= 0,
         progress: snapshot.completedTasks == 0
             ? 0
             : (snapshot.completedTasks /
-                    (snapshot.completedTasks + snapshot.consolidatingTasks))
-                .clamp(0, 1),
+                      (snapshot.completedTasks + snapshot.consolidatingTasks))
+                  .clamp(0, 1),
         tone: palette.success,
       ),
       _metricCard(
@@ -632,7 +640,8 @@ class _ReviewPageState extends State<ReviewPage> {
         palette,
         label: '微习惯节律',
         value: '${snapshot.habitPercent}%',
-        detail: '完成 ${snapshot.habitChecks}/${snapshot.habitTarget} 次 · '
+        detail:
+            '完成 ${snapshot.habitChecks}/${snapshot.habitTarget} 次 · '
             '${snapshot.lowHabits.length} 项节奏偏缓',
         delta: '较上期 ${habitDelta >= 0 ? '+' : ''}$habitDelta 个百分点',
         deltaPositive: habitDelta >= 0,
@@ -720,10 +729,7 @@ class _ReviewPageState extends State<ReviewPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        SectionHeader(
-          title: '能力精力分布',
-          subtitle: '时间花在哪，成长就在哪；点击可跳到规划图谱',
-        ),
+        SectionHeader(title: '能力精力分布', subtitle: '时间花在哪，成长就在哪；点击可跳到规划图谱'),
         const SizedBox(height: 8),
         if (slices.isEmpty || snapshot.capacityMinutes == 0)
           Text('本期还没有排过时间块。', style: context.texts.bodySmall)
@@ -800,14 +806,20 @@ class _ReviewPageState extends State<ReviewPage> {
     List<LearningHighlight> highlights,
     List<StrategyEffect> strategies,
   ) {
-    final bool deep = _type == ReviewPeriodType.monthly ||
-        _type == ReviewPeriodType.yearly;
+    final bool deep =
+        _type == ReviewPeriodType.monthly || _type == ReviewPeriodType.yearly;
     final List<Widget> blocks = <Widget>[
       LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final Widget learning = _learningCard(context, palette, snapshot, spots);
-          final Widget? capability =
-              deep ? _capabilityCard(context, palette, progress) : null;
+          final Widget learning = _learningCard(
+            context,
+            palette,
+            snapshot,
+            spots,
+          );
+          final Widget? capability = deep
+              ? _capabilityCard(context, palette, progress)
+              : null;
           if (capability == null) return learning;
           if (constraints.maxWidth >= 900) {
             return Row(
@@ -876,18 +888,16 @@ class _ReviewPageState extends State<ReviewPage> {
   ) {
     final int due = snapshot.reviewsDue;
     final int done = snapshot.reviewsDone;
-    final String recallRate =
-        due == 0 ? '—' : '${((done / due) * 100).clamp(0, 100).round()}%';
+    final String recallRate = due == 0
+        ? '—'
+        : '${((done / due) * 100).clamp(0, 100).round()}%';
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '学习系统摘要',
-            subtitle: '独立输出、复习节奏与卡壳盲区',
-          ),
+          SectionHeader(title: '学习系统摘要', subtitle: '独立输出、复习节奏与卡壳盲区'),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: <Widget>[
@@ -945,10 +955,7 @@ class _ReviewPageState extends State<ReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '能力推进',
-            subtitle: '彻底完成 / 巩固中 / 本期投入',
-          ),
+          SectionHeader(title: '能力推进', subtitle: '彻底完成 / 巩固中 / 本期投入'),
           const SizedBox(height: AppSpacing.sm),
           if (progress.isEmpty)
             Text('本期没有能力推进数据。', style: context.texts.bodySmall)
@@ -1042,32 +1049,16 @@ class _ReviewPageState extends State<ReviewPage> {
         ? '—'
         : '${((snapshot.reviewsDone / snapshot.reviewsDue) * 100).clamp(0, 100).round()}%';
     final List<(String, String, String)> rows = <(String, String, String)>[
-      (
-        '执行',
-        '${(snapshot.blockRate * 100).round()}%',
-        '计划 vs 实际时长',
-      ),
-      (
-        '学习',
-        '${snapshot.outputs} 次输出 · 按时 $recall',
-        '独立输出与按时回忆',
-      ),
+      ('执行', '${(snapshot.blockRate * 100).round()}%', '计划 vs 实际时长'),
+      ('学习', '${snapshot.outputs} 次输出 · 按时 $recall', '独立输出与按时回忆'),
       (
         '能力',
         '阶段成果 ${snapshot.milestonesAchieved}/${snapshot.milestonesTotal}'
             ' · 证据 ${snapshot.artifactCount}',
         '验收标准与成果证据',
       ),
-      (
-        '习惯',
-        '${snapshot.habitPercent}%',
-        '节律稳定度',
-      ),
-      (
-        '对齐',
-        '${(snapshot.alignmentTopRate * 100).round()}%',
-        '前两项能力时间占比',
-      ),
+      ('习惯', '${snapshot.habitPercent}%', '节律稳定度'),
+      ('对齐', '${(snapshot.alignmentTopRate * 100).round()}%', '前两项能力时间占比'),
     ];
 
     return AppCard(
@@ -1075,10 +1066,7 @@ class _ReviewPageState extends State<ReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '指标分层',
-            subtitle: '五类指标分开看，不合成一个「人生进度」',
-          ),
+          SectionHeader(title: '指标分层', subtitle: '五类指标分开看，不合成一个「人生进度」'),
           const SizedBox(height: AppSpacing.sm),
           for (final (String, String, String) row in rows)
             Padding(
@@ -1125,10 +1113,7 @@ class _ReviewPageState extends State<ReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '认知负荷结构',
-            subtitle: '同等时长，不同脑力消耗；不是所有 2 小时都等价',
-          ),
+          SectionHeader(title: '认知负荷结构', subtitle: '同等时长，不同脑力消耗；不是所有 2 小时都等价'),
           const SizedBox(height: AppSpacing.sm),
           for (final CognitiveLoad load in <CognitiveLoad>[
             CognitiveLoad.high,
@@ -1145,9 +1130,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   ),
                   Expanded(
                     child: ProgressHairline(
-                      value: total == 0
-                          ? 0
-                          : (minutes[load] ?? 0) / total,
+                      value: total == 0 ? 0 : (minutes[load] ?? 0) / total,
                       color: tones[load]!,
                     ),
                   ),
@@ -1257,15 +1240,14 @@ class _ReviewPageState extends State<ReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '配方版本执行率',
-            subtitle: '调整前后对比：v1 → v2 是否真的更容易发生',
-          ),
+          SectionHeader(title: '配方版本执行率', subtitle: '调整前后对比：v1 → v2 是否真的更容易发生'),
           const SizedBox(height: AppSpacing.sm),
           for (final FoggHabit habit in habits.take(3))
             Builder(
               builder: (BuildContext context) {
-                final List<RecipeEffect> effects = service.recipeEffects(habit.id);
+                final List<RecipeEffect> effects = service.recipeEffects(
+                  habit.id,
+                );
                 if (effects.length < 2) return const SizedBox.shrink();
                 final RecipeEffect previous = effects[effects.length - 2];
                 final RecipeEffect latest = effects.last;
@@ -1372,10 +1354,16 @@ class _ReviewPageState extends State<ReviewPage> {
               height: 150,
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
-                  final Size size =
-                      Size(constraints.maxWidth, constraints.maxHeight);
-                  final Rect plot =
-                      Rect.fromLTRB(8, 8, size.width - 8, size.height - 8);
+                  final Size size = Size(
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                  );
+                  final Rect plot = Rect.fromLTRB(
+                    8,
+                    8,
+                    size.width - 8,
+                    size.height - 8,
+                  );
                   return Container(
                     decoration: BoxDecoration(
                       color: palette.surfaceMuted.withValues(alpha: 0.25),
@@ -1454,10 +1442,7 @@ class _ReviewPageState extends State<ReviewPage> {
               ),
             ),
             const SizedBox(width: 3),
-            Text(
-              label,
-              style: context.texts.labelSmall?.copyWith(fontSize: 9),
-            ),
+            Text(label, style: context.texts.labelSmall?.copyWith(fontSize: 9)),
           ],
         ),
       ),
@@ -1474,10 +1459,7 @@ class _ReviewPageState extends State<ReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SectionHeader(
-            title: '年度成果精选',
-            subtitle: '输出式学习完成的作品与摘要，点击查看任务',
-          ),
+          SectionHeader(title: '年度成果精选', subtitle: '输出式学习完成的作品与摘要，点击查看任务'),
           const SizedBox(height: AppSpacing.sm),
           if (highlights.isEmpty)
             Text('今年还没有完成的输出成果。', style: context.texts.bodySmall)
@@ -1485,8 +1467,9 @@ class _ReviewPageState extends State<ReviewPage> {
             for (final LearningHighlight highlight in highlights)
               InkWell(
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-                onTap: () =>
-                    context.read<UiController>().openDetail(highlight.actionItemId),
+                onTap: () => context.read<UiController>().openDetail(
+                  highlight.actionItemId,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   child: Row(
@@ -1640,66 +1623,30 @@ class _ReviewPageState extends State<ReviewPage> {
     switch (type) {
       case ReviewPeriodType.daily:
         return <_Question>[
-          _Question(
-            '今日亮点（1 句）',
-            '今天最值得肯定的一步推进是什么？',
-            _wins,
-          ),
-          _Question(
-            '明日最关键 1–3 件事',
-            '只写必须推动的核心，不要列成待办清单',
-            _focus,
-          ),
+          _Question('今日亮点（1 句）', '今天最值得肯定的一步推进是什么？', _wins),
+          _Question('明日最关键 1–3 件事', '只写必须推动的核心，不要列成待办清单', _focus),
         ];
       case ReviewPeriodType.weekly:
         return <_Question>[
           _Question('本周有效模式（Keep）', '哪套做法最有效？可沉淀为习惯或模板', _wins),
-          _Question(
-            '最大瓶颈 · 元认知自问',
-            '是排期过载、只输入没输出，还是习惯落在行动线下方？',
-            _blockers,
-          ),
+          _Question('最大瓶颈 · 元认知自问', '是排期过载、只输入没输出，还是习惯落在行动线下方？', _blockers),
           _Question('下周结构性调整', '要改的不是「更努力」，而是结构', _adjustments),
-          _Question(
-            'If–Then 预案',
-            '例：如果周三加班，就把 1 小时学习缩成 5 分钟微输出',
-            _ifThen,
-          ),
-          _Question(
-            '本期调整方案（可验证）',
-            '具体改什么：任务颗粒度 / 时间安排 / 学习策略 / 习惯配方',
-            _plan,
-          ),
-          _Question(
-            '预期效果',
-            '希望看到什么变化？例：完成率 +10%、估时误差下降、复习按时率提升',
-            _expected,
-          ),
+          _Question('If–Then 预案', '例：如果周三加班，就把 1 小时学习缩成 5 分钟微输出', _ifThen),
+          _Question('本期调整方案（可验证）', '具体改什么：任务颗粒度 / 时间安排 / 学习策略 / 习惯配方', _plan),
+          _Question('预期效果', '希望看到什么变化？例：完成率 +10%、估时误差下降、复习按时率提升', _expected),
         ];
       case ReviewPeriodType.monthly:
         return <_Question>[
           _Question('能力推进评估', '哪些能力有实质突破？哪些连续两周停滞？', _wins),
           _Question('停滞与偏离', '沉没成本止损：哪些目标已不合时宜？', _blockers),
           _Question('目标减法（Stop Doing）', '决定暂停或归档什么，给核心能力腾空间', _adjustments),
-          _Question(
-            '本期调整方案（可验证）',
-            '具体改什么：能力布局 / 时间结构 / 项目取舍',
-            _plan,
-          ),
-          _Question(
-            '预期效果',
-            '希望看到什么变化？例：核心能力投入占比提升、停滞能力恢复推进',
-            _expected,
-          ),
+          _Question('本期调整方案（可验证）', '具体改什么：能力布局 / 时间结构 / 项目取舍', _plan),
+          _Question('预期效果', '希望看到什么变化？例：核心能力投入占比提升、停滞能力恢复推进', _expected),
         ];
       case ReviewPeriodType.yearly:
         return <_Question>[
           _Question('年度代表作', '今年最拿得出手的成果与作品是什么？', _wins),
-          _Question(
-            '愿景对齐',
-            '我是不是在用低难度的假努力回避核心短板？排期与 3 年愿景一致吗？',
-            _blockers,
-          ),
+          _Question('愿景对齐', '我是不是在用低难度的假努力回避核心短板？排期与 3 年愿景一致吗？', _blockers),
           _Question('下一年度布局', '愿景与核心能力如何调整？', _adjustments),
         ];
     }
@@ -1748,7 +1695,9 @@ class _ReviewPageState extends State<ReviewPage> {
           width: 5,
           height: 5,
           decoration: BoxDecoration(
-            color: handled ? palette.textTertiary : _kindTone(palette, item.kind),
+            color: handled
+                ? palette.textTertiary
+                : _kindTone(palette, item.kind),
             shape: BoxShape.circle,
           ),
         ),
@@ -1814,8 +1763,10 @@ class _ReviewPageState extends State<ReviewPage> {
                 size: 26,
                 tooltip: '更多处理',
                 onPressed: () async {
-                  final String? action =
-                      await _showBlockMenu(anchorContext, palette);
+                  final String? action = await _showBlockMenu(
+                    anchorContext,
+                    palette,
+                  );
                   if (action == null) return;
                   await _runItem(item, action);
                 },
@@ -1839,8 +1790,10 @@ class _ReviewPageState extends State<ReviewPage> {
                 size: 26,
                 tooltip: '更多处理',
                 onPressed: () async {
-                  final String? action =
-                      await _showReviewMenu(anchorContext, palette);
+                  final String? action = await _showReviewMenu(
+                    anchorContext,
+                    palette,
+                  );
                   if (action == null) return;
                   await _runItem(item, action);
                 },
@@ -1864,8 +1817,10 @@ class _ReviewPageState extends State<ReviewPage> {
                 size: 26,
                 tooltip: '更多处理',
                 onPressed: () async {
-                  final String? action =
-                      await _showPlanMenu(anchorContext, palette);
+                  final String? action = await _showPlanMenu(
+                    anchorContext,
+                    palette,
+                  );
                   if (action == null) return;
                   await _runItem(item, action);
                 },
@@ -1931,8 +1886,11 @@ class _ReviewPageState extends State<ReviewPage> {
         size: 26,
         tooltip: label,
         onPressed: () async {
-          final String? action =
-              await _showSkipMenu(anchorContext, palette, label: label);
+          final String? action = await _showSkipMenu(
+            anchorContext,
+            palette,
+            label: label,
+          );
           if (action == null) return;
           await _runItem(item, action);
         },
@@ -2129,9 +2087,10 @@ class _ReviewPageState extends State<ReviewPage> {
   Future<void> _runItem(ReviewItem item, String action) async {
     final ReviewService service = context.read<ReviewService>();
     final TimeBlockRepository blockRepo = context.read<TimeBlockRepository>();
-    final ActionItemRepository actionRepo = context.read<ActionItemRepository>();
-    final LearningReviewRepository reviewRepo =
-        context.read<LearningReviewRepository>();
+    final ActionItemRepository actionRepo = context
+        .read<ActionItemRepository>();
+    final LearningReviewRepository reviewRepo = context
+        .read<LearningReviewRepository>();
     final UiController ui = context.read<UiController>();
 
     if (action == 'rootcause') {
@@ -2142,8 +2101,10 @@ class _ReviewPageState extends State<ReviewPage> {
     if (action == 'habit') {
       final FoggHabit? habit = item.habit;
       if (habit == null) return;
-      final HabitRecipeVersion? version =
-          await showHabitActionLineDialog(context, habit: habit);
+      final HabitRecipeVersion? version = await showHabitActionLineDialog(
+        context,
+        habit: habit,
+      );
       if (!mounted) return;
       if (version != null) {
         await service.markHandled(_window, item.id);
@@ -2177,11 +2138,7 @@ class _ReviewPageState extends State<ReviewPage> {
         if (picked == null) return;
         final DateTime original = block.startAt;
         final int originalMinutes = block.plannedMinutes;
-        await service.moveBlockTo(
-          block,
-          picked.start,
-          minutes: picked.minutes,
-        );
+        await service.moveBlockTo(block, picked.start, minutes: picked.minutes);
         restore = () async {
           final TimeBlock? current = blockRepo.byId(block.id);
           if (current != null) {
@@ -2197,8 +2154,9 @@ class _ReviewPageState extends State<ReviewPage> {
         final DateTime? originalPlanned = task.scheduledDate;
         final ReviewScheduleResult? picked = await showReviewScheduleDialog(
           context,
-          initial: (originalPlanned ?? AppDate.startOfDay(DateTime.now()))
-              .add(const Duration(hours: 9)),
+          initial: (originalPlanned ?? AppDate.startOfDay(DateTime.now())).add(
+            const Duration(hours: 9),
+          ),
           initialMinutes: task.estimatedMinutes ?? 30,
           title: '安排待办',
           hint: '可直接选具体时段生成时间块，也可只定日期继续留在待办里',
@@ -2274,9 +2232,8 @@ class _ReviewPageState extends State<ReviewPage> {
         final DateTime originalDue = review.dueDate;
         final DateTime defaultStart = originalDue.isAfter(DateTime.now())
             ? originalDue
-            : AppDate.startOfDay(
-                DateTime.now().add(const Duration(days: 1)),
-              ).add(const Duration(hours: 20));
+            : AppDate.startOfDay(DateTime.now().add(const Duration(days: 1)))
+                  .add(const Duration(hours: 20));
         final ReviewScheduleResult? picked = await showReviewScheduleDialog(
           context,
           initial: defaultStart,
@@ -2367,57 +2324,51 @@ class _ReviewPageState extends State<ReviewPage> {
     ];
     final AppPalette palette = context.palette;
     String? selected;
-    final String? cause = await showDialog<String>(
-      context: context,
-      builder: (BuildContext dialogContext) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setLocal) => AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('这件事为什么没推进？', style: context.texts.titleLarge),
-          content: SizedBox(
-            width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '先判断原因，再选择对应调整方式，而不是一律重排时间。',
-                  style: context.texts.bodySmall,
+    final String? cause = await showAppSheet<String>(
+      context,
+      builder: (BuildContext sheetContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setLocal) =>
+            AppSheetContent(
+              title: '这件事为什么没推进？',
+              heightFactor: null,
+              actions: <Widget>[
+                AppGhostButton(
+                  label: '取消',
+                  onPressed: () => Navigator.of(sheetContext).pop(),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    for (final String item in causes)
-                      AppChip(
-                        label: item,
-                        dense: true,
-                        filled: selected == item,
-                        color: palette.accent,
-                        onTap: () => setLocal(() => selected = item),
-                      ),
-                  ],
+                AppPrimaryButton(
+                  label: '按此调整',
+                  onPressed: selected == null
+                      ? null
+                      : () => Navigator.of(sheetContext).pop(selected),
                 ),
               ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '先判断原因，再选择对应调整方式，而不是一律重排时间。',
+                    style: context.texts.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: <Widget>[
+                      for (final String item in causes)
+                        AppChip(
+                          label: item,
+                          dense: true,
+                          filled: selected == item,
+                          color: palette.accent,
+                          onTap: () => setLocal(() => selected = item),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: <Widget>[
-            AppGhostButton(
-              label: '取消',
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            AppPrimaryButton(
-              label: '按此调整',
-              onPressed: selected == null
-                  ? null
-                  : () => Navigator.of(dialogContext).pop(selected),
-            ),
-          ],
-        ),
       ),
     );
     if (cause == null || !mounted) return;
@@ -2446,7 +2397,9 @@ class _ReviewPageState extends State<ReviewPage> {
         return item.block != null ? 'cancel' : 'skip';
       case '估时不准':
         if (item.block != null) return 'scheduleBlock';
-        return item.kind == ReviewItemKind.plannedTodo ? 'scheduleTodo' : 'skip';
+        return item.kind == ReviewItemKind.plannedTodo
+            ? 'scheduleTodo'
+            : 'skip';
     }
     return 'skip';
   }
@@ -2457,90 +2410,80 @@ class _ReviewPageState extends State<ReviewPage> {
     int perDay = 2;
     int hour = 20;
 
-    return showDialog<({int days, int perDay, int hour})>(
-      context: context,
-      builder: (BuildContext dialogContext) => StatefulBuilder(
+    return showAppSheet<({int days, int perDay, int hour})>(
+      context,
+      builder: (BuildContext sheetContext) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setLocal) {
-          return AlertDialog(
-            backgroundColor: palette.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              side: BorderSide(color: palette.border),
-            ),
-            title: Text('分散复习负载', style: context.texts.titleLarge),
-            content: SizedBox(
-              width: 420,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('分散天数', style: context.texts.labelSmall),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    children: <Widget>[
-                      for (final int value in <int>[2, 3, 5, 7])
-                        AppChip(
-                          label: '$value 天',
-                          dense: true,
-                          filled: value == days,
-                          color: palette.accent,
-                          onTap: () => setLocal(() => days = value),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('每天最多', style: context.texts.labelSmall),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    children: <Widget>[
-                      for (final int value in <int>[1, 2, 3])
-                        AppChip(
-                          label: '$value 条',
-                          dense: true,
-                          filled: value == perDay,
-                          color: palette.accent,
-                          onTap: () => setLocal(() => perDay = value),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('安排在', style: context.texts.labelSmall),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    children: <Widget>[
-                      for (final int value in <int>[19, 20, 21, 22])
-                        AppChip(
-                          label: '${AppDate.two(value)}:00',
-                          dense: true,
-                          filled: value == hour,
-                          color: palette.accent,
-                          onTap: () => setLocal(() => hour = value),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    '这些只是默认值，之后仍可在时间盒里逐条调整。',
-                    style: context.texts.labelSmall,
-                  ),
-                ],
-              ),
-            ),
+          return AppSheetContent(
+            title: '分散复习负载',
+            heightFactor: null,
             actions: <Widget>[
               AppGhostButton(
                 label: '取消',
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () => Navigator.of(sheetContext).pop(),
               ),
               AppPrimaryButton(
                 label: '确认分散',
-                onPressed: () => Navigator.of(dialogContext).pop(
-                  (days: days, perDay: perDay, hour: hour),
-                ),
+                onPressed: () =>
+                    Navigator.of(sheetContext)
+                        .pop((days: days, perDay: perDay, hour: hour)),
               ),
             ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('分散天数', style: context.texts.labelSmall),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: <Widget>[
+                    for (final int value in <int>[2, 3, 5, 7])
+                      AppChip(
+                        label: '$value 天',
+                        dense: true,
+                        filled: value == days,
+                        color: palette.accent,
+                        onTap: () => setLocal(() => days = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('每天最多', style: context.texts.labelSmall),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: <Widget>[
+                    for (final int value in <int>[1, 2, 3])
+                      AppChip(
+                        label: '$value 条',
+                        dense: true,
+                        filled: value == perDay,
+                        color: palette.accent,
+                        onTap: () => setLocal(() => perDay = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('安排在', style: context.texts.labelSmall),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: <Widget>[
+                    for (final int value in <int>[19, 20, 21, 22])
+                      AppChip(
+                        label: '${AppDate.two(value)}:00',
+                        dense: true,
+                        filled: value == hour,
+                        color: palette.accent,
+                        onTap: () => setLocal(() => hour = value),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text('这些只是默认值，之后仍可在时间盒里逐条调整。', style: context.texts.labelSmall),
+              ],
+            ),
           );
         },
       ),
@@ -2551,8 +2494,8 @@ class _ReviewPageState extends State<ReviewPage> {
     final ReviewLog? previous = _previousLog;
     if (previous == null) return;
     await context.read<ReviewLogRepository>().save(
-          previous.copyWith(actualOutcome: _actual.text),
-        );
+      previous.copyWith(actualOutcome: _actual.text),
+    );
     if (!mounted) return;
     _toast('已记录上期调整的实际效果');
   }

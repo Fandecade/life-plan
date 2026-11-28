@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
@@ -36,10 +37,10 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     final AppPalette palette = context.palette;
     final UiController ui = context.watch<UiController>();
     final List<ActionItem> actions = context.watch<ActionItemRepository>().all;
-    final LearningSessionRepository sessions =
-        context.watch<LearningSessionRepository>();
-    final LearningReviewRepository reviews =
-        context.watch<LearningReviewRepository>();
+    final LearningSessionRepository sessions = context
+        .watch<LearningSessionRepository>();
+    final LearningReviewRepository reviews = context
+        .watch<LearningReviewRepository>();
 
     final String? pendingLearning = ui.learningTaskId;
     if (pendingLearning != null) {
@@ -60,8 +61,9 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
 
     if (_activeReviewId != null) {
       final LearningReview? review = reviews.byId(_activeReviewId);
-      final ActionItem? task =
-          review == null ? null : _findTask(actions, review.actionItemId);
+      final ActionItem? task = review == null
+          ? null
+          : _findTask(actions, review.actionItemId);
       if (review != null && task != null) {
         return LearningReviewFlow(
           key: ValueKey<String>('review-${review.id}'),
@@ -91,14 +93,18 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     }
 
     final List<ActionItem> learningTasks = actions
-        .where((ActionItem item) =>
-            item.executionMode == ExecutionMode.outputLearning)
+        .where(
+          (ActionItem item) =>
+              item.executionMode == ExecutionMode.outputLearning,
+        )
         .toList(growable: false);
     final List<ActionItem> todayTasks = learningTasks
-        .where((ActionItem item) =>
-            !item.isCompleted &&
-            item.status != ActionItemStatus.consolidating &&
-            sessions.inProgressFor(item.id) == null)
+        .where(
+          (ActionItem item) =>
+              !item.isCompleted &&
+              item.status != ActionItemStatus.consolidating &&
+              sessions.inProgressFor(item.id) == null,
+        )
         .toList(growable: false);
     final List<LearningSession> draftSessions = sessions.inProgress;
     final List<LearningReview> dueReviews = reviews.dueBy(DateTime.now());
@@ -124,14 +130,27 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
               AppSpacing.xxl,
             ),
             children: switch (_filter) {
-              LearningFilter.today =>
-                _todayWidgets(context, todayTasks, sessions),
-              LearningFilter.reviews =>
-                _reviewWidgets(context, dueReviews, sessions, actions),
-              LearningFilter.drafts =>
-                _draftWidgets(context, draftSessions, actions),
-              LearningFilter.archive =>
-                _archiveWidgets(context, archiveSessions, actions),
+              LearningFilter.today => _todayWidgets(
+                context,
+                todayTasks,
+                sessions,
+              ),
+              LearningFilter.reviews => _reviewWidgets(
+                context,
+                dueReviews,
+                sessions,
+                actions,
+              ),
+              LearningFilter.drafts => _draftWidgets(
+                context,
+                draftSessions,
+                actions,
+              ),
+              LearningFilter.archive => _archiveWidgets(
+                context,
+                archiveSessions,
+                actions,
+              ),
             },
           ),
         ),
@@ -272,8 +291,10 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     for (final LearningSession session in draftSessions) {
       final ActionItem? task = _findTask(actions, session.actionItemId);
       if (task == null) continue;
-      final LearningDraft draft =
-          LearningDraft.decode(session.stepsDataJson, session.learningType);
+      final LearningDraft draft = LearningDraft.decode(
+        session.stepsDataJson,
+        session.learningType,
+      );
       widgets.add(
         GestureDetector(
           onSecondaryTapUp: (TapUpDetails details) =>
@@ -314,8 +335,10 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     for (final LearningSession session in archiveSessions) {
       final ActionItem? task = _findTask(actions, session.actionItemId);
       if (task == null) continue;
-      final LearningDraft draft =
-          LearningDraft.decode(session.stepsDataJson, session.learningType);
+      final LearningDraft draft = LearningDraft.decode(
+        session.stepsDataJson,
+        session.learningType,
+      );
       final DateTime date = session.completedAt ?? session.updatedAt;
       widgets.add(
         _taskCard(
@@ -406,8 +429,8 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
   }
 
   Future<void> _startOrContinue(ActionItem task) async {
-    final LearningSessionRepository repo =
-        context.read<LearningSessionRepository>();
+    final LearningSessionRepository repo = context
+        .read<LearningSessionRepository>();
     LearningSession? session = repo.inProgressFor(task.id);
     if (session == null) {
       final LearningType? type = await _pickType();
@@ -419,8 +442,8 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
   }
 
   Future<LearningType?> _pickType() {
-    return showDialog<LearningType>(
-      context: context,
+    return showAppSheet<LearningType>(
+      context,
       builder: (BuildContext dialogContext) => const _TypePickerDialog(),
     );
   }
@@ -430,8 +453,8 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
     ActionItem task,
     LearningDraft draft,
   ) {
-    return showDialog<void>(
-      context: context,
+    return showAppSheet<void>(
+      context,
       builder: (BuildContext dialogContext) => _ArchiveDialog(
         session: session,
         task: task,
@@ -495,32 +518,29 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
   }
 
   Future<void> _cancelSession(LearningSession session, ActionItem task) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette p = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: p.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: p.border),
-          ),
-          title: Text('取消本次学习？', style: dialogContext.texts.titleLarge),
-          content: Text(
-            '已填写的步骤内容会被丢弃，任务回到「今日待学」，不会生成复习提醒。',
-            style:
-                dialogContext.texts.bodyMedium?.copyWith(color: p.textSecondary),
-          ),
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
+      builder: (BuildContext sheetContext) {
+        final AppPalette p = sheetContext.palette;
+        return AppSheetContent(
+          title: '取消本次学习？',
+          heightFactor: null,
           actions: <Widget>[
             AppGhostButton(
               label: '先保留',
-              onPressed: () => Navigator.of(dialogContext).pop(false),
+              onPressed: () => Navigator.of(sheetContext).pop(false),
             ),
             AppPrimaryButton(
               label: '确认取消',
-              onPressed: () => Navigator.of(dialogContext).pop(true),
+              onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
           ],
+          child: Text(
+            '已填写的步骤内容会被丢弃，任务回到「今日待学」，不会生成复习提醒。',
+            style: sheetContext.texts.bodyMedium?.copyWith(
+              color: p.textSecondary,
+            ),
+          ),
         );
       },
     );
@@ -561,10 +581,10 @@ class _OutputLearningPageState extends State<OutputLearningPage> {
 
   /// 清空该任务的学习状态：会话、复习队列与复习时间块一并清理，任务回到进行中。
   Future<void> _restartLearning(ActionItem task) async {
-    final LearningSessionRepository sessions =
-        context.read<LearningSessionRepository>();
-    final LearningReviewRepository reviews =
-        context.read<LearningReviewRepository>();
+    final LearningSessionRepository sessions = context
+        .read<LearningSessionRepository>();
+    final LearningReviewRepository reviews = context
+        .read<LearningReviewRepository>();
     final TimeBlockRepository blocks = context.read<TimeBlockRepository>();
     final ActionItemRepository actions = context.read<ActionItemRepository>();
 
@@ -666,32 +686,22 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final Color tone = LearningVisuals.toneOf(widget.session.learningType);
-    final LearningMethodTemplate template =
-        methodOf(widget.session.learningType);
+    final LearningMethodTemplate template = methodOf(
+      widget.session.learningType,
+    );
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.md,
-        0,
-      ),
-      title: Row(
+    return AppSheetContent(
+      title: '输出成果',
+      titleTrailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text('输出成果', style: context.texts.titleLarge),
-          const SizedBox(width: AppSpacing.sm),
           AppChip(
             label: widget.session.learningType.tag,
             dense: true,
             filled: true,
             color: tone,
           ),
-          const Spacer(),
+          const SizedBox(width: AppSpacing.xs),
           AppGhostButton(
             label: _allExpanded ? '全部收起' : '全部展开',
             dense: true,
@@ -699,65 +709,9 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
           ),
         ],
       ),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 560,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.62,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(widget.task.title, style: context.texts.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  '完成于 ${AppDate.fullDateLabel(widget.session.completedAt ?? widget.session.updatedAt)}',
-                  style: context.texts.bodySmall,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                for (int index = 0;
-                    index < widget.draft.fullSteps.length;
-                    index++)
-                  _section(
-                    context,
-                    sectionId: index,
-                    title: '${index + 1} ${template.stepAt(index).title}',
-                    content: widget.draft.fullSteps[index].text,
-                    tone: tone,
-                  ),
-                _section(
-                  context,
-                  sectionId: _blockerSection,
-                  title: '卡点速记',
-                  content: widget.draft.blocker,
-                  tone: tone,
-                ),
-                _section(
-                  context,
-                  sectionId: _linkSection,
-                  title: '外部成果链接',
-                  content: widget.draft.link,
-                  tone: tone,
-                  selectable: true,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+      heightFactor: 0.82,
+      maxWidth: 620,
+      scrollable: false,
       actions: <Widget>[
         AppGhostButton(
           label: '删除记录',
@@ -784,8 +738,9 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
               SnackBar(
                 content: Text(
                   '已记为能力成果：${artifact.title}',
-                  style: context.texts.bodyMedium
-                      ?.copyWith(color: palette.background),
+                  style: context.texts.bodyMedium?.copyWith(
+                    color: palette.background,
+                  ),
                 ),
                 backgroundColor: palette.textPrimary,
                 behavior: SnackBarBehavior.floating,
@@ -803,6 +758,43 @@ class _ArchiveDialogState extends State<_ArchiveDialog> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(widget.task.title, style: context.texts.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '完成于 ${AppDate.fullDateLabel(widget.session.completedAt ?? widget.session.updatedAt)}',
+              style: context.texts.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            for (int index = 0; index < widget.draft.fullSteps.length; index++)
+              _section(
+                context,
+                sectionId: index,
+                title: '${index + 1} ${template.stepAt(index).title}',
+                content: widget.draft.fullSteps[index].text,
+                tone: tone,
+              ),
+            _section(
+              context,
+              sectionId: _blockerSection,
+              title: '卡点速记',
+              content: widget.draft.blocker,
+              tone: tone,
+            ),
+            _section(
+              context,
+              sectionId: _linkSection,
+              title: '外部成果链接',
+              content: widget.draft.link,
+              tone: tone,
+              selectable: true,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -917,62 +909,27 @@ class _TypePickerDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppPalette palette = context.palette;
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text('选择学习类型', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 460,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.6,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '系统会加载对应的方法论步骤流与复习间隔。',
-                  style: context.texts.bodySmall,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                for (final LearningType type in LearningType.values) ...<Widget>[
-                  _option(context, type),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: '选择学习类型',
+      heightFactor: 0.72,
+      maxWidth: 520,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('系统会加载对应的方法论步骤流与复习间隔。', style: context.texts.bodySmall),
+          const SizedBox(height: AppSpacing.md),
+          for (final LearningType type in LearningType.values) ...<Widget>[
+            _option(context, type),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ],
+      ),
     );
   }
 

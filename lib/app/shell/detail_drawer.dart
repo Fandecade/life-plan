@@ -11,6 +11,7 @@ import '../../core/services/schedule_service.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -39,8 +40,9 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
   @override
   void initState() {
     super.initState();
-    final ActionItem? item =
-        context.read<ActionItemRepository>().byId(widget.actionItemId);
+    final ActionItem? item = context.read<ActionItemRepository>().byId(
+      widget.actionItemId,
+    );
     _titleController = TextEditingController(text: item?.title ?? '');
     _noteController = TextEditingController(text: item?.note ?? '');
     _ifThenController = TextEditingController(text: item?.ifThenText ?? '');
@@ -50,8 +52,9 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
   void didUpdateWidget(covariant ActionItemDetailDrawer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.actionItemId != widget.actionItemId) {
-      final ActionItem? item =
-          context.read<ActionItemRepository>().byId(widget.actionItemId);
+      final ActionItem? item = context.read<ActionItemRepository>().byId(
+        widget.actionItemId,
+      );
       _titleController.text = item?.title ?? '';
       _noteController.text = item?.note ?? '';
       _ifThenController.text = item?.ifThenText ?? '';
@@ -107,12 +110,16 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
       );
     }
 
-    final List<Capability> capabilities = context.watch<CapabilityRepository>().all;
+    final List<Capability> capabilities = context
+        .watch<CapabilityRepository>()
+        .all;
     final List<Project> projects = context.watch<ProjectRepository>().all;
-    final TimeBlock? block =
-        context.watch<TimeBlockRepository>().forActionItem(item.id);
-    final List<AppModuleDescriptor> slots =
-        context.watch<ModuleRegistry>().detailSlotModules;
+    final TimeBlock? block = context.watch<TimeBlockRepository>().forActionItem(
+      item.id,
+    );
+    final List<AppModuleDescriptor> slots = context
+        .watch<ModuleRegistry>()
+        .detailSlotModules;
 
     return Column(
       children: <Widget>[
@@ -158,15 +165,17 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 Wrap(
                   spacing: AppSpacing.xs + 2,
                   runSpacing: AppSpacing.xs + 2,
-                  children: ActionItemStatus.values.map((ActionItemStatus status) {
-                    final bool selected = item.status == status;
-                    return AppChip(
-                      label: status.label,
-                      filled: selected,
-                      color: _statusColor(status, palette),
-                      onTap: () => repo.setStatus(item.id, status),
-                    );
-                  }).toList(growable: false),
+                  children: ActionItemStatus.values
+                      .map((ActionItemStatus status) {
+                        final bool selected = item.status == status;
+                        return AppChip(
+                          label: status.label,
+                          filled: selected,
+                          color: _statusColor(status, palette),
+                          onTap: () => repo.setStatus(item.id, status),
+                        );
+                      })
+                      .toList(growable: false),
                 ),
               ),
               _section(
@@ -176,8 +185,12 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                   expand: true,
                   dense: true,
                   options: ExecutionMode.values
-                      .map((ExecutionMode mode) =>
-                          SegmentOption<ExecutionMode>(value: mode, label: mode.label))
+                      .map(
+                        (ExecutionMode mode) => SegmentOption<ExecutionMode>(
+                          value: mode,
+                          label: mode.label,
+                        ),
+                      )
                       .toList(growable: false),
                   value: item.executionMode,
                   onChanged: (ExecutionMode mode) =>
@@ -203,8 +216,9 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                       AppChip(
                         label: '清除',
                         dense: true,
-                        onTap: () =>
-                            repo.save(item.copyWith(clearEstimatedMinutes: true)),
+                        onTap: () => repo.save(
+                          item.copyWith(clearEstimatedMinutes: true),
+                        ),
                       ),
                   ],
                 ),
@@ -234,23 +248,14 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                         dense: true,
                         filled: item.projectId == project.id,
                         color: palette.accent,
-                        onTap: () => repo.save(
-                          item.copyWith(projectId: project.id),
-                        ),
+                        onTap: () =>
+                            repo.save(item.copyWith(projectId: project.id)),
                       ),
                   ],
                 ),
               ),
-              _section(
-                context,
-                '时间盒',
-                _scheduleCard(context, item, block),
-              ),
-              _section(
-                context,
-                '截止日',
-                _dueDateCard(context, item),
-              ),
+              _section(context, '时间盒', _scheduleCard(context, item, block)),
+              _section(context, '截止日', _dueDateCard(context, item)),
               _section(
                 context,
                 '备注与动机',
@@ -299,7 +304,9 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                     children: slots
                         .map(
                           (AppModuleDescriptor module) => Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
                             child: module.detailSlotBuilder!(context, item),
                           ),
                         )
@@ -438,14 +445,22 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 style: context.texts.bodyMedium,
               ),
             ),
-            Icon(Icons.expand_more_rounded, size: 16, color: palette.textTertiary),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 16,
+              color: palette.textTertiary,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _scheduleCard(BuildContext context, ActionItem item, TimeBlock? block) {
+  Widget _scheduleCard(
+    BuildContext context,
+    ActionItem item,
+    TimeBlock? block,
+  ) {
     final AppPalette palette = context.palette;
     if (block == null) {
       return AppCard(
@@ -455,12 +470,18 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
         ),
         child: Row(
           children: <Widget>[
-            Icon(Icons.event_busy_outlined, size: 16, color: palette.textTertiary),
+            Icon(
+              Icons.event_busy_outlined,
+              size: 16,
+              color: palette.textTertiary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 '尚未排期',
-                style: context.texts.bodyMedium?.copyWith(color: palette.textSecondary),
+                style: context.texts.bodyMedium?.copyWith(
+                  color: palette.textSecondary,
+                ),
               ),
             ),
             AppGhostButton(
@@ -474,8 +495,10 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
       );
     }
 
-    final int blockCount =
-        context.watch<TimeBlockRepository>().blocksForActionItem(item.id).length;
+    final int blockCount = context
+        .watch<TimeBlockRepository>()
+        .blocksForActionItem(item.id)
+        .length;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -484,7 +507,11 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.event_available_outlined, size: 16, color: palette.accent),
+              Icon(
+                Icons.event_available_outlined,
+                size: 16,
+                color: palette.accent,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -530,7 +557,8 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
                 label: '取消排期',
                 dense: true,
                 tone: palette.danger,
-                onPressed: () => context.read<ScheduleService>().unschedule(item.id),
+                onPressed: () =>
+                    context.read<ScheduleService>().unschedule(item.id),
               ),
             ],
           ),
@@ -542,7 +570,8 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
   Widget _dueDateCard(BuildContext context, ActionItem item) {
     final AppPalette palette = context.palette;
     final DateTime? due = item.dueDate;
-    final bool overdue = due != null &&
+    final bool overdue =
+        due != null &&
         !item.isCompleted &&
         AppDate.startOfDay(due).isBefore(AppDate.startOfDay(DateTime.now()));
 
@@ -605,24 +634,21 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
     );
     if (picked == null || !mounted) return;
     await context.read<ActionItemRepository>().save(
-          item.copyWith(dueDate: picked),
-        );
+      item.copyWith(dueDate: picked),
+    );
     if (!mounted) return;
     _toast('截止日已设为 ${AppDate.monthDayLabel(picked)}');
   }
 
   Future<void> _clearDueDate(ActionItem item) async {
     await context.read<ActionItemRepository>().save(
-          item.copyWith(clearDueDate: true),
-        );
+      item.copyWith(clearDueDate: true),
+    );
     if (!mounted) return;
     _toast('已清除截止日');
   }
 
-  Future<void> _pickSchedule(
-    ActionItem item, {
-    bool append = false,
-  }) async {
+  Future<void> _pickSchedule(ActionItem item, {bool append = false}) async {
     final SchedulePickResult? result = await pickScheduleResult(
       context,
       initialDate: DateTime.now(),
@@ -642,11 +668,11 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
       return;
     }
     await context.read<ScheduleService>().scheduleAction(
-          item,
-          result.start,
-          durationMinutes: item.estimatedMinutes ?? 30,
-          append: append,
-        );
+      item,
+      result.start,
+      durationMinutes: item.estimatedMinutes ?? 30,
+      append: append,
+    );
     if (!mounted) return;
     _toast(
       append
@@ -667,32 +693,29 @@ class _ActionItemDetailDrawerState extends State<ActionItemDetailDrawer> {
   }
 
   Future<void> _confirmDelete(ActionItem item) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('删除这条行动单元？', style: dialogContext.texts.titleLarge),
-          content: Text(
-            '删除采用软删除，数据仍保留在本地以便二期同步，但不会再出现在界面中。',
-            style: dialogContext.texts.bodyMedium
-                ?.copyWith(color: palette.textSecondary),
-          ),
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
+      builder: (BuildContext sheetContext) {
+        final AppPalette palette = sheetContext.palette;
+        return AppSheetContent(
+          title: '删除这条行动单元？',
+          heightFactor: null,
           actions: <Widget>[
             AppGhostButton(
               label: '取消',
-              onPressed: () => Navigator.of(dialogContext).pop(false),
+              onPressed: () => Navigator.of(sheetContext).pop(false),
             ),
             AppPrimaryButton(
               label: '删除',
-              onPressed: () => Navigator.of(dialogContext).pop(true),
+              onPressed: () => Navigator.of(sheetContext).pop(true),
             ),
           ],
+          child: Text(
+            '删除采用软删除，数据仍保留在本地以便二期同步，但不会再出现在界面中。',
+            style: sheetContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
         );
       },
     );

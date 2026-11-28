@@ -8,9 +8,9 @@ import '../../core/database/repositories.dart';
 import '../../core/models/models.dart';
 import '../../core/services/habit_service.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_text_field.dart';
-
 
 /// 打开「配方」流程：行为候选 → 焦点地图 → 5 维降阻 → 锚点与庆祝。
 Future<bool> showHabitRecipeDialog(
@@ -20,8 +20,8 @@ Future<bool> showHabitRecipeDialog(
   String? initialAnchor,
   String? initialTiny,
 }) async {
-  final bool? changed = await showDialog<bool>(
-    context: context,
+  final bool? changed = await showAppSheet<bool>(
+    context,
     builder: (BuildContext dialogContext) => _HabitRecipeDialog(
       habit: habit,
       linkedActionItemId: linkedActionItemId,
@@ -94,18 +94,17 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
     super.dispose();
   }
 
-  FrictionProfile _currentFrictions() => _frictions.copyWith(
-        note: _frictionNote.text.trim(),
-      );
+  FrictionProfile _currentFrictions() =>
+      _frictions.copyWith(note: _frictionNote.text.trim());
 
   Future<void> _addCandidate() async {
     final String title = _candidateInput.text.trim();
     if (title.isEmpty) return;
     await context.read<BehaviorCandidateRepository>().add(
-          title: title,
-          impact: 4,
-          effort: 2,
-        );
+      title: title,
+      impact: 4,
+      effort: 2,
+    );
     _candidateInput.clear();
   }
 
@@ -143,10 +142,7 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
       );
     }
 
-    await service.saveRecipe(
-      target,
-      note: _isEditing ? '更新配方' : '首次创建配方',
-    );
+    await service.saveRecipe(target, note: _isEditing ? '更新配方' : '首次创建配方');
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
@@ -159,7 +155,8 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
     final HabitService service = context.read<HabitService>();
     final FoggHabit? existing =
         widget.habit ?? habits.forActionItem(_actionItemId ?? '');
-    final FoggHabit source = existing ??
+    final FoggHabit source =
+        existing ??
         FoggHabit.create(
           anchorPrompt: _anchor.text.trim(),
           tinyBehavior: _tiny.text.trim(),
@@ -173,9 +170,8 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
     );
     if (!mounted) return;
     setState(() => _advancing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已生成升级版配方，并留存版本记录')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已生成升级版配方，并留存版本记录')));
   }
 
   String _progressivelySmaller(String text) {
@@ -187,8 +183,9 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final List<ActionItem> actions = context.watch<ActionItemRepository>().all;
-    final List<BehaviorCandidate> candidates =
-        context.watch<BehaviorCandidateRepository>().all;
+    final List<BehaviorCandidate> candidates = context
+        .watch<BehaviorCandidateRepository>()
+        .all;
 
     String actionTitle = '不关联任务';
     for (final ActionItem action in actions) {
@@ -198,221 +195,19 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
       }
     }
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Row(
-        children: <Widget>[
-          Text(
-            _isEditing ? '调整配方' : '新建微习惯',
-            style: context.texts.titleLarge,
-          ),
-          const Spacer(),
-          if (_isEditing)
-            AppGhostButton(
+    return AppSheetContent(
+      title: _isEditing ? '调整配方' : '新建微习惯',
+      heightFactor: 0.85,
+      maxWidth: 680,
+      scrollable: false,
+      titleTrailing: _isEditing
+          ? AppGhostButton(
               label: '动作升级',
               icon: Icons.trending_up_rounded,
               dense: true,
               onPressed: _advancing ? null : _advance,
-            ),
-        ],
-      ),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 640,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.68,
-          ),
-          child: SingleChildScrollView(
-            physics: _mapDragging
-                ? const NeverScrollableScrollPhysics()
-                : null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _label(context, '锚点场景（首选提示）'),
-                AppTextField(
-                  key: const ValueKey<String>('habit-anchor'),
-                  controller: _anchor,
-                  hintText: '例如：早上泡好咖啡后 / 晚饭后坐到书桌前',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _label(context, '微行为（15 秒～2 分钟可启动）'),
-                AppTextField(
-                  key: const ValueKey<String>('habit-tiny'),
-                  controller: _tiny,
-                  hintText: '例如：打开文档写 3 行要点',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _label(context, '即时庆祝'),
-                AppTextField(
-                  controller: _celebration,
-                  hintText: '握拳 / 默念短句 / 微笑',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _label(context, '锚点时段'),
-                const SizedBox(height: 5),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    for (final AnchorPeriod period in AnchorPeriod.values)
-                      AppChip(
-                        label: period.label,
-                        dense: true,
-                        filled: _period == period,
-                        color: palette.accent,
-                        onTap: () => setState(() => _period = period),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _label(context, '5 维阻力检查（勾选后先降阻，再谈坚持）'),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    _frictionChip(context, '时间', _frictions.time, (v) {
-                      setState(() => _frictions = _frictions.copyWith(time: v));
-                    }),
-                    _frictionChip(context, '金钱', _frictions.money, (v) {
-                      setState(() => _frictions = _frictions.copyWith(money: v));
-                    }),
-                    _frictionChip(context, '体力', _frictions.energy, (v) {
-                      setState(() => _frictions = _frictions.copyWith(energy: v));
-                    }),
-                    _frictionChip(context, '脑力', _frictions.brain, (v) {
-                      setState(() => _frictions = _frictions.copyWith(brain: v));
-                    }),
-                    _frictionChip(context, '日程习惯', _frictions.routine, (v) {
-                      setState(() => _frictions = _frictions.copyWith(routine: v));
-                    }),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                AppTextField(
-                  controller: _frictionNote,
-                  dense: true,
-                  hintText: '降阻准备：提前把笔记本摊在桌上…',
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _label(context, '行为集群与焦点地图'),
-                const SizedBox(height: 6),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: AppTextField(
-                        controller: _candidateInput,
-                        dense: true,
-                        hintText: '输入候选行为，回车加入',
-                        onSubmitted: (_) => _addCandidate(),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    AppGhostButton(
-                      label: '加入',
-                      icon: Icons.add_rounded,
-                      dense: true,
-                      onPressed: _addCandidate,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                SizedBox(
-                  height: 226,
-                  child: _FocusMap(
-                    candidates: candidates,
-                    onInteracting: (bool active) {
-                      if (_mapDragging == active) return;
-                      setState(() => _mapDragging = active);
-                    },
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '点击节点确认是否放入焦点地图；拖动可调整难度与影响力，左上为「高影响 · 易起步」黄金行为区。',
-                  style: context.texts.labelSmall,
-                ),
-                if (candidates.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: <Widget>[
-                      for (final BehaviorCandidate candidate in candidates)
-                        AppChip(
-                          label: candidate.title,
-                          dense: true,
-                          filled: candidate.isSelected,
-                          color: candidate.isGolden
-                              ? palette.success
-                              : palette.accent,
-                          onTap: () async {
-                            await context
-                                .read<BehaviorCandidateRepository>()
-                                .save(
-                                  candidate.copyWith(
-                                    isSelected: !candidate.isSelected,
-                                  ),
-                                );
-                            if (candidate.isSelected) return;
-                            _tiny.text = candidate.title;
-                          },
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.link_rounded,
-                      size: 14,
-                      color: palette.textTertiary,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        actionTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.texts.bodySmall,
-                      ),
-                    ),
-                    AppGhostButton(
-                      label: '更换',
-                      dense: true,
-                      onPressed: () => _pickAction(actions),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+            )
+          : null,
       actions: <Widget>[
         if (_isEditing)
           AppGhostButton(
@@ -420,8 +215,8 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
             tone: palette.danger,
             onPressed: () async {
               await context.read<FoggHabitRepository>().save(
-                    widget.habit!.copyWith(isActive: false),
-                  );
+                widget.habit!.copyWith(isActive: false),
+              );
               if (!context.mounted) return;
               Navigator.of(context).pop(true);
             },
@@ -435,49 +230,197 @@ class _HabitRecipeDialogState extends State<_HabitRecipeDialog> {
           onPressed: _saving ? null : _save,
         ),
       ],
+      child: SingleChildScrollView(
+        physics: _mapDragging ? const NeverScrollableScrollPhysics() : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            _label(context, '锚点场景（首选提示）'),
+            AppTextField(
+              key: const ValueKey<String>('habit-anchor'),
+              controller: _anchor,
+              hintText: '例如：早上泡好咖啡后 / 晚饭后坐到书桌前',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _label(context, '微行为（15 秒～2 分钟可启动）'),
+            AppTextField(
+              key: const ValueKey<String>('habit-tiny'),
+              controller: _tiny,
+              hintText: '例如：打开文档写 3 行要点',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _label(context, '即时庆祝'),
+            AppTextField(controller: _celebration, hintText: '握拳 / 默念短句 / 微笑'),
+            const SizedBox(height: AppSpacing.md),
+            _label(context, '锚点时段'),
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                for (final AnchorPeriod period in AnchorPeriod.values)
+                  AppChip(
+                    label: period.label,
+                    dense: true,
+                    filled: _period == period,
+                    color: palette.accent,
+                    onTap: () => setState(() => _period = period),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _label(context, '5 维阻力检查（勾选后先降阻，再谈坚持）'),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                _frictionChip(context, '时间', _frictions.time, (v) {
+                  setState(() => _frictions = _frictions.copyWith(time: v));
+                }),
+                _frictionChip(context, '金钱', _frictions.money, (v) {
+                  setState(() => _frictions = _frictions.copyWith(money: v));
+                }),
+                _frictionChip(context, '体力', _frictions.energy, (v) {
+                  setState(() => _frictions = _frictions.copyWith(energy: v));
+                }),
+                _frictionChip(context, '脑力', _frictions.brain, (v) {
+                  setState(() => _frictions = _frictions.copyWith(brain: v));
+                }),
+                _frictionChip(context, '日程习惯', _frictions.routine, (v) {
+                  setState(() => _frictions = _frictions.copyWith(routine: v));
+                }),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppTextField(
+              controller: _frictionNote,
+              dense: true,
+              hintText: '降阻准备：提前把笔记本摊在桌上…',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _label(context, '行为集群与焦点地图'),
+            const SizedBox(height: 6),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: AppTextField(
+                    controller: _candidateInput,
+                    dense: true,
+                    hintText: '输入候选行为，回车加入',
+                    onSubmitted: (_) => _addCandidate(),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                AppGhostButton(
+                  label: '加入',
+                  icon: Icons.add_rounded,
+                  dense: true,
+                  onPressed: _addCandidate,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 226,
+              child: _FocusMap(
+                candidates: candidates,
+                onInteracting: (bool active) {
+                  if (_mapDragging == active) return;
+                  setState(() => _mapDragging = active);
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              '点击节点确认是否放入焦点地图；拖动可调整难度与影响力，左上为「高影响 · 易起步」黄金行为区。',
+              style: context.texts.labelSmall,
+            ),
+            if (candidates.isNotEmpty) ...<Widget>[
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: <Widget>[
+                  for (final BehaviorCandidate candidate in candidates)
+                    AppChip(
+                      label: candidate.title,
+                      dense: true,
+                      filled: candidate.isSelected,
+                      color: candidate.isGolden
+                          ? palette.success
+                          : palette.accent,
+                      onTap: () async {
+                        await context.read<BehaviorCandidateRepository>().save(
+                          candidate.copyWith(isSelected: !candidate.isSelected),
+                        );
+                        if (candidate.isSelected) return;
+                        _tiny.text = candidate.title;
+                      },
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: <Widget>[
+                Icon(Icons.link_rounded, size: 14, color: palette.textTertiary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    actionTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.texts.bodySmall,
+                  ),
+                ),
+                AppGhostButton(
+                  label: '更换',
+                  dense: true,
+                  onPressed: () => _pickAction(actions),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Future<void> _pickAction(List<ActionItem> actions) async {
-    final String? picked = await showDialog<String>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('关联任务（可选）', style: dialogContext.texts.titleLarge),
-          content: SizedBox(
-            width: 420,
-            height: MediaQuery.sizeOf(dialogContext).height * 0.45,
-            child: ListView(
-              children: <Widget>[
-                ListTile(
-                  title: Text('不关联任务', style: dialogContext.texts.bodyMedium),
-                  onTap: () => Navigator.of(dialogContext).pop(''),
-                ),
-                for (final ActionItem action in actions)
-                  ListTile(
-                    title: Text(
-                      action.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: dialogContext.texts.bodyMedium,
-                    ),
-                    onTap: () => Navigator.of(dialogContext).pop(action.id),
-                  ),
-              ],
-            ),
-          ),
+    final String? picked = await showAppSheet<String>(
+      context,
+      builder: (BuildContext sheetContext) {
+        return AppSheetContent(
+          title: '关联任务（可选）',
+          heightFactor: 0.6,
+          maxWidth: 520,
+          scrollable: false,
           actions: <Widget>[
             AppGhostButton(
               label: '取消',
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () => Navigator.of(sheetContext).pop(),
             ),
           ],
+          child: ListView(
+            shrinkWrap: true,
+            children: <Widget>[
+              ListTile(
+                title: Text('不关联任务', style: sheetContext.texts.bodyMedium),
+                onTap: () => Navigator.of(sheetContext).pop(''),
+              ),
+              for (final ActionItem action in actions)
+                ListTile(
+                  title: Text(
+                    action.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: sheetContext.texts.bodyMedium,
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(action.id),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -535,11 +478,11 @@ class _FocusMapState extends State<_FocusMap> {
   Offset _dragDelta = Offset.zero;
 
   Rect _plotRect(Size size) => Rect.fromLTRB(
-        _plotPadding.left,
-        _plotPadding.top,
-        size.width - _plotPadding.right,
-        size.height - _plotPadding.bottom,
-      );
+    _plotPadding.left,
+    _plotPadding.top,
+    size.width - _plotPadding.right,
+    size.height - _plotPadding.bottom,
+  );
 
   /// 按文本实际宽度测量节点尺寸，名字多长卡片就多宽（单字即窄卡）。
   Size _nodeSize(BuildContext context, BehaviorCandidate candidate) {
@@ -580,8 +523,9 @@ class _FocusMapState extends State<_FocusMap> {
 
     final Map<String, Offset> result = <String, Offset>{};
     for (final List<BehaviorCandidate> group in groups.values) {
-      group.sort((BehaviorCandidate a, BehaviorCandidate b) =>
-          a.id.compareTo(b.id));
+      group.sort(
+        (BehaviorCandidate a, BehaviorCandidate b) => a.id.compareTo(b.id),
+      );
       if (group.length == 1) {
         result[group.first.id] = Offset.zero;
         continue;
@@ -596,11 +540,12 @@ class _FocusMapState extends State<_FocusMap> {
       final double span = (group.length - 1) * step;
       final bool fitsVertical =
           base.dy - span / 2 - tallest / 2 >= plot.top &&
-              base.dy + span / 2 + tallest / 2 <= plot.bottom;
+          base.dy + span / 2 + tallest / 2 <= plot.bottom;
       for (int i = 0; i < group.length; i++) {
         final double k = i - (group.length - 1) / 2;
-        result[group[i].id] =
-            fitsVertical ? Offset(0, k * step) : Offset(k * 62, 0);
+        result[group[i].id] = fitsVertical
+            ? Offset(0, k * step)
+            : Offset(k * 62, 0);
       }
     }
     return result;
@@ -619,8 +564,7 @@ class _FocusMapState extends State<_FocusMap> {
             plot.left + candidate.mapX!.clamp(0, 1) * plot.width,
             plot.top + candidate.mapY!.clamp(0, 1) * plot.height,
           )
-        : _slotCenter(candidate, size) +
-            (spread[candidate.id] ?? Offset.zero);
+        : _slotCenter(candidate, size) + (spread[candidate.id] ?? Offset.zero);
     final Offset raw =
         anchor + (_dragId == candidate.id ? _dragDelta : Offset.zero);
     final double minX = plot.left + nodeSize.width / 2;
@@ -635,8 +579,8 @@ class _FocusMapState extends State<_FocusMap> {
 
   Future<void> _toggleSelection(BehaviorCandidate candidate) {
     return context.read<BehaviorCandidateRepository>().save(
-          candidate.copyWith(isSelected: !candidate.isSelected),
-        );
+      candidate.copyWith(isSelected: !candidate.isSelected),
+    );
   }
 
   void _finishDrag(
@@ -658,13 +602,13 @@ class _FocusMapState extends State<_FocusMap> {
     });
 
     context.read<BehaviorCandidateRepository>().save(
-          candidate.copyWith(
-            mapX: mapX,
-            mapY: mapY,
-            effort: effort,
-            impact: impact,
-          ),
-        );
+      candidate.copyWith(
+        mapX: mapX,
+        mapY: mapY,
+        effort: effort,
+        impact: impact,
+      ),
+    );
   }
 
   @override
@@ -822,8 +766,8 @@ class _FocusMapState extends State<_FocusMap> {
                   border: Border.all(
                     color: active
                         ? (candidate.isGolden
-                            ? palette.success
-                            : palette.accent)
+                              ? palette.success
+                              : palette.accent)
                         : palette.border,
                     width: dragging ? 1.4 : 1,
                   ),
