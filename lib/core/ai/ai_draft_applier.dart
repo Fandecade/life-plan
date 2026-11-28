@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/repositories.dart';
@@ -20,7 +21,10 @@ class AiDraftApplier {
     required this.schedules,
     required this.habits,
     required this.reviewLogs,
-  });
+    Box<dynamic>? undoBox,
+  }) : _undoBox = undoBox {
+    _restoreUndo();
+  }
 
   final VisionRepository visions;
   final CapabilityRepository capabilities;
@@ -30,6 +34,7 @@ class AiDraftApplier {
   final ScheduleService schedules;
   final FoggHabitRepository habits;
   final ReviewLogRepository reviewLogs;
+  final Box<dynamic>? _undoBox;
 
   final List<_UndoOp> _undo = <_UndoOp>[];
 
@@ -273,6 +278,7 @@ class AiDraftApplier {
         );
       }
     }
+    await _persistUndo();
     return AiApplyResult(created: created, errors: errors);
   }
 
@@ -312,6 +318,54 @@ class AiDraftApplier {
           }
       }
     }
+    await _persistUndo();
+  }
+
+  static const String _kUndo = 'ai.undo';
+
+  void _restoreUndo() {
+    final Object? raw = _undoBox?.get(_kUndo);
+    if (raw is! String || raw.trim().isEmpty) return;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      for (final Object? item in decoded) {
+        if (item is! Map) continue;
+        final _UndoKind? kind = _kindFromName('${item['kind'] ?? ''}');
+        final String id = '${item['id'] ?? ''}';
+        if (kind == null || id.isEmpty) continue;
+        _undo.add(_UndoOp(kind, id, extra: item['extra'] as String?));
+      }
+    } catch (_) {
+      _undo.clear();
+    }
+  }
+
+  Future<void> _persistUndo() async {
+    final Box<dynamic>? box = _undoBox;
+    if (box == null) return;
+    if (_undo.isEmpty) {
+      await box.delete(_kUndo);
+      return;
+    }
+    await box.put(
+      _kUndo,
+      jsonEncode(<Map<String, dynamic>>[
+        for (final _UndoOp op in _undo)
+          <String, dynamic>{
+            'kind': op.kind.name,
+            'id': op.id,
+            'extra': op.extra,
+          },
+      ]),
+    );
+  }
+
+  _UndoKind? _kindFromName(String name) {
+    for (final _UndoKind kind in _UndoKind.values) {
+      if (kind.name == name) return kind;
+    }
+    return null;
   }
 
   String _appendLine(String base, String extra) {

@@ -187,6 +187,7 @@ class AppBootstrap {
     final AiProvider aiProvider = OpenAiCompatibleProvider();
     final AiSettingsController aiSettings = AiSettingsController(
       box: db.settings,
+      conversations: db.aiConversations,
       keyStore: AiKeyStore(),
       provider: aiProvider,
     );
@@ -218,6 +219,7 @@ class AppBootstrap {
       schedules: schedules,
       habits: foggHabits,
       reviewLogs: reviewLogs,
+      undoBox: db.settings,
     );
     final AiAssistantService aiAssistant = AiAssistantService(
       settings: aiSettings,

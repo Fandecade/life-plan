@@ -7,6 +7,7 @@ import '../../core/ai/ai_assistant_service.dart';
 import '../../core/ai/ai_models.dart';
 import '../../core/ai/ai_settings_controller.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
@@ -62,6 +63,71 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         .push(MaterialPageRoute<void>(builder: (_) => const AiSettingsPage()));
   }
 
+  Future<void> _openConversations() async {
+    final AiSettingsController settings = context.read<AiSettingsController>();
+    final String? action = await showAppSheet<String>(
+      context,
+      builder: (BuildContext sheetContext) => AppSheetContent(
+        title: '会话',
+        heightFactor: 0.62,
+        maxWidth: 560,
+        scrollable: false,
+        actions: <Widget>[
+          AppGhostButton(
+            label: '新建会话',
+            icon: Icons.add_rounded,
+            dense: true,
+            onPressed: () => Navigator.of(sheetContext).pop('__new__'),
+          ),
+        ],
+        child: settings.conversations.isEmpty
+            ? Text('还没有会话，点「新建会话」开始。', style: sheetContext.texts.bodySmall)
+            : ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  for (final AiConversation conversation
+                      in settings.conversations)
+                    ListTile(
+                      title: Text(
+                        conversation.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: sheetContext.texts.bodyMedium,
+                      ),
+                      subtitle: Text(
+                        '${conversation.messages.length} 条消息',
+                        style: sheetContext.texts.labelSmall,
+                      ),
+                      selected:
+                          conversation.id == settings.currentConversation?.id,
+                      onTap: () =>
+                          Navigator.of(sheetContext).pop(conversation.id),
+                      trailing: AppIconButton(
+                        icon: Icons.delete_outline_rounded,
+                        size: 26,
+                        iconSize: 14,
+                        tooltip: '删除会话',
+                        onPressed: () =>
+                            Navigator.of(sheetContext)
+                                .pop('__delete__:${conversation.id}'),
+                      ),
+                    ),
+                ],
+              ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action == '__new__') {
+      await settings.createConversation();
+      return;
+    }
+    if (action.startsWith('__delete__:')) {
+      await settings.deleteConversation(action.substring(11));
+      return;
+    }
+    await settings.selectConversation(action);
+  }
+
   @override
   Widget build(BuildContext context) {
     final AiSettingsController settings = context.watch<AiSettingsController>();
@@ -100,20 +166,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             children: <Widget>[
               Icon(Icons.auto_awesome_rounded, size: 18, color: palette.accent),
               const SizedBox(width: 6),
-              Text(settings.model, style: context.texts.titleSmall),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  settings.currentTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.texts.titleSmall,
+                ),
+              ),
+              AppGhostButton(
+                label: '会话',
+                dense: true,
+                onPressed: _openConversations,
+              ),
+              const SizedBox(width: 4),
               AppGhostButton(
                 label: '设置',
                 dense: true,
                 onPressed: _openSettings,
-              ),
-              const SizedBox(width: 4),
-              AppGhostButton(
-                label: '清空',
-                dense: true,
-                onPressed: () async {
-                  await settings.clearConversation();
-                },
               ),
             ],
           ),

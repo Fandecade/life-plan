@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:uuid/uuid.dart';
+
 /// AI 连接配置（Key 单独存安全存储，不进入这里）。
 class AiConfig {
   const AiConfig({required this.baseUrl, required this.model});
@@ -52,6 +54,69 @@ class AiApplyResult {
   final List<String> errors;
 
   bool get ok => errors.isEmpty;
+}
+
+/// 一段独立的 AI 会话，可切换与删除。
+class AiConversation {
+  const AiConversation({
+    required this.id,
+    required this.title,
+    required this.messages,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String title;
+  final List<AiMessage> messages;
+  final DateTime updatedAt;
+
+  factory AiConversation.create({String title = '新对话'}) {
+    return AiConversation(
+      id: const Uuid().v4(),
+      title: title,
+      messages: const <AiMessage>[],
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'id': id,
+    'title': title,
+    'messages': messages.map((AiMessage item) => item.toJson()).toList(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+
+  static AiConversation? fromJson(Map<String, dynamic> json) {
+    final String id = '${json['id'] ?? ''}'.trim();
+    if (id.isEmpty) return null;
+    final List<dynamic> raw =
+        (json['messages'] as List<dynamic>?) ?? const <dynamic>[];
+    final List<AiMessage> messages = raw
+        .whereType<Map>()
+        .map((Map item) => AiMessage.fromJson(item.cast<String, dynamic>()))
+        .whereType<AiMessage>()
+        .toList(growable: false);
+    return AiConversation(
+      id: id,
+      title: '${json['title'] ?? '对话'}',
+      messages: messages,
+      updatedAt:
+          DateTime.tryParse('${json['updatedAt'] ?? ''}') ?? DateTime.now(),
+    );
+  }
+
+  AiConversation copyWith({
+    String? title,
+    List<AiMessage>? messages,
+    DateTime? updatedAt,
+  }) {
+    return AiConversation(
+      id: id,
+      title: title ?? this.title,
+      messages: messages ?? this.messages,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 /// OpenAI function calling 的一次工具调用。
