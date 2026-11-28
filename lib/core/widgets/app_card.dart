@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_theme.dart';
-import '../../app/theme/ui_style.dart';
 
 /// 卡片：经典版为纯色 + 微边框；新版为磨砂玻璃 + 高光描边 + 大圆角。
 class AppCard extends StatelessWidget {
@@ -32,7 +31,7 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    if (palette.style == AppUiStyle.refresh) {
+    if (context.isModernStyle) {
       return _buildGlass(context, palette);
     }
 
@@ -50,11 +49,7 @@ class AppCard extends StatelessWidget {
         clipBehavior: clip ? Clip.antiAlias : Clip.none,
         child: onTap == null
             ? content
-            : InkWell(
-                onTap: onTap,
-                borderRadius: borderRadius,
-                child: content,
-              ),
+            : InkWell(onTap: onTap, borderRadius: borderRadius, child: content),
       ),
     );
   }
@@ -67,7 +62,8 @@ class AppCard extends StatelessWidget {
 
     Widget body = Container(
       decoration: BoxDecoration(
-        color: background ??
+        color:
+            background ??
             (palette.glassEnabled ? palette.glass : palette.surface),
         borderRadius: borderRadius,
         border: Border.all(color: borderColor ?? palette.glassBorder),
@@ -158,7 +154,7 @@ class AppFeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    if (palette.style != AppUiStyle.refresh) {
+    if (!context.isModernStyle) {
       return AppCard(
         padding: padding,
         child: Column(

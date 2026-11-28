@@ -15,7 +15,7 @@ import '../../core/state/ui_controller.dart';
 import '../../modules/home/home_page.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
-import '../theme/ui_style.dart';
+
 import 'app_drawer.dart';
 import 'desktop_side_nav.dart';
 import 'detail_drawer.dart';
@@ -41,7 +41,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Timer? _bannerTimer;
   final Queue<ReminderEvent> _pendingReminders = Queue<ReminderEvent>();
   ReminderEvent? _currentReminder;
-
 
   @override
   void initState() {
@@ -79,7 +78,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _ensureNotifications() async {
     if (!mounted) return;
-    final NotificationService notifications = context.read<NotificationService>();
+    final NotificationService notifications = context
+        .read<NotificationService>();
     notifications.onIntent = _handleNotificationIntent;
     await notifications.initialize();
     if (!mounted) return;
@@ -195,8 +195,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final List<AppModuleDescriptor> modules = registry.enabled;
     final HomeSettings homeSettings = context.watch<HomeSettings>();
 
-    AppModuleDescriptor? current =
-        ui.currentRoute == AppRoutes.home ? homeDescriptor : null;
+    AppModuleDescriptor? current = ui.currentRoute == AppRoutes.home
+        ? homeDescriptor
+        : null;
     if (current == null) {
       for (final AppModuleDescriptor module in modules) {
         if (module.routeName == ui.currentRoute) {
@@ -224,8 +225,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (module.id == id &&
             module.routeName != AppRoutes.settings &&
             !navItems.any(
-              (AppModuleDescriptor item) =>
-                  item.routeName == module.routeName,
+              (AppModuleDescriptor item) => item.routeName == module.routeName,
             )) {
           navItems.add(module);
           break;
@@ -266,7 +266,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ui.closeOverlays();
               },
               child: Scaffold(
-
                 backgroundColor: palette.background,
                 drawer: isDesktop
                     ? null
@@ -276,111 +275,111 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         onSelect: ui.setRoute,
                       ),
                 // 手机端扩大抽屉拉出热区：左半屏任意位置向右滑都能拉出菜单（不支持桌面端）。
-                drawerEdgeDragWidth:
-                    isDesktop ? null : constraints.maxWidth * 0.5,
+                drawerEdgeDragWidth: isDesktop
+                    ? null
+                    : constraints.maxWidth * 0.5,
                 drawerEnableOpenDragGesture: !isDesktop,
                 body: GlassBackground(
                   child: Stack(
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        if (isDesktop)
-                          DesktopSideNav(
-                            modules: <AppModuleDescriptor>[
-                              homeDescriptor,
-                              ...modules,
-                            ],
-                            currentRoute: ui.currentRoute,
-                            collapsed: ui.navCollapsed,
-                            onToggle: ui.toggleNav,
-                            onSelect: ui.setRoute,
-                          ),
-                        Expanded(
-                          child: Column(
-                            children: <Widget>[
-                              SafeArea(
-                                bottom: false,
-                                child: Builder(
-                                  builder: (BuildContext context) => TopBar(
-                                    title: current?.title ?? '主页',
-                                    isDesktop: isDesktop,
-                                    onTitleTap: isDesktop
-                                        ? null
-                                        : () => Scaffold.of(context)
-                                            .openDrawer(),
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          if (isDesktop)
+                            DesktopSideNav(
+                              modules: <AppModuleDescriptor>[
+                                homeDescriptor,
+                                ...modules,
+                              ],
+                              currentRoute: ui.currentRoute,
+                              collapsed: ui.navCollapsed,
+                              onToggle: ui.toggleNav,
+                              onSelect: ui.setRoute,
+                            ),
+                          Expanded(
+                            child: Column(
+                              children: <Widget>[
+                                SafeArea(
+                                  bottom: false,
+                                  child: Builder(
+                                    builder: (BuildContext context) => TopBar(
+                                      title: current?.title ?? '主页',
+                                      isDesktop: isDesktop,
+                                      onTitleTap: isDesktop
+                                          ? null
+                                          : () =>
+                                                Scaffold.of(context)
+                                                    .openDrawer(),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: KeyedSubtree(
-                                  key: ValueKey<String>(ui.currentRoute),
-                                  child: page,
+                                Expanded(
+                                  child: KeyedSubtree(
+                                    key: ValueKey<String>(ui.currentRoute),
+                                    child: page,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    SlideOverPanel(
-                      open: ui.detailOpen,
-                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                      width: 408,
-                      onClose: ui.closeDetail,
-                      child: detailItemId == null
-                          ? const SizedBox.shrink()
-                          : ActionItemDetailDrawer(
-                              key: ValueKey<String>(detailItemId),
-                              actionItemId: detailItemId,
+                              ],
                             ),
-                    ),
-                    SlideOverPanel(
-                      open: ui.inboxOpen,
-                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                      width: 432,
-                      heightFraction: 0.92,
-                      onClose: ui.closeInbox,
-                      child: const InboxPanel(),
-                    ),
-                    SlideOverPanel(
-                      open: ui.scheduleOpen,
-                      side: isDesktop ? PanelSide.right : PanelSide.bottom,
-                      width: 432,
-                      heightFraction: 0.92,
-                      onClose: ui.closeSchedule,
-                      child: const SchedulePanel(),
-                    ),
-                    if (_currentReminder != null)
-                      Positioned(
-                        top: MediaQuery.paddingOf(context).top +
-                            (isDesktop ? 62 : 56),
-                        right: isDesktop ? 24 : 12,
-                        left: isDesktop ? null : 12,
-                        child: SizedBox(
-                          width: isDesktop
-                              ? 340
-                              : MediaQuery.sizeOf(context).width - 24,
-                          child: ReminderBanner(
-                            event: _currentReminder!,
-                            onComplete: _completeReminder,
-                            onSnooze: _snoozeReminder,
-                            onOpen: _openReminder,
-                            onDismiss: _dismissReminder,
+                          ),
+                        ],
+                      ),
+                      SlideOverPanel(
+                        open: ui.detailOpen,
+                        side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                        width: 408,
+                        onClose: ui.closeDetail,
+                        child: detailItemId == null
+                            ? const SizedBox.shrink()
+                            : ActionItemDetailDrawer(
+                                key: ValueKey<String>(detailItemId),
+                                actionItemId: detailItemId,
+                              ),
+                      ),
+                      SlideOverPanel(
+                        open: ui.inboxOpen,
+                        side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                        width: 432,
+                        heightFraction: 0.92,
+                        onClose: ui.closeInbox,
+                        child: const InboxPanel(),
+                      ),
+                      SlideOverPanel(
+                        open: ui.scheduleOpen,
+                        side: isDesktop ? PanelSide.right : PanelSide.bottom,
+                        width: 432,
+                        heightFraction: 0.92,
+                        onClose: ui.closeSchedule,
+                        child: const SchedulePanel(),
+                      ),
+                      if (_currentReminder != null)
+                        Positioned(
+                          top:
+                              MediaQuery.paddingOf(context).top +
+                              (isDesktop ? 62 : 56),
+                          right: isDesktop ? 24 : 12,
+                          left: isDesktop ? null : 12,
+                          child: SizedBox(
+                            width: isDesktop
+                                ? 340
+                                : MediaQuery.sizeOf(context).width - 24,
+                            child: ReminderBanner(
+                              event: _currentReminder!,
+                              onComplete: _completeReminder,
+                              onSnooze: _snoozeReminder,
+                              onOpen: _openReminder,
+                              onDismiss: _dismissReminder,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
                   ),
                 ),
                 bottomNavigationBar: isDesktop
                     ? null
                     : MobileBottomNav(
-                        modules: palette.style == AppUiStyle.refresh
+                        modules: context.isModernStyle
                             ? navItems
-                            : <AppModuleDescriptor>[
-                                homeDescriptor,
-                                ...modules,
-                              ],
+                            : <AppModuleDescriptor>[homeDescriptor, ...modules],
                         currentRoute: ui.currentRoute,
                         onSelect: ui.setRoute,
                       ),

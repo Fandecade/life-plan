@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
-import '../theme/ui_style.dart';
 
 /// 移动端底部导航：经典版为贴底通栏；新版为悬浮玻璃胶囊（5 主项 + 更多）。
 class MobileBottomNav extends StatelessWidget {
@@ -23,7 +22,7 @@ class MobileBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    if (palette.style != AppUiStyle.refresh) {
+    if (!context.isModernStyle) {
       return _buildClassic(context, palette);
     }
 
@@ -96,7 +95,6 @@ class MobileBottomNav extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _RefreshItem extends StatelessWidget {
@@ -152,7 +150,6 @@ class _RefreshItem extends StatelessWidget {
     );
   }
 }
-
 
 class _MobileItem extends StatelessWidget {
   const _MobileItem({

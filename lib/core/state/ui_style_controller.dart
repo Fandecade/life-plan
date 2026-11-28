@@ -3,7 +3,7 @@ import 'package:hive/hive.dart';
 
 import '../../app/theme/ui_style.dart';
 
-/// 界面风格偏好：经典/新版、新版主题色、是否启用玻璃模糊。
+/// 界面风格偏好：新版玻璃 / 简洁无玻璃、主题色、是否启用玻璃模糊。
 class UiStyleController extends ChangeNotifier {
   UiStyleController(this._settings) {
     _style = _readStyle();
@@ -18,7 +18,7 @@ class UiStyleController extends ChangeNotifier {
   static const String _visionViewKey = 'app.ui.visionView';
 
   final Box<dynamic> _settings;
-  AppUiStyle _style = AppUiStyle.classic;
+  AppUiStyle _style = AppUiStyle.refresh;
   AppAccentTheme _accent = AppAccentTheme.sage;
   bool _glassEnabled = true;
   VisionViewMode _visionView = VisionViewMode.map;
@@ -32,6 +32,8 @@ class UiStyleController extends ChangeNotifier {
   VisionViewMode get visionView => _visionView;
 
   bool get isRefresh => _style == AppUiStyle.refresh;
+
+  bool get isFlat => _style == AppUiStyle.flat;
 
   Future<void> setStyle(AppUiStyle value) async {
     if (_style == value) return;
@@ -67,8 +69,10 @@ class UiStyleController extends ChangeNotifier {
       for (final AppUiStyle value in AppUiStyle.values) {
         if (value.name == stored) return value;
       }
+      // 旧版「经典」已下线，迁移为新版无玻璃风格。
+      if (stored == 'classic') return AppUiStyle.flat;
     }
-    return AppUiStyle.classic;
+    return AppUiStyle.refresh;
   }
 
   AppAccentTheme _readAccent() {

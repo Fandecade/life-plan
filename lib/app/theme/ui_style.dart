@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// 界面风格：经典（保留）与新版（玻璃质感）。
-enum AppUiStyle { classic, refresh }
+/// 界面风格：新版玻璃质感与新版无玻璃（简洁）。
+enum AppUiStyle { refresh, flat }
 
 /// 人生规划模块的视图样式：图谱画布与卡片故事流。
 enum VisionViewMode { map, board }

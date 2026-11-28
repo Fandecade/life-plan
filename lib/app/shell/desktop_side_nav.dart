@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/plugin/app_module_descriptor.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
-import '../theme/ui_style.dart';
 
 /// 桌面/平板左侧可折叠导航栏。
 class DesktopSideNav extends StatelessWidget {
@@ -25,7 +24,7 @@ class DesktopSideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final bool refresh = palette.style == AppUiStyle.refresh;
+    final bool refresh = context.isModernStyle;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
@@ -59,8 +58,9 @@ class DesktopSideNav extends StatelessWidget {
               vertical: AppSpacing.sm,
             ),
             child: Row(
-              mainAxisAlignment:
-                  collapsed ? MainAxisAlignment.center : MainAxisAlignment.end,
+              mainAxisAlignment: collapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.end,
               children: <Widget>[
                 if (!collapsed)
                   Expanded(
@@ -97,8 +97,9 @@ class DesktopSideNav extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : AppSpacing.lg),
       child: Row(
-        mainAxisAlignment:
-            collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+        mainAxisAlignment: collapsed
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: <Widget>[
           Container(
             width: 24,
@@ -110,7 +111,9 @@ class DesktopSideNav extends StatelessWidget {
             child: Icon(
               Icons.timeline_rounded,
               size: 14,
-              color: context.isDarkMode ? const Color(0xFF121417) : Colors.white,
+              color: context.isDarkMode
+                  ? const Color(0xFF121417)
+                  : Colors.white,
             ),
           ),
           if (!collapsed) ...<Widget>[
@@ -152,7 +155,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final bool refresh = palette.style == AppUiStyle.refresh;
+    final bool refresh = context.isModernStyle;
     final Widget content = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       height: 36,
@@ -169,8 +172,9 @@ class _NavItem extends StatelessWidget {
         ),
       ),
       child: Row(
-        mainAxisAlignment:
-            collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+        mainAxisAlignment: collapsed
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: <Widget>[
           Icon(
             module.icon,
@@ -195,7 +199,10 @@ class _NavItem extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 1),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 1,
+      ),
       child: Tooltip(
         message: collapsed ? module.title : '',
         child: Material(

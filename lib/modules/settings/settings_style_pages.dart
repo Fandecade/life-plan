@@ -46,11 +46,8 @@ class InterfaceStyleSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const SettingsSubPage(
       title: '界面风格',
-      subtitle: '经典版可随时切回；新版支持 4 套主题色与玻璃质感。',
-      child: AppCard(
-        padding: EdgeInsets.zero,
-        child: InterfaceStyleSection(),
-      ),
+      subtitle: '新版支持 4 套主题色；可选择玻璃质感或无玻璃的简洁风格。',
+      child: AppCard(padding: EdgeInsets.zero, child: InterfaceStyleSection()),
     );
   }
 }
@@ -73,9 +70,9 @@ class InterfaceStyleSection extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: StyleChoice(
-                      label: '经典',
-                      selected: !ui.isRefresh,
-                      onTap: () => ui.setStyle(AppUiStyle.classic),
+                      label: '简洁',
+                      selected: ui.isFlat,
+                      onTap: () => ui.setStyle(AppUiStyle.flat),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -127,20 +124,18 @@ class InterfaceStyleSection extends StatelessWidget {
                     ),
                 ],
               ),
-              if (!ui.isRefresh) ...<Widget>[
-                const SizedBox(height: AppSpacing.sm),
-                Text('切换到新版后生效', style: context.texts.labelSmall),
-              ],
             ],
           ),
         ),
-        const Divider(height: 1),
-        SettingsSwitchRow(
-          title: '降低透明效果',
-          subtitle: '关闭玻璃模糊，低端机更流畅',
-          value: !ui.glassEnabled,
-          onChanged: (bool value) => ui.setGlassEnabled(!value),
-        ),
+        if (ui.isRefresh) ...<Widget>[
+          const Divider(height: 1),
+          SettingsSwitchRow(
+            title: '降低透明效果',
+            subtitle: '关闭玻璃模糊，低端机更流畅',
+            value: !ui.glassEnabled,
+            onChanged: (bool value) => ui.setGlassEnabled(!value),
+          ),
+        ],
       ],
     );
   }

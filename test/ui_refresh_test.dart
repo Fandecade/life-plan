@@ -41,7 +41,7 @@ void main() {
     expect(find.text('福格习惯'), findsNothing);
   });
 
-  testWidgets('经典/新版切换、主题色与降低透明效果', (WidgetTester tester) async {
+  testWidgets('简洁/新版切换、主题色与降低透明效果', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -58,13 +58,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('经典'), findsOneWidget);
+    expect(find.text('简洁'), findsOneWidget);
     expect(find.text('新版'), findsOneWidget);
 
-    await tester.tap(find.text('经典'));
+    await tester.tap(find.text('简洁'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(bootstrap.uiStyle.style, AppUiStyle.classic);
+    expect(bootstrap.uiStyle.style, AppUiStyle.flat);
 
     await tester.tap(find.text('新版'));
     await tester.pump();
@@ -79,8 +79,10 @@ void main() {
     final Finder glassRow = find
         .ancestor(of: find.text('降低透明效果'), matching: find.byType(Row))
         .first;
-    final Finder glassSwitch =
-        find.descendant(of: glassRow, matching: find.byType(Switch));
+    final Finder glassSwitch = find.descendant(
+      of: glassRow,
+      matching: find.byType(Switch),
+    );
 
     await tester.tap(glassSwitch);
     await tester.pump();

@@ -22,7 +22,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.warning,
     required this.danger,
     required this.scrim,
-    this.style = AppUiStyle.classic,
+    this.style = AppUiStyle.flat,
     this.glass = const Color(0xFFFFFFFF),
     this.glassBorder = const Color(0xFFFFFFFF),
     this.glassHighlight = const Color(0xFFFFFFFF),
@@ -84,6 +84,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     warning: Color(0xFF9C7448),
     danger: Color(0xFFA2564F),
     scrim: Color(0x3D0F1115),
+    glassBorder: Color(0xFFE6E8EC),
   );
 
   /// 深炭灰底 + 稍亮卡片（经典深色）
@@ -102,6 +103,9 @@ class AppPalette extends ThemeExtension<AppPalette> {
     warning: Color(0xFFC6A075),
     danger: Color(0xFFC67F79),
     scrim: Color(0x80000000),
+    glass: Color(0xFF1C1F24),
+    glassBorder: Color(0xFF2A2E37),
+    glassHighlight: Color(0xFF1C1F24),
   );
 
   /// 新版浅色：冷调底 + 白玻璃 + 主题色光斑。
@@ -167,6 +171,32 @@ class AppPalette extends ThemeExtension<AppPalette> {
       blobC: const Color(0xFFC9A98A).withValues(alpha: 0.1),
       glassBlur: glassEnabled ? 18 : 0,
       glassEnabled: glassEnabled,
+    );
+  }
+
+  /// 新版简洁：沿用新版配色与环境光，但卡片为纯色、无玻璃模糊。
+  static AppPalette refreshFlatLight(AppAccentTheme theme) {
+    final AppPalette base = refreshLight(theme, glassEnabled: false);
+    return base.copyWith(
+      style: AppUiStyle.flat,
+      glass: base.surface,
+      glassBorder: base.border,
+      glassHighlight: base.surface,
+      glassBlur: 0,
+      glassEnabled: false,
+    );
+  }
+
+  /// 新版简洁深色。
+  static AppPalette refreshFlatDark(AppAccentTheme theme) {
+    final AppPalette base = refreshDark(theme, glassEnabled: false);
+    return base.copyWith(
+      style: AppUiStyle.flat,
+      glass: base.surface,
+      glassBorder: base.border,
+      glassHighlight: base.surface,
+      glassBlur: 0,
+      glassEnabled: false,
     );
   }
 
@@ -265,7 +295,16 @@ extension AppPaletteContext on BuildContext {
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
 
-  bool get isRefreshStyle => palette.style == AppUiStyle.refresh;
+  bool get isModernStyle =>
+      palette.style == AppUiStyle.refresh || palette.style == AppUiStyle.flat;
+
+  bool get isGlassStyle =>
+      palette.style == AppUiStyle.refresh && palette.glassEnabled;
+
+  bool get isFlatStyle => palette.style == AppUiStyle.flat;
+
+  /// 兼容旧调用：两种新版风格都使用现代布局。
+  bool get isRefreshStyle => isModernStyle;
 
   /// 解析实体里保存的 #RRGGBB 颜色，带兜底。
   Color hexColor(String? hex, {Color fallback = const Color(0xFF4A5F7A)}) {

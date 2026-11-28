@@ -32,7 +32,9 @@ void main() {
   }
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('life_planner_planned_todo');
+    tempDir = await Directory.systemTemp.createTemp(
+      'life_planner_planned_todo',
+    );
     bootstrap = await AppBootstrap.create(storagePath: tempDir.path);
     final DateTime today = AppDate.startOfDay(DateTime.now());
     todoA = await bootstrap.actions.create(
@@ -40,18 +42,9 @@ void main() {
       scheduledDate: today,
       estimatedMinutes: 30,
     );
-    todoB = await bootstrap.actions.create(
-      title: '待办乙',
-      scheduledDate: today,
-    );
-    todoC = await bootstrap.actions.create(
-      title: '待办丙',
-      scheduledDate: today,
-    );
-    todoD = await bootstrap.actions.create(
-      title: '待办丁',
-      scheduledDate: today,
-    );
+    todoB = await bootstrap.actions.create(title: '待办乙', scheduledDate: today);
+    todoC = await bootstrap.actions.create(title: '待办丙', scheduledDate: today);
+    todoD = await bootstrap.actions.create(title: '待办丁', scheduledDate: today);
     final TimeBlock block = await bootstrap.timeBlocks.schedule(
       title: '待办丁',
       startAt: DateTime(today.year, today.month, today.day, 10),
@@ -98,7 +91,7 @@ void main() {
   testWidgets('日视图显示今日待办并可勾选完成', (WidgetTester tester) async {
     await openModule(tester, '时间盒');
 
-    expect(find.textContaining('今日待办 ·'), findsOneWidget);
+    expect(find.textContaining('待办 ·'), findsOneWidget);
     expect(find.text('待办甲'), findsWidgets);
     expect(find.text('待办乙'), findsWidgets);
 
@@ -136,13 +129,10 @@ void main() {
 
     final Finder todoText = find.textContaining('今日待办：待办丙');
     expect(todoText, findsWidgets);
-    final Finder row = find.ancestor(
-      of: todoText.first,
-      matching: find.byType(Row),
-    ).first;
-    await tester.tap(
-      find.descendant(of: row, matching: find.text('安排时间')),
-    );
+    final Finder row = find
+        .ancestor(of: todoText.first, matching: find.byType(Row))
+        .first;
+    await tester.tap(find.descendant(of: row, matching: find.text('安排时间')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -160,10 +150,7 @@ void main() {
     );
     final ActionItem updated = bootstrap.actions.byId(todoC.id)!;
     expect(updated.scheduledDate, isNotNull);
-    expect(
-      AppDate.isSameDay(updated.scheduledDate!, DateTime.now()),
-      isTrue,
-    );
+    expect(AppDate.isSameDay(updated.scheduledDate!, DateTime.now()), isTrue);
   });
 
   testWidgets('详情排期日历可只安排到这一天', (WidgetTester tester) async {
@@ -189,10 +176,7 @@ void main() {
 
     final ActionItem updated = bootstrap.actions.byId(detailTask.id)!;
     expect(updated.scheduledDate, isNotNull);
-    expect(
-      AppDate.isSameDay(updated.scheduledDate!, DateTime.now()),
-      isTrue,
-    );
+    expect(AppDate.isSameDay(updated.scheduledDate!, DateTime.now()), isTrue);
     expect(
       bootstrap.timeBlocks.blocksForActionItem(detailTask.id),
       isEmpty,
@@ -252,10 +236,7 @@ void main() {
     await tester.pump();
 
     final Finder row = find
-        .ancestor(
-          of: inboxTitle.first,
-          matching: find.byType(AppCard),
-        )
+        .ancestor(of: inboxTitle.first, matching: find.byType(AppCard))
         .first;
     await tester.tap(
       find.descendant(of: row, matching: find.byTooltip('排入时间盒')),
@@ -269,10 +250,7 @@ void main() {
 
     final ActionItem updated = bootstrap.actions.byId(inboxTask.id)!;
     expect(updated.scheduledDate, isNotNull);
-    expect(
-      bootstrap.timeBlocks.blocksForActionItem(inboxTask.id),
-      isEmpty,
-    );
+    expect(bootstrap.timeBlocks.blocksForActionItem(inboxTask.id), isEmpty);
   });
 
   testWidgets('日视图三选一：待办 / 微习惯 / 时间安排', (WidgetTester tester) async {
@@ -282,16 +260,13 @@ void main() {
 
     await tester.tap(find.text('时间安排'));
     await tester.pump();
-    expect(
-      find.byKey(const ValueKey<String>('time-track')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey<String>('time-track')), findsOneWidget);
 
-    await tester.tap(find.textContaining('今日微习惯'));
+    await tester.tap(find.textContaining('微习惯 ·'));
     await tester.pump();
     expect(find.text('今天还没有微习惯'), findsOneWidget);
 
-    await tester.tap(find.textContaining('今日待办'));
+    await tester.tap(find.textContaining('待办 ·'));
     await tester.pump();
     expect(find.byType(DayTodoView), findsOneWidget);
   });
@@ -303,10 +278,9 @@ void main() {
     final Finder todoText = find.textContaining('今日待办：待办乙');
     expect(todoText, findsWidgets);
 
-    final Finder row = find.ancestor(
-      of: todoText.first,
-      matching: find.byType(Row),
-    ).first;
+    final Finder row = find
+        .ancestor(of: todoText.first, matching: find.byType(Row))
+        .first;
     final Finder more = find.descendant(
       of: row,
       matching: find.byTooltip('更多处理'),

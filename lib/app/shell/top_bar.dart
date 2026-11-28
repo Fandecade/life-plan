@@ -7,7 +7,6 @@ import '../../core/state/ui_controller.dart';
 import '../router/module_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
-import '../theme/ui_style.dart';
 
 /// 顶栏：左侧模块标题，最右侧为任务池；时间盒时安排记录紧挨在任务池左侧。
 class TopBar extends StatelessWidget {
@@ -45,7 +44,10 @@ class TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
     final UiController ui = context.watch<UiController>();
-    final int inboxCount = context.watch<ActionItemRepository>().inboxItems.length;
+    final int inboxCount = context
+        .watch<ActionItemRepository>()
+        .inboxItems
+        .length;
     final int scheduledCount = context
         .watch<TimeBlockRepository>()
         .all
@@ -97,9 +99,7 @@ class TopBar extends StatelessWidget {
       child: Row(
         children: <Widget>[
           // 标题撑满剩余空间，让任务池/安排记录始终贴住顶部栏最右侧。
-          Expanded(
-            child: _wrapTitle(context, context.texts.titleLarge),
-          ),
+          Expanded(child: _wrapTitle(context, context.texts.titleLarge)),
           if (ui.currentRoute == AppRoutes.timeBox) ...<Widget>[
             _ScheduleTrigger(
               count: scheduledCount,
@@ -189,7 +189,7 @@ class _TriggerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final bool refresh = palette.style == AppUiStyle.refresh;
+    final bool refresh = context.isModernStyle;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(

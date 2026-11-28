@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/ui_style.dart';
 
 /// 新版背景：冷调底 + 三枚环境光斑；经典版原样返回。
 class GlassBackground extends StatelessWidget {
@@ -12,7 +11,7 @@ class GlassBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    if (palette.style != AppUiStyle.refresh) return child;
+    if (!context.isModernStyle) return child;
 
     return Stack(
       children: <Widget>[

@@ -46,11 +46,15 @@ class LifePlannerApp extends StatelessWidget {
         Provider<ReminderService>.value(value: bootstrap.reminders),
         Provider<NotificationService>.value(value: bootstrap.notifications),
         ChangeNotifierProvider<ModuleRegistry>.value(value: bootstrap.modules),
-        ChangeNotifierProvider<VisionRepository>.value(value: bootstrap.visions),
+        ChangeNotifierProvider<VisionRepository>.value(
+          value: bootstrap.visions,
+        ),
         ChangeNotifierProvider<CapabilityRepository>.value(
           value: bootstrap.capabilities,
         ),
-        ChangeNotifierProvider<ActionItemRepository>.value(value: bootstrap.actions),
+        ChangeNotifierProvider<ActionItemRepository>.value(
+          value: bootstrap.actions,
+        ),
         ChangeNotifierProvider<TimeBlockRepository>.value(
           value: bootstrap.timeBlocks,
         ),
@@ -97,45 +101,46 @@ class LifePlannerApp extends StatelessWidget {
         ChangeNotifierProvider<UiController>(create: (_) => UiController()),
       ],
       child: Consumer2<ThemeController, UiStyleController>(
-        builder: (
-          BuildContext context,
-          ThemeController theme,
-          UiStyleController uiStyle,
-          Widget? child,
-        ) {
-          final bool refresh = uiStyle.style == AppUiStyle.refresh;
-          return MaterialApp(
-            title: '人生规划',
-            debugShowCheckedModeBanner: false,
-            theme: refresh
-                ? AppTheme.refreshLight(
-                    uiStyle.accent,
-                    glassEnabled: uiStyle.glassEnabled,
-                  )
-                : AppTheme.light(),
-            darkTheme: refresh
-                ? AppTheme.refreshDark(
-                    uiStyle.accent,
-                    glassEnabled: uiStyle.glassEnabled,
-                  )
-                : AppTheme.dark(),
-            themeMode: theme.mode,
-            themeAnimationDuration: const Duration(milliseconds: 260),
-            themeAnimationCurve: Curves.easeOutCubic,
-            locale: const Locale('zh', 'CN'),
-            supportedLocales: const <Locale>[
-              Locale('zh', 'CN'),
-              Locale('en', 'US'),
-            ],
-            localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            scrollBehavior: const _AppScrollBehavior(),
-            home: const AppShell(),
-          );
-        },
+        builder:
+            (
+              BuildContext context,
+              ThemeController theme,
+              UiStyleController uiStyle,
+              Widget? child,
+            ) {
+              final bool glassStyle = uiStyle.style == AppUiStyle.refresh;
+              return MaterialApp(
+                title: '人生规划',
+                debugShowCheckedModeBanner: false,
+                theme: glassStyle
+                    ? AppTheme.refreshLight(
+                        uiStyle.accent,
+                        glassEnabled: uiStyle.glassEnabled,
+                      )
+                    : AppTheme.flatLight(uiStyle.accent),
+                darkTheme: glassStyle
+                    ? AppTheme.refreshDark(
+                        uiStyle.accent,
+                        glassEnabled: uiStyle.glassEnabled,
+                      )
+                    : AppTheme.flatDark(uiStyle.accent),
+                themeMode: theme.mode,
+                themeAnimationDuration: const Duration(milliseconds: 260),
+                themeAnimationCurve: Curves.easeOutCubic,
+                locale: const Locale('zh', 'CN'),
+                supportedLocales: const <Locale>[
+                  Locale('zh', 'CN'),
+                  Locale('en', 'US'),
+                ],
+                localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                scrollBehavior: const _AppScrollBehavior(),
+                home: const AppShell(),
+              );
+            },
       ),
     );
   }
@@ -147,9 +152,9 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => <PointerDeviceKind>{
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }

@@ -61,29 +61,51 @@ class AppTheme {
     );
   }
 
+  /// 新版简洁（无玻璃）：沿用新版配色，关闭玻璃模糊与半透明。
+  static ThemeData flatLight(AppAccentTheme accent) {
+    return _build(
+      Brightness.light,
+      AppPalette.refreshFlatLight(accent),
+      refresh: true,
+    );
+  }
+
+  static ThemeData flatDark(AppAccentTheme accent) {
+    return _build(
+      Brightness.dark,
+      AppPalette.refreshFlatDark(accent),
+      refresh: true,
+    );
+  }
+
   static ThemeData _build(
     Brightness brightness,
     AppPalette palette, {
     bool refresh = false,
   }) {
-    final ThemeData base = ThemeData(brightness: brightness, useMaterial3: true);
-    final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: palette.accent,
+    final ThemeData base = ThemeData(
       brightness: brightness,
-    ).copyWith(
-      surface: palette.surface,
-      onSurface: palette.textPrimary,
-      primary: palette.accent,
-      onPrimary:
-          brightness == Brightness.light ? const Color(0xFFFFFFFF) : const Color(0xFF0F1216),
-      outline: palette.border,
-      outlineVariant: palette.hairline,
-      error: palette.danger,
-      onSurfaceVariant: palette.textSecondary,
-      surfaceContainerHighest: palette.surfaceMuted,
-      surfaceContainerHigh: palette.surfaceMuted,
-      surfaceContainerLow: palette.surface,
+      useMaterial3: true,
     );
+    final ColorScheme scheme =
+        ColorScheme.fromSeed(
+          seedColor: palette.accent,
+          brightness: brightness,
+        ).copyWith(
+          surface: palette.surface,
+          onSurface: palette.textPrimary,
+          primary: palette.accent,
+          onPrimary: brightness == Brightness.light
+              ? const Color(0xFFFFFFFF)
+              : const Color(0xFF0F1216),
+          outline: palette.border,
+          outlineVariant: palette.hairline,
+          error: palette.danger,
+          onSurfaceVariant: palette.textSecondary,
+          surfaceContainerHighest: palette.surfaceMuted,
+          surfaceContainerHigh: palette.surfaceMuted,
+          surfaceContainerLow: palette.surface,
+        );
 
     return base.copyWith(
       scaffoldBackgroundColor: palette.background,
@@ -119,9 +141,7 @@ class AppTheme {
               surfaceTintColor: Colors.transparent,
               dragHandleColor: palette.textTertiary,
               shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
             )
           : null,
@@ -156,22 +176,22 @@ class AppTheme {
         selectionHandleColor: palette.accent,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>(
-          (Set<WidgetState> states) {
-            if (states.contains(WidgetState.selected)) {
-              return brightness == Brightness.light
-                  ? const Color(0xFFFFFFFF)
-                  : const Color(0xFF121417);
-            }
-            return palette.textTertiary;
-          },
-        ),
-        trackColor: WidgetStateProperty.resolveWith<Color>(
-          (Set<WidgetState> states) {
-            if (states.contains(WidgetState.selected)) return palette.accent;
-            return palette.surfaceMuted;
-          },
-        ),
+        thumbColor: WidgetStateProperty.resolveWith<Color>((
+          Set<WidgetState> states,
+        ) {
+          if (states.contains(WidgetState.selected)) {
+            return brightness == Brightness.light
+                ? const Color(0xFFFFFFFF)
+                : const Color(0xFF121417);
+          }
+          return palette.textTertiary;
+        }),
+        trackColor: WidgetStateProperty.resolveWith<Color>((
+          Set<WidgetState> states,
+        ) {
+          if (states.contains(WidgetState.selected)) return palette.accent;
+          return palette.surfaceMuted;
+        }),
         trackOutlineColor: WidgetStatePropertyAll<Color>(palette.border),
       ),
       tooltipTheme: TooltipThemeData(
@@ -183,7 +203,9 @@ class AppTheme {
         ),
         textStyle: TextStyle(
           fontSize: 11.5,
-          color: brightness == Brightness.light ? Colors.white : palette.textPrimary,
+          color: brightness == Brightness.light
+              ? Colors.white
+              : palette.textPrimary,
         ),
         waitDuration: const Duration(milliseconds: 500),
       ),

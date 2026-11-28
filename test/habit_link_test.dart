@@ -36,9 +36,7 @@ void main() {
     }
   });
 
-  testWidgets('时间盒日视图出现今日微习惯并能打卡，月视图叠加微节律点', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('时间盒日视图出现今日微习惯并能打卡，月视图叠加微节律点', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -51,7 +49,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.tap(find.textContaining('今日微习惯'));
+    await tester.tap(find.textContaining('微习惯 ·'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.textContaining('喝一杯温水'), findsWidgets);
@@ -67,8 +65,9 @@ void main() {
 
     expect(find.text('总投入'), findsOneWidget);
     expect(
-      bootstrap.habitService
-          .completedCountByDay(<String>[habit.id])[bootstrap.habitService.todayKey],
+      bootstrap.habitService.completedCountByDay(<String>[
+        habit.id,
+      ])[bootstrap.habitService.todayKey],
       1,
     );
   });

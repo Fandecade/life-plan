@@ -21,9 +21,7 @@ void main() {
     }
   });
 
-  testWidgets('手机宽度下视图工具默认收起，展开时隐藏愿景列表', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('手机宽度下视图工具默认收起，展开时隐藏愿景列表', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -32,6 +30,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    tester.state<ScaffoldState>(find.byType(Scaffold).first).openDrawer();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('人生规划').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
