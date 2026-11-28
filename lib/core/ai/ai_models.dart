@@ -2,12 +2,35 @@ import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 
+/// 接口协议。
+enum AiProviderKind {
+  openai('OpenAI 兼容', 'https://api.deepseek.com'),
+  anthropic('Anthropic', 'https://api.anthropic.com'),
+  gemini('Gemini', 'https://generativelanguage.googleapis.com');
+
+  const AiProviderKind(this.label, this.hintBaseUrl);
+
+  final String label;
+  final String hintBaseUrl;
+
+  static AiProviderKind fromName(Object? value) =>
+      AiProviderKind.values.firstWhere(
+        (AiProviderKind item) => item.name == value,
+        orElse: () => AiProviderKind.openai,
+      );
+}
+
 /// AI 连接配置（Key 单独存安全存储，不进入这里）。
 class AiConfig {
-  const AiConfig({required this.baseUrl, required this.model});
+  const AiConfig({
+    required this.baseUrl,
+    required this.model,
+    this.provider = AiProviderKind.openai,
+  });
 
   final String baseUrl;
   final String model;
+  final AiProviderKind provider;
 
   bool get isReady => baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 }

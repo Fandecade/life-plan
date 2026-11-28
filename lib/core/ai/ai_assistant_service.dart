@@ -6,18 +6,15 @@ import 'ai_draft_applier.dart';
 import 'ai_models.dart';
 import 'ai_settings_controller.dart';
 import 'ai_tool_registry.dart';
-import 'openai_provider.dart';
 
 /// 会话编排：系统提示 + 历史 + 工具循环；写工具只产生草稿，确认后统一执行。
 class AiAssistantService extends ChangeNotifier {
   AiAssistantService({
     required AiSettingsController settings,
     required AiToolRegistry tools,
-    required AiProvider provider,
     required AiDraftApplier applier,
   }) : _settings = settings,
        _tools = tools,
-       _provider = provider,
        _applier = applier;
 
   static const String _systemPrompt =
@@ -32,7 +29,7 @@ class AiAssistantService extends ChangeNotifier {
 
   final AiSettingsController _settings;
   final AiToolRegistry _tools;
-  final AiProvider _provider;
+
   final AiDraftApplier _applier;
 
   bool _busy = false;
@@ -67,7 +64,7 @@ class AiAssistantService extends ChangeNotifier {
 
       String content = '';
       for (int round = 0; round < 5; round++) {
-        final AiChatResult result = await _provider.complete(
+        final AiChatResult result = await _settings.provider.complete(
           config: _settings.config,
           apiKey: _settings.apiKey!,
           messages: messages,

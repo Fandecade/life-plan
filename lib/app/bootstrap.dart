@@ -1,7 +1,10 @@
 import '../core/ai/ai_assistant_service.dart';
+import '../core/ai/anthropic_provider.dart';
+import '../core/ai/gemini_provider.dart';
 import '../core/ai/ai_context_builder.dart';
 import '../core/ai/ai_draft_applier.dart';
 import '../core/ai/ai_key_store.dart';
+import '../core/ai/ai_models.dart';
 import '../core/ai/ai_settings_controller.dart';
 import '../core/ai/ai_tool_registry.dart';
 import '../core/ai/openai_provider.dart';
@@ -184,12 +187,17 @@ class AppBootstrap {
       reminders: reminders,
       settings: reminderSettings,
     );
-    final AiProvider aiProvider = OpenAiCompatibleProvider();
+    final Map<AiProviderKind, AiProvider> aiProviders =
+        <AiProviderKind, AiProvider>{
+          AiProviderKind.openai: OpenAiCompatibleProvider(),
+          AiProviderKind.anthropic: AnthropicProvider(),
+          AiProviderKind.gemini: GeminiProvider(),
+        };
     final AiSettingsController aiSettings = AiSettingsController(
       box: db.settings,
       conversations: db.aiConversations,
       keyStore: AiKeyStore(),
-      provider: aiProvider,
+      providers: aiProviders,
     );
     await aiSettings.load();
     final AiContextBuilder aiContext = AiContextBuilder(
@@ -224,7 +232,7 @@ class AppBootstrap {
     final AiAssistantService aiAssistant = AiAssistantService(
       settings: aiSettings,
       tools: aiTools,
-      provider: aiProvider,
+
       applier: aiDraftApplier,
     );
 

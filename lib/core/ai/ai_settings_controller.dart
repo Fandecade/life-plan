@@ -13,14 +13,15 @@ class AiSettingsController extends ChangeNotifier {
     required Box<dynamic> box,
     required Box<String> conversations,
     required AiKeyStore keyStore,
-    required AiProvider provider,
+    required Map<AiProviderKind, AiProvider> providers,
   }) : _box = box,
        _conversationsBox = conversations,
        _keyStore = keyStore,
-       _provider = provider;
+       _providers = providers;
 
   static const String _kBaseUrl = 'ai.baseUrl';
   static const String _kModel = 'ai.model';
+  static const String _kProviderKind = 'ai.provider';
   static const String _kReadOnly = 'ai.readOnly';
   static const String _kCurrentConversation = 'ai.currentConversation';
   static const String _kLegacyMessages = 'ai.messages';
@@ -28,10 +29,11 @@ class AiSettingsController extends ChangeNotifier {
   final Box<dynamic> _box;
   final Box<String> _conversationsBox;
   final AiKeyStore _keyStore;
-  final AiProvider _provider;
+  final Map<AiProviderKind, AiProvider> _providers;
 
   String _baseUrl = '';
   String _model = '';
+  AiProviderKind _providerKind = AiProviderKind.openai;
   bool _readOnly = true;
   String? _apiKey;
   List<AiConversation> _conversations = <AiConversation>[];
@@ -42,7 +44,11 @@ class AiSettingsController extends ChangeNotifier {
   bool get readOnly => _readOnly;
   bool get hasKey => (_apiKey ?? '').isNotEmpty;
   String? get apiKey => _apiKey;
-  AiConfig get config => AiConfig(baseUrl: _baseUrl, model: _model);
+  AiProviderKind get providerKind => _providerKind;
+  AiProvider get provider =>
+      _providers[_providerKind] ?? _providers[AiProviderKind.openai]!;
+  AiConfig get config =>
+      AiConfig(baseUrl: _baseUrl, model: _model, provider: _providerKind);
   bool get isConfigured => config.isReady && hasKey;
 
   List<AiConversation> get conversations =>
@@ -60,6 +66,7 @@ class AiSettingsController extends ChangeNotifier {
     _baseUrl = '${_box.get(_kBaseUrl) ?? ''}'.trim();
     _model = '${_box.get(_kModel) ?? ''}'.trim();
     _readOnly = (_box.get(_kReadOnly) as bool?) ?? true;
+    _providerKind = AiProviderKind.fromName(_box.get(_kProviderKind));
     _apiKey = await _keyStore.read();
 
     final List<AiConversation> loaded = <AiConversation>[];
@@ -112,6 +119,13 @@ class AiSettingsController extends ChangeNotifier {
     if (_readOnly == value) return;
     _readOnly = value;
     await _box.put(_kReadOnly, value);
+    notifyListeners();
+  }
+
+  Future<void> setProviderKind(AiProviderKind kind) async {
+    if (_providerKind == kind) return;
+    _providerKind = kind;
+    await _box.put(_kProviderKind, kind.name);
     notifyListeners();
   }
 
@@ -183,7 +197,7 @@ class AiSettingsController extends ChangeNotifier {
   Future<String> testConnection() async {
     if (!isConfigured) return '请先填写服务地址、模型与 API Key';
     try {
-      final AiChatResult result = await _provider.complete(
+      final AiChatResult result = await provider.complete(
         config: config,
         apiKey: _apiKey!,
         messages: <AiMessage>[
@@ -201,7 +215,7 @@ class AiSettingsController extends ChangeNotifier {
     if (_baseUrl.trim().isEmpty || !hasKey) {
       throw const AiNotConfiguredException();
     }
-    return _provider.listModels(config: config, apiKey: _apiKey!);
+    return provider.listModels(config: config, apiKey: _apiKey!);
   }
 
   AiConversation? _find(String id) {

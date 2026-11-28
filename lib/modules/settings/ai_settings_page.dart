@@ -7,6 +7,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/ai/ai_models.dart';
 import '../../core/ai/ai_settings_controller.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'settings_rows.dart';
@@ -147,7 +148,7 @@ class _AiSettingsPageState extends State<AiSettingsPage> {
 
     return SettingsSubPage(
       title: 'AI 助手',
-      subtitle: '接入 OpenAI 兼容服务（OpenAI / DeepSeek / Kimi / 通义 / GLM / 自建代理）。',
+      subtitle: '支持 OpenAI 兼容 / Anthropic / Gemini；模型可拉取或手填。',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -161,14 +162,32 @@ class _AiSettingsPageState extends State<AiSettingsPage> {
           SettingsCardGroup(
             children: <Widget>[
               SettingsControlRow(
+                icon: Icons.hub_outlined,
+                title: '接口协议',
+                subtitle: 'OpenAI 兼容 / Anthropic / Gemini',
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    for (final AiProviderKind kind in AiProviderKind.values)
+                      AppChip(
+                        label: kind.label,
+                        dense: true,
+                        filled: settings.providerKind == kind,
+                        color: palette.accent,
+                        onTap: () => settings.setProviderKind(kind),
+                      ),
+                  ],
+                ),
+              ),
+              SettingsControlRow(
                 icon: Icons.link_rounded,
                 title: '服务地址',
-                subtitle:
-                    '例：https://api.deepseek.com（自动补 /v1/chat/completions）',
+                subtitle: '例：${settings.providerKind.hintBaseUrl}',
                 child: AppTextField(
                   controller: _baseUrl,
                   dense: true,
-                  hintText: 'https://api.deepseek.com',
+                  hintText: settings.providerKind.hintBaseUrl,
                 ),
               ),
               SettingsControlRow(
