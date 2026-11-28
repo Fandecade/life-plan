@@ -275,7 +275,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         currentRoute: ui.currentRoute,
                         onSelect: ui.setRoute,
                       ),
-                drawerEdgeDragWidth: 24,
+                // 手机端扩大抽屉拉出热区：左半屏任意位置向右滑都能拉出菜单（不支持桌面端）。
+                drawerEdgeDragWidth:
+                    isDesktop ? null : constraints.maxWidth * 0.5,
                 drawerEnableOpenDragGesture: !isDesktop,
                 body: GlassBackground(
                   child: Stack(

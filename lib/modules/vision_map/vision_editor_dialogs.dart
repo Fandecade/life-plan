@@ -5,6 +5,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_text_field.dart';
 
 class EditorField {
@@ -28,13 +29,10 @@ Future<List<String>?> showEditorDialog(
   required List<EditorField> fields,
   String confirmLabel = '保存',
 }) {
-  return showDialog<List<String>>(
-    context: context,
-    builder: (BuildContext dialogContext) => _EditorDialog(
-      title: title,
-      fields: fields,
-      confirmLabel: confirmLabel,
-    ),
+  return showAppSheet<List<String>>(
+    context,
+    builder: (BuildContext dialogContext) =>
+        _EditorDialog(title: title, fields: fields, confirmLabel: confirmLabel),
   );
 }
 
@@ -54,8 +52,9 @@ class _EditorDialog extends StatefulWidget {
 }
 
 class _EditorDialogState extends State<_EditorDialog> {
-  late final List<TextEditingController> _controllers =
-      widget.fields.map((EditorField field) => TextEditingController(text: field.initial)).toList();
+  late final List<TextEditingController> _controllers = widget.fields
+      .map((EditorField field) => TextEditingController(text: field.initial))
+      .toList();
   String? _error;
 
   @override
@@ -80,67 +79,9 @@ class _EditorDialogState extends State<_EditorDialog> {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg + 2,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text(widget.title, style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 340,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            for (int index = 0; index < widget.fields.length; index++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(widget.fields[index].label, style: context.texts.labelMedium),
-                    const SizedBox(height: 5),
-                    AppTextField(
-                      controller: _controllers[index],
-                      hintText: widget.fields[index].hint,
-                      maxLines: widget.fields[index].maxLines,
-                      minLines: widget.fields[index].maxLines > 1 ? 2 : 1,
-                      autofocus: index == 0,
-                      onSubmitted: index == widget.fields.length - 1 ? (_) => _submit() : null,
-                    ),
-                  ],
-                ),
-              ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Text(
-                  _error!,
-                  style: context.texts.bodySmall?.copyWith(color: palette.danger),
-                ),
-              ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        AppSpacing.lg,
-      ),
+    return AppSheetContent(
+      title: widget.title,
+      heightFactor: null,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
@@ -148,6 +89,44 @@ class _EditorDialogState extends State<_EditorDialog> {
         ),
         AppPrimaryButton(label: widget.confirmLabel, onPressed: _submit),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          for (int index = 0; index < widget.fields.length; index++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    widget.fields[index].label,
+                    style: context.texts.labelMedium,
+                  ),
+                  const SizedBox(height: 5),
+                  AppTextField(
+                    controller: _controllers[index],
+                    hintText: widget.fields[index].hint,
+                    maxLines: widget.fields[index].maxLines,
+                    minLines: widget.fields[index].maxLines > 1 ? 2 : 1,
+                    autofocus: index == 0,
+                    onSubmitted: index == widget.fields.length - 1
+                        ? (_) => _submit()
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                _error!,
+                style: context.texts.bodySmall?.copyWith(color: palette.danger),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -197,78 +176,9 @@ class _TaskDialogState extends State<_TaskDialog> {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg + 2,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text('新建任务', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 340,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('任务标题', style: context.texts.labelMedium),
-            const SizedBox(height: 5),
-            AppTextField(
-              key: const ValueKey<String>('vision-task-title'),
-              controller: _title,
-              hintText: '一件可以直接开始做的事',
-              autofocus: true,
-              onSubmitted: (_) => _submit(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('预计时长', style: context.texts.labelMedium),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: AppSpacing.xs + 2,
-              runSpacing: AppSpacing.xs + 2,
-              children: <Widget>[
-                for (final int minutes in <int>[15, 30, 45, 60, 90])
-                  AppChip(
-                    label: AppDate.durationLabel(minutes),
-                    filled: _minutes == minutes,
-                    color: palette.accent,
-                    onTap: () => setState(() => _minutes = minutes),
-                  ),
-                AppChip(
-                  label: '暂不估时',
-                  filled: _minutes == null,
-                  onTap: () => setState(() => _minutes = null),
-                ),
-              ],
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text(
-                  _error!,
-                  style: context.texts.bodySmall?.copyWith(color: palette.danger),
-                ),
-              ),
-          ],
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        AppSpacing.lg,
-      ),
+    return AppSheetContent(
+      title: '新建任务',
+      heightFactor: null,
       actions: <Widget>[
         AppGhostButton(
           label: '取消',
@@ -276,6 +186,50 @@ class _TaskDialogState extends State<_TaskDialog> {
         ),
         AppPrimaryButton(label: '创建', onPressed: _submit),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('任务标题', style: context.texts.labelMedium),
+          const SizedBox(height: 5),
+          AppTextField(
+            key: const ValueKey<String>('vision-task-title'),
+            controller: _title,
+            hintText: '一件可以直接开始做的事',
+            autofocus: true,
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('预计时长', style: context.texts.labelMedium),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: AppSpacing.xs + 2,
+            runSpacing: AppSpacing.xs + 2,
+            children: <Widget>[
+              for (final int minutes in <int>[15, 30, 45, 60, 90])
+                AppChip(
+                  label: AppDate.durationLabel(minutes),
+                  filled: _minutes == minutes,
+                  color: palette.accent,
+                  onTap: () => setState(() => _minutes = minutes),
+                ),
+              AppChip(
+                label: '暂不估时',
+                filled: _minutes == null,
+                onTap: () => setState(() => _minutes = null),
+              ),
+            ],
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Text(
+                _error!,
+                style: context.texts.bodySmall?.copyWith(color: palette.danger),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

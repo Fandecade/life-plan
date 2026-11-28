@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:life_planner/app/app.dart';
 import 'package:life_planner/app/bootstrap.dart';
 import 'package:life_planner/core/models/models.dart';
+import 'package:life_planner/core/widgets/app_sheet.dart';
 import 'package:life_planner/core/widgets/state_views.dart';
 
 void main() {
@@ -76,7 +77,7 @@ void main() {
     await tester.tap(
       find
           .descendant(
-            of: find.byType(AlertDialog),
+            of: find.byType(AppSheetContent),
             matching: find.byType(AppCheckCircle),
           )
           .first,

@@ -11,6 +11,7 @@ import '../../core/models/models.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/state_views.dart';
 
@@ -129,8 +130,9 @@ class _ProjectPageState extends State<ProjectPage> {
     AppPalette palette,
     Project project,
   ) {
-    final List<Capability> capabilities =
-        context.watch<CapabilityRepository>().all;
+    final List<Capability> capabilities = context
+        .watch<CapabilityRepository>()
+        .all;
     final List<Capability> linked = <Capability>[
       for (final Capability capability in capabilities)
         if (project.capabilityIds.contains(capability.id)) capability,
@@ -198,11 +200,7 @@ class _ProjectPageState extends State<ProjectPage> {
                   color: palette.textSecondary,
                 ),
               if (project.artifactUrl.isNotEmpty)
-                AppChip(
-                  label: '有产物',
-                  dense: true,
-                  color: palette.success,
-                ),
+                AppChip(label: '有产物', dense: true, color: palette.success),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -240,10 +238,9 @@ Future<bool> showProjectEditorDialog(
   BuildContext context, {
   Project? project,
 }) async {
-  final bool? changed = await showDialog<bool>(
-    context: context,
-    builder: (BuildContext dialogContext) =>
-        _ProjectDialog(project: project),
+  final bool? changed = await showAppSheet<bool>(
+    context,
+    builder: (BuildContext dialogContext) => _ProjectDialog(project: project),
   );
   return changed ?? false;
 }
@@ -339,30 +336,25 @@ class _ProjectDialogState extends State<_ProjectDialog> {
   Future<void> _delete() async {
     final Project? project = widget.project;
     if (project == null) return;
-    final AppPalette palette = context.palette;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        backgroundColor: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: palette.border),
-        ),
-        title: Text('删除这个项目？', style: dialogContext.texts.titleLarge),
-        content: Text(
-          '项目采用软删除，历史数据仍保留在本地；关联任务不会被删除。',
-          style: dialogContext.texts.bodyMedium,
-        ),
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
+      builder: (BuildContext sheetContext) => AppSheetContent(
+        title: '删除这个项目？',
+        heightFactor: null,
         actions: <Widget>[
           AppGhostButton(
             label: '取消',
-            onPressed: () => Navigator.of(dialogContext).pop(false),
+            onPressed: () => Navigator.of(sheetContext).pop(false),
           ),
           AppPrimaryButton(
             label: '删除',
-            onPressed: () => Navigator.of(dialogContext).pop(true),
+            onPressed: () => Navigator.of(sheetContext).pop(true),
           ),
         ],
+        child: Text(
+          '项目采用软删除，历史数据仍保留在本地；关联任务不会被删除。',
+          style: sheetContext.texts.bodyMedium,
+        ),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -374,185 +366,17 @@ class _ProjectDialogState extends State<_ProjectDialog> {
   @override
   Widget build(BuildContext context) {
     final AppPalette palette = context.palette;
-    final List<Capability> capabilities =
-        context.watch<CapabilityRepository>().all;
+    final List<Capability> capabilities = context
+        .watch<CapabilityRepository>()
+        .all;
     final bool editing = widget.project != null;
 
-    return AlertDialog(
-      backgroundColor: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: BorderSide(color: palette.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.xl,
-        0,
-      ),
-      title: Text(editing ? '编辑项目' : '新建项目', style: context.texts.titleLarge),
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        0,
-      ),
-      content: SizedBox(
-        width: 620,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.68,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('项目名称', style: context.texts.labelSmall),
-                const SizedBox(height: 4),
-                AppTextField(
-                  key: const ValueKey<String>('project-title'),
-                  controller: _title,
-                  hintText: '例：群智能算法求解 SAT',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('目标（这个项目要证明什么）', style: context.texts.labelSmall),
-                const SizedBox(height: 4),
-                AppTextField(
-                  controller: _goal,
-                  maxLines: 2,
-                  minLines: 1,
-                  hintText: '例：独立实现算法并对比实验效果',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('状态', style: context.texts.labelSmall),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  children: <Widget>[
-                    for (final ProjectStatus status in ProjectStatus.values)
-                      AppChip(
-                        label: status.label,
-                        dense: true,
-                        filled: _status == status,
-                        color: _statusTone(palette, status),
-                        onTap: () => setState(() => _status = status),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('关联能力', style: context.texts.labelSmall),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: <Widget>[
-                    for (final Capability capability in capabilities)
-                      AppChip(
-                        label: capability.title,
-                        dense: true,
-                        filled: _capabilityIds.contains(capability.id),
-                        color: palette.accent,
-                        onTap: () => setState(() {
-                          if (!_capabilityIds.add(capability.id)) {
-                            _capabilityIds.remove(capability.id);
-                          }
-                        }),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('阶段（检查点）', style: context.texts.labelSmall),
-                const SizedBox(height: 4),
-                for (final ProjectStage stage in _stages)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: <Widget>[
-                        AppCheckCircle(
-                          checked: stage.done,
-                          size: 18,
-                          padding: 0,
-                          onTap: () => setState(() {
-                            final int index = _stages.indexOf(stage);
-                            _stages[index] =
-                                stage.copyWith(done: !stage.done);
-                          }),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            stage.title,
-                            style: context.texts.bodyMedium?.copyWith(
-                              decoration: stage.done
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              decorationColor: palette.textTertiary,
-                            ),
-                          ),
-                        ),
-                        AppIconButton(
-                          icon: Icons.close_rounded,
-                          iconSize: 13,
-                          size: 24,
-                          tooltip: '删除阶段',
-                          onPressed: () =>
-                              setState(() => _stages.remove(stage)),
-                        ),
-                      ],
-                    ),
-                  ),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: AppTextField(
-                        key: const ValueKey<String>('project-stage-input'),
-                        controller: _stageInput,
-                        hintText: '添加阶段，例：算法实现',
-                        onSubmitted: (_) => _addStage(),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    AppGhostButton(
-                      label: '添加',
-                      dense: true,
-                      onPressed: _addStage,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('验收标准', style: context.texts.labelSmall),
-                const SizedBox(height: 4),
-                AppTextField(
-                  controller: _acceptance,
-                  maxLines: 3,
-                  minLines: 2,
-                  hintText: '例：能解释核心流程、通过正确性测试、分析复杂度',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text('产物链接（可选）', style: context.texts.labelSmall),
-                const SizedBox(height: 4),
-                AppTextField(
-                  controller: _artifactUrl,
-                  hintText: 'GitHub / 文档 / 演示地址',
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
+    return AppSheetContent(
+      title: editing ? '编辑项目' : '新建项目',
+      heightFactor: 0.72,
       actions: <Widget>[
         if (editing)
-          AppGhostButton(
-            label: '删除',
-            tone: palette.danger,
-            onPressed: _delete,
-          ),
+          AppGhostButton(label: '删除', tone: palette.danger, onPressed: _delete),
         AppGhostButton(
           label: '取消',
           onPressed: () => Navigator.of(context).pop(false),
@@ -562,6 +386,133 @@ class _ProjectDialogState extends State<_ProjectDialog> {
           onPressed: _saving ? null : _save,
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('项目名称', style: context.texts.labelSmall),
+          const SizedBox(height: 4),
+          AppTextField(
+            key: const ValueKey<String>('project-title'),
+            controller: _title,
+            hintText: '例：群智能算法求解 SAT',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('目标（这个项目要证明什么）', style: context.texts.labelSmall),
+          const SizedBox(height: 4),
+          AppTextField(
+            controller: _goal,
+            maxLines: 2,
+            minLines: 1,
+            hintText: '例：独立实现算法并对比实验效果',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('状态', style: context.texts.labelSmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            children: <Widget>[
+              for (final ProjectStatus status in ProjectStatus.values)
+                AppChip(
+                  label: status.label,
+                  dense: true,
+                  filled: _status == status,
+                  color: _statusTone(palette, status),
+                  onTap: () => setState(() => _status = status),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('关联能力', style: context.texts.labelSmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: <Widget>[
+              for (final Capability capability in capabilities)
+                AppChip(
+                  label: capability.title,
+                  dense: true,
+                  filled: _capabilityIds.contains(capability.id),
+                  color: palette.accent,
+                  onTap: () => setState(() {
+                    if (!_capabilityIds.add(capability.id)) {
+                      _capabilityIds.remove(capability.id);
+                    }
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('阶段（检查点）', style: context.texts.labelSmall),
+          const SizedBox(height: 4),
+          for (final ProjectStage stage in _stages)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: <Widget>[
+                  AppCheckCircle(
+                    checked: stage.done,
+                    size: 18,
+                    padding: 0,
+                    onTap: () => setState(() {
+                      final int index = _stages.indexOf(stage);
+                      _stages[index] = stage.copyWith(done: !stage.done);
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      stage.title,
+                      style: context.texts.bodyMedium?.copyWith(
+                        decoration: stage.done
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor: palette.textTertiary,
+                      ),
+                    ),
+                  ),
+                  AppIconButton(
+                    icon: Icons.close_rounded,
+                    iconSize: 13,
+                    size: 24,
+                    tooltip: '删除阶段',
+                    onPressed: () => setState(() => _stages.remove(stage)),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: AppTextField(
+                  key: const ValueKey<String>('project-stage-input'),
+                  controller: _stageInput,
+                  hintText: '添加阶段，例：算法实现',
+                  onSubmitted: (_) => _addStage(),
+                ),
+              ),
+              const SizedBox(width: 6),
+              AppGhostButton(label: '添加', dense: true, onPressed: _addStage),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('验收标准', style: context.texts.labelSmall),
+          const SizedBox(height: 4),
+          AppTextField(
+            controller: _acceptance,
+            maxLines: 3,
+            minLines: 2,
+            hintText: '例：能解释核心流程、通过正确性测试、分析复杂度',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('产物链接（可选）', style: context.texts.labelSmall),
+          const SizedBox(height: 4),
+          AppTextField(
+            controller: _artifactUrl,
+            hintText: 'GitHub / 文档 / 演示地址',
+          ),
+        ],
+      ),
     );
   }
 

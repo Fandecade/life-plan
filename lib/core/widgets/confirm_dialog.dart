@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
-import '../../app/theme/app_theme.dart';
 import 'app_button.dart';
+import 'app_sheet.dart';
 
 /// 通用「撤销已完成」确认：完成动作可逆，但回退会联动进度与统计，
 /// 因此再次点击已完成圆圈时必须显式确认。
@@ -13,22 +13,13 @@ Future<bool> showRollbackConfirm(
   String keepLabel = '保持完成',
   String confirmLabel = '取消完成',
 }) async {
-  final bool? result = await showDialog<bool>(
-    context: context,
+  final bool? result = await showAppSheet<bool>(
+    context,
     builder: (BuildContext dialogContext) {
       final AppPalette palette = dialogContext.palette;
-      return AlertDialog(
-        backgroundColor: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: palette.border),
-        ),
-        title: Text(title, style: dialogContext.texts.titleLarge),
-        content: Text(
-          message,
-          style: dialogContext.texts.bodyMedium
-              ?.copyWith(color: palette.textSecondary),
-        ),
+      return AppSheetContent(
+        title: title,
+        heightFactor: null,
         actions: <Widget>[
           AppGhostButton(
             label: keepLabel,
@@ -39,6 +30,12 @@ Future<bool> showRollbackConfirm(
             onPressed: () => Navigator.of(dialogContext).pop(true),
           ),
         ],
+        child: Text(
+          message,
+          style: dialogContext.texts.bodyMedium?.copyWith(
+            color: palette.textSecondary,
+          ),
+        ),
       );
     },
   );
@@ -55,7 +52,6 @@ Future<bool> confirmCancelCompletion(BuildContext context) {
     confirmLabel: '取消完成',
   );
 }
-
 
 /// 微习惯取消今日打卡。
 Future<bool> confirmCancelHabitCheckIn(BuildContext context) {
