@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/services/schedule_picker.dart';
 import '../../core/state/home_settings.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/text_input_dialog.dart';
 import '../../modules/home/countdown_format.dart';
 
@@ -375,26 +376,19 @@ Future<void> _pickCountdownColor(BuildContext context, Countdown item) async {
     const _CountdownColorOption('雾蓝', '#7191AE', Color(0xFF7191AE)),
     const _CountdownColorOption('薰衣草', '#8E85B8', Color(0xFF8E85B8)),
   ];
-  final String? choice = await showDialog<String>(
-    context: context,
-    builder: (BuildContext dialogContext) {
-      final AppPalette p = dialogContext.palette;
+  final String? choice = await showAppSheet<String>(
+    context,
+    builder: (BuildContext sheetContext) {
+      final AppPalette p = sheetContext.palette;
       final bool autoSelected = item.colorHex == null;
-      return AlertDialog(
-        backgroundColor: p.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: p.border),
-        ),
-        title: Text('倒计时颜色', style: dialogContext.texts.titleLarge),
-        content: Column(
+      return AppSheetContent(
+        title: '倒计时颜色',
+        heightFactor: null,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              '自动：按紧迫度 绿 → 黄 → 橙 → 红',
-              style: dialogContext.texts.labelSmall,
-            ),
+            Text('自动：按紧迫度 绿 → 黄 → 橙 → 红', style: sheetContext.texts.labelSmall),
             const SizedBox(height: 14),
             Wrap(
               spacing: 14,
@@ -403,7 +397,7 @@ Future<void> _pickCountdownColor(BuildContext context, Countdown item) async {
                 for (final _CountdownColorOption option in options)
                   InkWell(
                     onTap: () =>
-                        Navigator.of(dialogContext).pop(option.hex ?? 'auto'),
+                        Navigator.of(sheetContext).pop(option.hex ?? 'auto'),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -446,7 +440,7 @@ Future<void> _pickCountdownColor(BuildContext context, Countdown item) async {
                         const SizedBox(height: 4),
                         Text(
                           option.label,
-                          style: dialogContext.texts.labelSmall,
+                          style: sheetContext.texts.labelSmall,
                         ),
                       ],
                     ),

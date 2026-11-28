@@ -8,6 +8,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/reminder_settings.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/text_input_dialog.dart';
 
 import 'settings_rows.dart';
@@ -21,34 +22,28 @@ class ReminderSettingsPage extends StatelessWidget {
     ReminderSettings settings,
   ) async {
     const int custom = -1;
-    final int? choice = await showDialog<int>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        final AppPalette palette = dialogContext.palette;
+    final int? choice = await showAppSheet<int>(
+      context,
+      builder: (BuildContext sheetContext) {
         final bool customSelected =
             settings.leadMinutes != 0 &&
             !ReminderSettings.leadOptions.contains(settings.leadMinutes);
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('提前多久提醒', style: dialogContext.texts.titleLarge),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
-          content: Column(
+        return AppSheetContent(
+          title: '提前多久提醒',
+          heightFactor: null,
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               for (final int value in ReminderSettings.leadOptions)
                 _ChoiceTile(
                   label: value == 0 ? '到点提醒' : '$value 分钟',
                   selected: settings.leadMinutes == value,
-                  onTap: () => Navigator.of(dialogContext).pop(value),
+                  onTap: () => Navigator.of(sheetContext).pop(value),
                 ),
               _ChoiceTile(
                 label: '自定义…',
                 selected: customSelected,
-                onTap: () => Navigator.of(dialogContext).pop(custom),
+                onTap: () => Navigator.of(sheetContext).pop(custom),
               ),
             ],
           ),

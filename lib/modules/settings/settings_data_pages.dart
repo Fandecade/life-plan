@@ -16,6 +16,7 @@ import '../../core/plugin/module_registry.dart';
 import '../../core/state/ui_controller.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/state_views.dart';
@@ -300,26 +301,13 @@ class LocalDataSection extends StatelessWidget {
       return;
     }
 
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
       builder: (BuildContext dialogContext) {
         final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text(
-            '用「${file!.name}」恢复？',
-            style: dialogContext.texts.titleLarge,
-          ),
-          content: Text(
-            '当前全部业务数据会被覆盖，设置项保持不变。恢复后建议重启应用以刷新所有页面。',
-            style: dialogContext.texts.bodyMedium?.copyWith(
-              color: palette.textSecondary,
-            ),
-          ),
+        return AppSheetContent(
+          title: '用「${file!.name}」恢复？',
+          heightFactor: null,
           actions: <Widget>[
             AppGhostButton(
               label: '取消',
@@ -330,6 +318,12 @@ class LocalDataSection extends StatelessWidget {
               onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
+          child: Text(
+            '当前全部业务数据会被覆盖，设置项保持不变。恢复后建议重启应用以刷新所有页面。',
+            style: dialogContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
         );
       },
     );
@@ -347,23 +341,13 @@ class LocalDataSection extends StatelessWidget {
   }
 
   Future<void> _confirmWipe(BuildContext context) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
+    final bool? confirmed = await showAppSheet<bool>(
+      context,
       builder: (BuildContext dialogContext) {
         final AppPalette palette = dialogContext.palette;
-        return AlertDialog(
-          backgroundColor: palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            side: BorderSide(color: palette.border),
-          ),
-          title: Text('清空全部本地数据？', style: dialogContext.texts.titleLarge),
-          content: Text(
-            '将删除愿景、能力、行动单元、时间块与复盘记录，且无法撤销。',
-            style: dialogContext.texts.bodyMedium?.copyWith(
-              color: palette.textSecondary,
-            ),
-          ),
+        return AppSheetContent(
+          title: '清空全部本地数据？',
+          heightFactor: null,
           actions: <Widget>[
             AppGhostButton(
               label: '取消',
@@ -374,6 +358,12 @@ class LocalDataSection extends StatelessWidget {
               onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
+          child: Text(
+            '将删除愿景、能力、行动单元、时间块与复盘记录，且无法撤销。',
+            style: dialogContext.texts.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
         );
       },
     );
